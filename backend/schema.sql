@@ -42,8 +42,8 @@ CREATE TABLE Imputaciones (
     Horas DECIMAL(4, 2) NOT NULL,
     Notas NVARCHAR(MAX),
     JustificacionExceso NVARCHAR(255) NULL,  ---Campo para justificar si se supera el límite diario calculado
-    EsFestivo BIT DEFAULT 0,      -- Requisito PDF 
-    EsNoFacturable BIT DEFAULT 0, -- Requisito PDF 
+    EsFestivo BIT DEFAULT 0,     
+    EsNoFacturable BIT DEFAULT 0, 
     Estado NVARCHAR(20) DEFAULT 'Borrador'
 );
 
