@@ -142,10 +142,11 @@ const guardarCambios = () => {
 
 <template>
     <div class="h-full flex flex-col font-sans bg-gray-50 p-4 gap-6 relative">
+
         <div class="flex flex-col gap-3">
             <div class="flex justify-between items-center">
                 <div class="flex items-center gap-3">
-                    <h1 class="text-2xl font-bold capitalize" style="color: #232D4B;">
+                    <h1 class="h1-title capitalize">
                         {{ formatoFechaCabecera(lunesActual) }}
                     </h1>
                     <span class="text-sm font-medium text-gray-400 px-2 border-l border-gray-300">
@@ -153,13 +154,13 @@ const guardarCambios = () => {
                         1000).getDate() }}
                     </span>
                 </div>
+
                 <div class="flex items-center bg-white rounded-lg shadow-sm border border-gray-200">
                     <button @click="semanaAnterior" class="p-2 hover:bg-gray-50 text-gray-600 border-r border-gray-200">
                         <ChevronLeft class="w-5 h-5" />
                     </button>
                     <button @click="irAHoy"
-                        class="px-4 py-2 text-sm font-bold uppercase tracking-wide hover:bg-gray-50 flex items-center gap-2 min-w-[100px] justify-center"
-                        style="color: #232D4B;">
+                        class="px-4 py-2 text-sm font-bold uppercase tracking-wide hover:bg-gray-50 flex items-center gap-2 min-w-[100px] justify-center text-dark">
                         <span v-if="textoBotonCentral !== 'HOY'" class="opacity-50">
                             <RotateCcw class="w-3 h-3" />
                         </span> {{ textoBotonCentral }}
@@ -176,10 +177,10 @@ const guardarCambios = () => {
                     class="relative rounded-xl border shadow-sm flex flex-col items-center justify-between p-3 transition-all cursor-pointer group"
                     :class="[
                         esFinDeSemana(fecha) ? 'bg-slate-100 border-slate-200' : 'bg-white border-gray-200 hover:border-blue-300 hover:shadow-md',
-                        esSeleccionado(fecha) ? 'ring-2 ring-offset-2 ring-[#26AA9B] border-[#26AA9B]' : '',
+                        // REFACTORIZADO: ring-primary border-primary
+                        esSeleccionado(fecha) ? 'ring-2 ring-offset-2 ring-primary border-primary' : '',
                         esHoy(fecha) ? 'bg-blue-50/50' : '',
 
-                        // FONDOS PASTEL SUAVES SI ES DÍA ESPECIAL
                         getTipoDia(fecha) === 'festivo' ? 'bg-rose-50 border-rose-100' : '',
                         getTipoDia(fecha) === 'vacaciones' ? 'bg-teal-50 border-teal-100' : '',
                         getTipoDia(fecha) === 'libre_disposicion' ? 'bg-amber-50 border-amber-100' : '',
@@ -190,10 +191,10 @@ const guardarCambios = () => {
                     :style="esFinDeSemana(fecha) ? 'background-image: repeating-linear-gradient(45deg, transparent, transparent 10px, rgba(0,0,0,0.03) 10px, rgba(0,0,0,0.03) 20px);' : ''">
 
                     <span class="text-xs font-bold uppercase tracking-widest"
-                        :class="esHoy(fecha) ? 'text-[#26AA9B]' : 'text-gray-400'">{{ nombresDias[index] }}</span>
+                        :class="esHoy(fecha) ? 'text-primary' : 'text-gray-400'">{{ nombresDias[index] }}</span>
                     <span class="text-2xl font-bold"
-                        :class="esHoy(fecha) ? 'text-[#232D4B]' : (esFinDeSemana(fecha) ? 'text-gray-400' : 'text-gray-700')">{{
-                        fecha.getDate() }}</span>
+                        :class="esHoy(fecha) ? 'text-dark' : (esFinDeSemana(fecha) ? 'text-gray-400' : 'text-gray-700')">{{
+                            fecha.getDate() }}</span>
 
                     <div v-if="getTipoDia(fecha)" class="mt-1">
                         <span class="text-[9px] font-bold uppercase px-1.5 py-0.5 rounded shadow-sm" :class="{
@@ -206,11 +207,11 @@ const guardarCambios = () => {
                         </span>
                     </div>
                     <div v-else-if="totalDia(index) > 0" class="px-2 py-0.5 rounded-full text-xs font-bold"
-                        :class="excedeLimiteDiario(index) ? 'bg-red-100 text-red-700' : 'bg-blue-100 text-[#232D4B]'">{{
-                        totalDia(index) }}h</div>
+                        :class="excedeLimiteDiario(index) ? 'bg-red-100 text-red-700' : 'bg-blue-100 text-dark'">{{
+                            totalDia(index) }}h</div>
                     <div v-else class="h-5"></div>
 
-                    <div v-if="esHoy(fecha)" class="absolute top-2 right-2 w-2 h-2 rounded-full bg-[#26AA9B]"></div>
+                    <div v-if="esHoy(fecha)" class="absolute top-2 right-2 w-2 h-2 rounded-full bg-primary"></div>
                 </div>
             </div>
 
@@ -226,7 +227,7 @@ const guardarCambios = () => {
                 </div>
                 <div class="flex items-center gap-2">
                     <div class="w-3 h-3 rounded-full bg-blue-200 relative">
-                        <div class="absolute top-0.5 right-0.5 w-1.5 h-1.5 rounded-full bg-[#26AA9B]"></div>
+                        <div class="absolute top-0.5 right-0.5 w-1.5 h-1.5 rounded-full bg-primary"></div>
                     </div><span>Hoy</span>
                 </div>
                 <div class="flex items-center gap-2">
@@ -238,10 +239,10 @@ const guardarCambios = () => {
             </div>
         </div>
 
-        <div class="bg-white rounded-xl shadow-lg border border-gray-200 flex-1 flex flex-col overflow-hidden">
+        <div class="card flex-1 flex flex-col overflow-hidden p-0">
             <div class="flex justify-between items-center px-6 py-4 border-b border-gray-200 bg-gray-50/50">
-                <h2 class="font-bold text-sm uppercase tracking-wider text-[#232D4B] flex items-center gap-2">
-                    <Info class="w-4 h-4 text-[#26AA9B]" /> Detalle de Imputaciones
+                <h2 class="font-bold text-sm uppercase tracking-wider text-dark flex items-center gap-2">
+                    <Info class="w-4 h-4 text-primary" /> Detalle de Imputaciones
                 </h2>
                 <div class="flex gap-3">
                     <button @click="borrarLineas"
@@ -249,8 +250,7 @@ const guardarCambios = () => {
                         <Trash2 class="w-3 h-3" /> Borrar
                     </button>
                     <button @click="abrirModal"
-                        class="flex items-center gap-2 px-4 py-1.5 text-xs font-bold text-white rounded shadow-md transition hover:shadow-lg uppercase tracking-wide"
-                        style="background-color: #26AA9B;">
+                        class="flex items-center gap-2 px-4 py-1.5 text-xs font-bold text-white rounded shadow-md transition hover:shadow-lg uppercase tracking-wide bg-primary">
                         <Plus class="w-4 h-4" /> Añadir Línea
                     </button>
                 </div>
@@ -259,8 +259,7 @@ const guardarCambios = () => {
             <div class="overflow-x-auto flex-1">
                 <table class="w-full text-left border-collapse">
                     <thead>
-                        <tr class="bg-white text-xs uppercase tracking-wider border-b-2 border-gray-100"
-                            style="color: #232D4B;">
+                        <tr class="bg-white text-xs uppercase tracking-wider border-b-2 border-gray-100 text-dark">
                             <th class="p-3 w-8 text-center"></th>
                             <th class="p-3 font-bold w-1/4">Cliente</th>
                             <th class="p-3 font-bold w-1/3">Proyecto</th>
@@ -277,7 +276,7 @@ const guardarCambios = () => {
                     <tbody class="text-sm text-gray-700 divide-y divide-gray-50">
                         <tr v-for="fila in filas" :key="fila.id" class="hover:bg-blue-50/20 transition group">
                             <td class="p-3 text-center"><input type="checkbox" v-model="fila.seleccionado"
-                                    class="rounded border-gray-300 text-[#26AA9B] focus:ring-[#26AA9B]"></td>
+                                    class="rounded border-gray-300 text-primary focus:ring-primary"></td>
                             <td class="p-2">
                                 <div
                                     class="flex items-center gap-2 border border-transparent hover:border-gray-200 rounded px-2 py-1 bg-transparent hover:bg-white transition">
@@ -291,7 +290,6 @@ const guardarCambios = () => {
 
                             <td v-for="(hora, index) in fila.horas" :key="index" class="p-1 text-center" :class="[
                                 esFinDeSemana(diasSemana[index]) ? 'bg-slate-50' : '',
-                                // AQUI: Aplica el fondo pastel a la celda entera si es especial
                                 getTipoDia(diasSemana[index]) === 'festivo' ? 'bg-rose-50' : '',
                                 getTipoDia(diasSemana[index]) === 'vacaciones' ? 'bg-teal-50' : '',
                                 getTipoDia(diasSemana[index]) === 'libre_disposicion' ? 'bg-amber-50' : '',
@@ -302,41 +300,38 @@ const guardarCambios = () => {
                                     :disabled="!esEditable(diasSemana[index])"
                                     class="w-full text-center p-0 py-1 rounded border transition font-medium bg-transparent text-sm disabled:cursor-not-allowed appearance-none"
                                     :class="{
-                                        'text-[#26AA9B] font-bold border-transparent hover:border-gray-300 focus:border-[#26AA9B] focus:ring-1 focus:ring-[#26AA9B]': esEditable(diasSemana[index]) && fila.horas[index] > 0,
+                                        'text-primary font-bold border-transparent hover:border-gray-300 focus:border-primary focus:ring-1 focus:ring-primary': esEditable(diasSemana[index]) && fila.horas[index] > 0,
                                         'text-gray-300 border-transparent hover:border-gray-300': esEditable(diasSemana[index]) && fila.horas[index] == 0,
-
-                                        // BLOQUEO PASADO (Gris)
                                         'bg-gray-100 text-gray-400': esPasadoNormal(diasSemana[index]),
-
-                                        // BLOQUEO POR TIPO (Colores Pastel)
                                         'bg-rose-50 text-rose-400 placeholder-rose-300': getTipoDia(diasSemana[index]) === 'festivo',
                                         'bg-teal-50 text-teal-400 placeholder-teal-300': getTipoDia(diasSemana[index]) === 'vacaciones',
                                         'bg-amber-50 text-amber-400 placeholder-amber-300': getTipoDia(diasSemana[index]) === 'libre_disposicion',
                                         'bg-violet-50 text-violet-400 placeholder-violet-300': getTipoDia(diasSemana[index]) === 'asuntos_propios',
                                     }" :placeholder="getTipoDia(diasSemana[index]) ? '—' : ''">
                             </td>
-                            <td class="p-3 text-center font-bold text-[#232D4B] bg-gray-50 text-sm">{{ totalFila(fila)
-                                }}</td>
+                            <td class="p-3 text-center font-bold text-dark bg-gray-50 text-sm">{{ totalFila(fila) }}
+                            </td>
                         </tr>
                     </tbody>
-                    <tfoot class="bg-gray-50 border-t border-gray-200 text-xs font-bold" style="color: #232D4B;">
+                    <tfoot class="bg-gray-50 border-t border-gray-200 text-xs font-bold text-dark">
                         <tr>
                             <td colspan="3" class="p-3 text-right uppercase">Total Diario:</td>
                             <td v-for="(dia, index) in diasSemana" :key="index" class="p-2 text-center"
                                 :class="excedeLimiteDiario(index) ? 'bg-red-100' : ''"><span
-                                    :class="[excedeLimiteDiario(index) ? 'text-red-600 font-extrabold' : (totalDia(index) > 0 ? 'text-[#26AA9B]' : 'text-gray-400')]">{{
-                                    totalDia(index) }}</span></td>
+                                    :class="[excedeLimiteDiario(index) ? 'text-red-600 font-extrabold' : (totalDia(index) > 0 ? 'text-primary' : 'text-gray-400')]">{{
+                                        totalDia(index) }}</span></td>
                             <td class="p-3 text-center border-l border-blue-100 text-sm transition-colors"
                                 :class="excedeLimiteSemanal ? 'bg-red-600 text-white' : 'bg-blue-50 text-blue-900'">{{
-                                totalSemanal }} / {{ MAX_HORAS_SEMANALES }}</td>
+                                    totalSemanal }} / {{ MAX_HORAS_SEMANALES }}</td>
                         </tr>
                     </tfoot>
                 </table>
             </div>
+
             <div class="p-3 bg-gray-50 border-t border-gray-200 flex justify-end">
                 <button @click="guardarCambios" :disabled="excedeLimiteSemanal"
                     class="flex items-center gap-2 px-6 py-2 text-white font-bold rounded shadow-md transition text-xs uppercase tracking-wider disabled:opacity-50 disabled:cursor-not-allowed"
-                    :class="excedeLimiteSemanal ? 'bg-gray-400' : 'bg-[#232D4B] hover:shadow-lg'">
+                    :class="excedeLimiteSemanal ? 'bg-gray-400' : 'bg-dark hover:shadow-lg'">
                     <Save class="w-4 h-4" /> Guardar Imputaciones
                 </button>
             </div>
@@ -347,24 +342,28 @@ const guardarCambios = () => {
             <div
                 class="bg-white rounded-xl shadow-2xl w-full max-w-md overflow-hidden animate-in fade-in zoom-in duration-200">
                 <div class="bg-slate-50 border-b border-gray-100 px-6 py-4 flex justify-between items-center">
-                    <h3 class="text-lg font-bold text-[#232D4B]">Nueva Imputación</h3><button @click="cerrarModal"
-                        class="text-gray-400 hover:text-red-500 transition">
+                    <h3 class="text-lg font-bold text-dark">Nueva Imputación</h3>
+                    <button @click="cerrarModal" class="text-gray-400 hover:text-red-500 transition">
                         <X class="w-5 h-5" />
                     </button>
                 </div>
                 <div class="p-6 space-y-4">
-                    <div><label class="block text-xs font-bold uppercase text-gray-500 mb-1.5">Cliente</label>
-                        <div class="relative"><select v-model="nuevoRegistro.cliente"
-                                class="w-full border border-gray-200 rounded-lg p-2.5 text-sm text-gray-700 focus:ring-2 focus:ring-[#26AA9B] focus:border-[#26AA9B] outline-none appearance-none bg-white">
+                    <div>
+                        <label class="label-std">Cliente</label>
+                        <div class="relative">
+                            <select v-model="nuevoRegistro.cliente"
+                                class="w-full border border-gray-200 rounded-lg p-2.5 text-sm text-gray-700 focus:ring-2 focus:ring-primary focus:border-primary outline-none appearance-none bg-white">
                                 <option value="" disabled selected>Selecciona un cliente...</option>
                                 <option v-for="c in clientesDisponibles" :key="c" :value="c">{{ c }}</option>
                             </select>
                             <div class="absolute right-3 top-3 pointer-events-none text-gray-400">▼</div>
                         </div>
                     </div>
-                    <div><label class="block text-xs font-bold uppercase text-gray-500 mb-1.5">Proyecto / Tarea</label>
-                        <div class="relative"><select v-model="nuevoRegistro.proyecto"
-                                class="w-full border border-gray-200 rounded-lg p-2.5 text-sm text-gray-700 focus:ring-2 focus:ring-[#26AA9B] focus:border-[#26AA9B] outline-none appearance-none bg-white">
+                    <div>
+                        <label class="label-std">Proyecto / Tarea</label>
+                        <div class="relative">
+                            <select v-model="nuevoRegistro.proyecto"
+                                class="w-full border border-gray-200 rounded-lg p-2.5 text-sm text-gray-700 focus:ring-2 focus:ring-primary focus:border-primary outline-none appearance-none bg-white">
                                 <option value="" disabled selected>Selecciona un proyecto...</option>
                                 <option v-for="p in proyectosDisponibles" :key="p" :value="p">{{ p }}</option>
                             </select>
@@ -372,12 +371,13 @@ const guardarCambios = () => {
                         </div>
                     </div>
                 </div>
-                <div class="px-6 py-4 bg-gray-50 flex justify-end gap-3 border-t border-gray-100"><button
-                        @click="cerrarModal"
-                        class="px-4 py-2 text-sm font-bold text-gray-500 hover:text-gray-700 transition">Cancelar</button><button
-                        @click="confirmarAnadirLinea"
-                        class="px-6 py-2 text-sm font-bold text-white rounded-lg shadow transition transform active:scale-95"
-                        style="background-color: #26AA9B;">Añadir a la Tabla</button></div>
+                <div class="px-6 py-4 bg-gray-50 flex justify-end gap-3 border-t border-gray-100">
+                    <button @click="cerrarModal"
+                        class="px-4 py-2 text-sm font-bold text-gray-500 hover:text-gray-700 transition">Cancelar</button>
+                    <button @click="confirmarAnadirLinea"
+                        class="px-6 py-2 text-sm font-bold text-white rounded-lg shadow transition transform active:scale-95 bg-primary">Añadir
+                        a la Tabla</button>
+                </div>
             </div>
         </div>
     </div>

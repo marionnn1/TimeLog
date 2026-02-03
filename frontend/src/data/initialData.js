@@ -35,5 +35,12 @@ export const initialData = {
         mensaje: '⚠️ Mantenimiento programado: El viernes a las 18:00 la app estará inactiva 1 hora por actualización de servidores.',
         tipo: 'warning'
     },
+    imputaciones: [
+        // Datos de ejemplo para Mario León (ID 99) esta semana
+        { id: 1, usuarioId: 99, proyectoId: 1, fecha: '2026-02-02', horas: 8, comentario: 'Análisis inicial' }, // Lunes
+        { id: 2, usuarioId: 99, proyectoId: 2, fecha: '2026-02-02', horas: 0, comentario: '' },
+        { id: 3, usuarioId: 99, proyectoId: 1, fecha: '2026-02-03', horas: 4, comentario: 'Reunión cliente' }, // Martes
+        { id: 4, usuarioId: 99, proyectoId: 2, fecha: '2026-02-03', horas: 4, comentario: 'Despliegue entorno dev' },
+    ],
     sedes: ['Madrid', 'Barcelona', 'Tarragona', 'Sevilla', 'Bilbao', 'Remoto']
 }
