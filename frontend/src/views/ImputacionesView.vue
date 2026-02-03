@@ -111,19 +111,27 @@ const irAlDashboard = (dia) => {
     
     <div class="flex justify-between items-center mb-6">
       <div class="flex items-center gap-4">
-        <h1 class="text-3xl font-bold capitalize flex items-center gap-3" style="color: #232D4B;">
+        <h1 class="text-3xl font-bold capitalize flex items-center gap-3 text-dark">
           <div class="p-2 rounded-lg bg-white shadow-sm border border-gray-100">
-            <CalendarIcon class="w-6 h-6 text-[#26AA9B]"/>
+            <CalendarIcon class="w-6 h-6 text-primary"/>
           </div>
           {{ nombreMes }} <span class="font-light opacity-50">{{ anioActual }}</span>
         </h1>
+        
         <div class="flex items-center bg-white rounded-lg shadow-sm border border-gray-200 ml-6">
-          <button @click="mesAnterior" class="p-2 hover:bg-gray-50 text-gray-600 rounded-l-lg border-r border-gray-200 transition"><ChevronLeft class="w-5 h-5" /></button>
-          <button @click="irAHoy" class="px-4 py-2 text-xs font-bold tracking-widest hover:bg-gray-50 transition uppercase" style="color: #232D4B;">Hoy</button>
-          <button @click="mesSiguiente" class="p-2 hover:bg-gray-50 text-gray-600 rounded-r-lg border-l border-gray-200 transition"><ChevronRight class="w-5 h-5" /></button>
+          <button @click="mesAnterior" class="p-2 hover:bg-gray-50 text-gray-600 rounded-l-lg border-r border-gray-200 transition">
+              <ChevronLeft class="w-5 h-5" />
+          </button>
+          <button @click="irAHoy" class="px-4 py-2 text-xs font-bold tracking-widest hover:bg-gray-50 transition uppercase text-dark">
+              Hoy
+          </button>
+          <button @click="mesSiguiente" class="p-2 hover:bg-gray-50 text-gray-600 rounded-r-lg border-l border-gray-200 transition">
+              <ChevronRight class="w-5 h-5" />
+          </button>
         </div>
       </div>
-      <button class="bg-white border border-gray-300 text-gray-700 px-4 py-2 rounded-lg shadow-sm hover:bg-gray-50 text-sm font-bold flex items-center gap-2">
+      
+      <button class="btn-secondary">
         <FileText class="w-4 h-4"/> Exportar
       </button>
     </div>
@@ -147,10 +155,11 @@ const irAlDashboard = (dia) => {
         </div>
     </div>
 
-    <div class="bg-white rounded-xl shadow-xl border border-gray-200 flex-none overflow-hidden mb-8">
+    <div class="card p-0 overflow-hidden mb-8 flex-none shadow-xl">
+      
       <div class="grid grid-cols-7 border-b border-gray-200">
-        <div v-for="dia in diasSemana.slice(0, 5)" :key="dia" class="py-4 text-center text-xs font-bold uppercase tracking-widest bg-white" style="color: #232D4B;">{{ dia }}</div>
-        <div v-for="dia in diasSemana.slice(5, 7)" :key="dia" class="py-4 text-center text-xs font-bold uppercase tracking-widest text-white/90" style="background-color: #232D4B;">{{ dia }}</div>
+        <div v-for="dia in diasSemana.slice(0, 5)" :key="dia" class="py-4 text-center text-xs font-bold uppercase tracking-widest bg-white text-dark">{{ dia }}</div>
+        <div v-for="dia in diasSemana.slice(5, 7)" :key="dia" class="py-4 text-center text-xs font-bold uppercase tracking-widest text-white/90 bg-dark">{{ dia }}</div>
       </div>
 
       <div class="grid grid-cols-7 auto-rows-fr">
@@ -169,11 +178,11 @@ const irAlDashboard = (dia) => {
         >
           <div class="flex justify-between items-start mb-2">
             <span class="text-sm font-bold w-7 h-7 flex items-center justify-center rounded-full transition-all"
-                  :style="esHoy(dia) ? 'background-color: #26AA9B; color: white;' : (esFinDeSemana(dia) ? 'color: #cbd5e1;' : 'color: #232D4B;')">
+                  :class="esHoy(dia) ? 'bg-primary text-white' : (esFinDeSemana(dia) ? 'text-slate-400' : 'text-dark')">
               {{ dia }}
             </span>
             <span v-if="getTotalHoras(dia) > 0" class="text-[10px] font-bold px-2 py-0.5 rounded border"
-                  :class="esFinDeSemana(dia) ? 'bg-slate-200 text-slate-400 border-transparent' : 'bg-blue-50 text-[#232D4B] border-blue-100'">
+                  :class="esFinDeSemana(dia) ? 'bg-slate-200 text-slate-400 border-transparent' : 'bg-blue-50 text-dark border-blue-100'">
               {{ getTotalHoras(dia) }}h
             </span>
           </div>
@@ -203,16 +212,16 @@ const irAlDashboard = (dia) => {
       </div>
     </div>
 
-    <div class="bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden">
+    <div class="card p-0 overflow-hidden shadow-lg">
         
         <div class="px-6 py-4 border-b border-gray-200 bg-gray-50/50 flex justify-between items-center">
-            <h2 class="font-bold text-lg text-[#232D4B] flex items-center gap-2">
-                <FileText class="w-5 h-5 text-[#26AA9B]" />
+            <h2 class="font-bold text-lg text-dark flex items-center gap-2">
+                <FileText class="w-5 h-5 text-primary" />
                 Resumen de Proyectos
             </h2>
             <div class="flex items-center gap-2">
                 <span class="text-sm font-bold text-gray-500 uppercase tracking-wide">Total Mes:</span>
-                <span class="text-lg font-bold text-[#232D4B] bg-blue-50 px-3 py-1 rounded-lg border border-blue-100">
+                <span class="text-lg font-bold text-dark bg-blue-50 px-3 py-1 rounded-lg border border-blue-100">
                     {{ totalHorasMes }}h
                 </span>
             </div>
@@ -221,7 +230,7 @@ const irAlDashboard = (dia) => {
         <div class="overflow-x-auto">
             <table class="w-full text-left border-collapse">
                 <thead>
-                    <tr class="bg-white text-xs uppercase tracking-wider border-b-2 border-gray-100" style="color: #232D4B;">
+                    <tr class="bg-white text-xs uppercase tracking-wider border-b-2 border-gray-100 text-dark">
                         <th class="px-6 py-3 font-bold">Cliente</th>
                         <th class="px-6 py-3 font-bold">Cód. Proyecto</th>
                         <th class="px-6 py-3 font-bold">Proyecto / Tarea</th>
@@ -232,7 +241,7 @@ const irAlDashboard = (dia) => {
                     <tr v-for="(item, index) in resumenProyectos" :key="index" class="hover:bg-blue-50/10 transition">
                         
                         <td class="px-6 py-3">
-                            <div class="flex items-center gap-2 font-medium text-[#232D4B]">
+                            <div class="flex items-center gap-2 font-medium text-dark">
                                 <Briefcase class="w-3.5 h-3.5 text-gray-400"/>
                                 <span>{{ item.cliente }}</span>
                             </div>
@@ -249,7 +258,7 @@ const irAlDashboard = (dia) => {
                         </td>
 
                         <td class="px-6 py-3 text-center">
-                            <span class="inline-flex items-center gap-1 font-bold text-[#232D4B] bg-blue-50 px-3 py-1 rounded-full border border-blue-100 min-w-[3rem] justify-center">
+                            <span class="inline-flex items-center gap-1 font-bold text-dark bg-blue-50 px-3 py-1 rounded-full border border-blue-100 min-w-[3rem] justify-center">
                                 {{ item.horas }}h
                             </span>
                         </td>

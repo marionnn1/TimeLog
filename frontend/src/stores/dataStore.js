@@ -3,7 +3,9 @@ import { initialData } from '../data/initialData'
 
 // Creamos un estado reactivo global (Single Source of Truth)
 const state = reactive({
-    ...initialData
+    ...initialData,
+    // Aseguramos que el array exista aunque initialData no lo traiga
+    imputaciones: initialData.imputaciones || [] 
 })
 
 // Exportamos métodos para interactuar con los datos (como si fuera una API)
@@ -13,7 +15,6 @@ export const useDataStore = () => {
     const getUsers = () => state.usuarios
 
     const addUser = (user) => {
-        // Simulamos generar ID
         const newUser = { ...user, id: Date.now() }
         state.usuarios.push(newUser)
         addLog('Admin', 'CREATE_USER', `Creó al usuario ${user.nombre}`, 'info')
@@ -48,8 +49,8 @@ export const useDataStore = () => {
         addLog('Admin', 'DELETE_PROJECT', `Eliminó un proyecto ID: ${id}`, 'warning')
     }
 
-    // --- TICKETS (INCIDENCIAS) --- [NUEVO]
-    const getTickets = () => state.tickets || [] // Array vacío por seguridad si no hay tickets
+    // --- TICKETS (INCIDENCIAS) ---
+    const getTickets = () => state.tickets || []
 
     const resolveTicket = (id) => {
         const ticket = state.tickets.find(t => t.id === id)
@@ -76,7 +77,6 @@ export const useDataStore = () => {
             detalle,
             gravedad
         }
-        // Añadimos al principio del array
         state.logs.unshift(nuevoLog)
     }
 
@@ -91,7 +91,7 @@ export const useDataStore = () => {
     // --- USUARIO ACTUAL ---
     const getCurrentUser = () => state.currentUser
 
-    // --- ESTADÍSTICAS (DASHBOARD) --- [NUEVO]
+    // --- ESTADÍSTICAS (DASHBOARD ADMIN) ---
     const getStats = () => {
         return {
             totalUsuarios: state.usuarios.length,
@@ -103,8 +103,30 @@ export const useDataStore = () => {
         }
     }
 
+    // --- IMPUTACIONES (DASHBOARD SEMANAL Y USUARIO) --- [NUEVO]
+    const getImputacionesUsuario = (usuarioId) => {
+        return state.imputaciones.filter(i => i.usuarioId === usuarioId)
+    }
+
+    const addImputacion = (imputacion) => {
+        // Buscamos si ya existe un registro para ese usuario, proyecto y fecha
+        const index = state.imputaciones.findIndex(i => 
+            i.usuarioId === imputacion.usuarioId && 
+            i.proyectoId === imputacion.proyectoId && 
+            i.fecha === imputacion.fecha
+        )
+
+        if (index !== -1) {
+            // Si existe, actualizamos las horas
+            state.imputaciones[index] = { ...state.imputaciones[index], horas: imputacion.horas }
+        } else {
+            // Si no existe, creamos uno nuevo
+            state.imputaciones.push({ ...imputacion, id: Date.now() })
+        }
+    }
+
     return {
-        state, // Acceso directo (opcional)
+        state,
         // Usuarios
         getUsers, addUser, updateUser, deleteUser,
         // Proyectos
@@ -118,6 +140,8 @@ export const useDataStore = () => {
         // Usuario
         getCurrentUser,
         // Stats
-        getStats
+        getStats,
+        // Imputaciones [NUEVO]
+        getImputacionesUsuario, addImputacion
     }
 }

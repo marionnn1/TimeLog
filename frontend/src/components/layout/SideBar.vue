@@ -10,7 +10,6 @@ import {
 } from 'lucide-vue-next'
 
 // --- CONFIGURACIÓN DE ROL ---
-// Cambia esto a 'admin', 'jp' o 'user' para probar los menús
 const rolActual = 'admin' 
 
 const usuario = {
@@ -22,18 +21,20 @@ const usuario = {
 const esAdmin = computed(() => rolActual === 'admin')
 const esJefe = computed(() => rolActual === 'jp' || rolActual === 'admin') 
 
-// Estilos reutilizables (para evitar problemas con @apply)
-const claseLink = "flex items-center gap-3 px-3 py-2.5 rounded-lg text-slate-300 hover:text-white hover:bg-slate-800 transition group cursor-pointer"
-const claseIcono = "w-5 h-5 text-slate-400 group-hover:text-[#26AA9B] transition"
+// --- CLASES CSS OPTIMIZADAS ---
+// TRUCO: Añadimos 'border-l-4 border-transparent' siempre. 
+// Así el borde ya ocupa espacio aunque no se vea, y al activarlo solo cambiamos el color.
+const claseLink = "flex items-center gap-3 px-3 py-2.5 rounded-r-lg text-slate-300 hover:text-white hover:bg-slate-800 transition group cursor-pointer border-l-4 border-transparent whitespace-nowrap"
+const claseIcono = "w-5 h-5 text-slate-400 group-hover:text-primary transition shrink-0"
 </script>
 
 <template>
-  <aside class="w-64 bg-slate-900 text-white min-h-screen flex flex-col border-r border-slate-800 font-sans">
+  <aside class="w-64 min-w-[16rem] shrink-0 bg-slate-900 text-white min-h-screen flex flex-col border-r border-slate-800 font-sans transition-all duration-300">
     
-    <div class="h-16 flex items-center justify-center border-b border-slate-800 bg-slate-950 shadow-sm">
+    <div class="h-16 flex items-center justify-center border-b border-slate-800 bg-slate-950 shadow-sm shrink-0">
       <div class="flex items-center gap-3">
         <div class="flex items-center gap-2">
-          <ShieldCheck class="w-5 h-5 text-[#26AA9B]" />
+          <ShieldCheck class="w-5 h-5 text-primary" />
           <h1 class="text-lg font-bold tracking-wide text-white">TimeLog</h1>
         </div>
         <div class="h-4 w-px bg-slate-700"></div>
@@ -41,82 +42,83 @@ const claseIcono = "w-5 h-5 text-slate-400 group-hover:text-[#26AA9B] transition
       </div>
     </div>
 
-    <nav class="flex-1 px-3 py-6 space-y-1 overflow-y-auto">
+    <nav class="flex-1 px-3 py-6 space-y-1 overflow-y-auto overflow-x-hidden scrollbar-thin scrollbar-thumb-slate-700">
       
-      <div class="px-3 mb-2 text-xs font-bold text-slate-500 uppercase tracking-widest">Personal</div>
+      <div class="px-3 mb-2 text-xs font-bold text-slate-500 uppercase tracking-widest truncate">Personal</div>
       
       <router-link to="/" :class="claseLink">
         <LayoutDashboard :class="claseIcono" />
-        <span class="text-sm font-medium">Dashboard Semanal</span>
+        <span class="text-sm font-medium truncate">Dashboard Semanal</span>
       </router-link>
       
       <router-link to="/imputaciones" :class="claseLink">
         <Clock :class="claseIcono" />
-        <span class="text-sm font-medium">Mis Imputaciones</span>
+        <span class="text-sm font-medium truncate">Mis Imputaciones</span>
       </router-link>
 
       <template v-if="esJefe">
-        <div class="px-3 mt-8 mb-2 text-xs font-bold text-slate-500 uppercase tracking-widest">Gestión Equipo</div>
+        <div class="px-3 mt-8 mb-2 text-xs font-bold text-slate-500 uppercase tracking-widest truncate">Gestión Equipo</div>
         
         <router-link to="/validaciones" :class="claseLink">
           <CheckCircle :class="claseIcono" />
-          <span class="text-sm font-medium">Validar Horas</span>
+          <span class="text-sm font-medium truncate">Validar Horas</span>
         </router-link>
 
         <router-link to="/projects" :class="claseLink">
           <FolderKanban :class="claseIcono" />
-          <span class="text-sm font-medium">Ver Proyectos</span>
+          <span class="text-sm font-medium truncate">Ver Proyectos</span>
         </router-link>
 
         <router-link to="/reports" :class="claseLink">
           <FileBarChart :class="claseIcono" />
-          <span class="text-sm font-medium">Reportes</span>
+          <span class="text-sm font-medium truncate">Reportes</span>
         </router-link>
       </template>
 
       <template v-if="esAdmin">
-        <div class="px-3 mt-8 mb-2 text-xs font-bold text-slate-500 uppercase tracking-widest">Administración</div>
+        <div class="px-3 mt-8 mb-2 text-xs font-bold text-slate-500 uppercase tracking-widest truncate">Administración</div>
 
         <router-link to="/admin/dashboard" :class="claseLink">
           <Activity :class="claseIcono" />
-          <span class="text-sm font-medium">Centro de Control</span>
+          <span class="text-sm font-medium truncate">Centro de Control</span>
         </router-link>
 
         <router-link to="/admin/tickets" :class="claseLink">
           <Ticket :class="claseIcono" />
-          <span class="text-sm font-medium">Incidencias</span>
+          <span class="text-sm font-medium truncate">Incidencias</span>
         </router-link>
 
-        <div class="h-px bg-slate-800 my-2 mx-3"></div> <router-link to="/admin/users" :class="claseLink">
+        <div class="h-px bg-slate-800 my-2 mx-3"></div> 
+        
+        <router-link to="/admin/users" :class="claseLink">
           <Users :class="claseIcono" />
-          <span class="text-sm font-medium">Usuarios</span>
+          <span class="text-sm font-medium truncate">Usuarios</span>
         </router-link>
         
         <router-link to="/admin/projects-manager" :class="claseLink">
           <Briefcase :class="claseIcono" />
-          <span class="text-sm font-medium">Gestión Proyectos</span>
+          <span class="text-sm font-medium truncate">Gestión Proyectos</span>
         </router-link>
 
         <router-link to="/admin/announcements" :class="claseLink">
           <Megaphone :class="claseIcono" />
-          <span class="text-sm font-medium">Anuncios</span>
+          <span class="text-sm font-medium truncate">Anuncios</span>
         </router-link>
 
         <router-link to="/admin/audit" :class="claseLink">
           <History :class="claseIcono" />
-          <span class="text-sm font-medium">Historial / Logs</span>
+          <span class="text-sm font-medium truncate">Historial / Logs</span>
         </router-link>
       </template>
 
     </nav>
 
-    <div class="p-4 border-t border-slate-800 bg-slate-950">
+    <div class="p-4 border-t border-slate-800 bg-slate-950 shrink-0">
       <div class="flex items-center gap-3 mb-4 pl-1">
-        <div class="w-9 h-9 rounded-full flex items-center justify-center font-bold text-sm text-white shadow-lg relative"
-             style="background-color: #26AA9B;">
+        <div class="w-9 h-9 rounded-full flex items-center justify-center font-bold text-sm text-white shadow-lg relative bg-primary shrink-0">
           {{ usuario.iniciales }}
-          <div v-if="esAdmin" class="absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full border-2 border-slate-900" title="Admin"></div>
-          <div v-else-if="esJefe" class="absolute -top-1 -right-1 w-3 h-3 bg-amber-500 rounded-full border-2 border-slate-900" title="JP"></div>
+          <div v-if="esAdmin" class="absolute -top-1 -right-1 w-3 h-3 bg-status-danger rounded-full border-2 border-slate-900" title="Admin"></div>
+          <div v-else-if="esJefe" class="absolute -top-1 -right-1 w-3 h-3 bg-status-warning rounded-full border-2 border-slate-900" title="JP"></div>
         </div>
         <div class="overflow-hidden">
           <p class="text-sm font-bold text-white truncate">{{ usuario.nombre }}</p>
@@ -133,14 +135,12 @@ const claseIcono = "w-5 h-5 text-slate-400 group-hover:text-[#26AA9B] transition
 </template>
 
 <style scoped>
-/* Estilos para el enlace activo */
+/* Solo cambiamos el color del borde y fondo, NO el ancho */
 .router-link-active {
-  background-color: rgb(30 41 59); /* slate-800 */
-  color: white;
-  border-left: 3px solid #26AA9B; 
+  @apply bg-slate-800 text-white border-primary;
 }
-/* Forzamos el color del icono activo */
+
 .router-link-active svg {
-  color: #26AA9B !important; 
+  @apply text-primary;
 }
 </style>
