@@ -16,7 +16,7 @@ const usuariosFake = [
     { id: 6, nombre: 'Mario L.', iniciales: 'ML', color: 'bg-indigo-100 text-indigo-700' },
 ]
 
-// Función que "inventa" asignaciones
+// Función que "inventa" asignaciones según el ID del proyecto para que veas variedad
 const getUsuariosProyecto = (proyectoId) => {
     if (proyectoId % 2 === 0) return usuariosFake // Devuelve los 6 (para probar el scroll)
     else if (proyectoId % 3 === 0) return [usuariosFake[0], usuariosFake[3]] // Solo 2
@@ -58,13 +58,23 @@ const eliminarProyecto = (id) => {
             
             <div class="flex-shrink-0">
                 <div class="flex justify-between items-start mb-3">
+                    
                     <div class="bg-gray-100 p-2 rounded-lg text-slate-500 group-hover:bg-primary/10 group-hover:text-primary transition">
                         <Briefcase class="w-5 h-5"/>
                     </div>
-                    <span class="badge" 
-                          :class="proy.estado === 'Activo' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-gray-100 text-gray-500 border-gray-200'">
-                        {{ proy.estado }}
-                    </span>
+                    
+                    <div class="flex items-center gap-2">
+                        <span class="badge" 
+                              :class="proy.estado === 'Activo' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-gray-100 text-gray-500 border-gray-200'">
+                            {{ proy.estado }}
+                        </span>
+                        
+                        <button @click.stop="eliminarProyecto(proy.id)" 
+                                class="text-gray-300 hover:text-red-500 transition opacity-0 group-hover:opacity-100 p-1 rounded hover:bg-red-50" 
+                                title="Eliminar proyecto">
+                            <Trash2 class="w-4 h-4" />
+                        </button>
+                    </div>
                 </div>
                 
                 <h3 class="font-bold text-lg text-dark mb-1 leading-tight">{{ proy.nombre }}</h3>
@@ -100,10 +110,6 @@ const eliminarProyecto = (id) => {
                     </div>
                 </div>
             </div>
-
-            <button @click="eliminarProyecto(proy.id)" class="absolute top-3 right-12 text-gray-300 hover:text-red-500 transition opacity-0 group-hover:opacity-100 p-1" title="Eliminar proyecto">
-                <Trash2 class="w-4 h-4" />
-            </button>
         </div>
     </div>
 
