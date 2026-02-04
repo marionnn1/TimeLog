@@ -3,6 +3,7 @@ import { createRouter, createWebHistory } from 'vue-router'
 // 1. Importamos las vistas
 import DashboardView from '../views/DashboardView.vue'
 import ProjectsView from '../views/ProjectsView.vue'
+
 import ImputacionesView from '../views/ImputacionesView.vue' // <--- NUEVO IMPORT
 import AdminUsersView from '../views/admin/AdminUsersView.vue'
 import AdminProjectsView from '@/views/admin/AdminProjectsView.vue'
@@ -10,6 +11,13 @@ import AdminAnnouncementsView from '../views/admin/AdminAnnouncementsView.vue'
 import AdminAuditView from '../views/admin/AdminAuditView.vue'
 import AdminDashboardView from '../views/admin/AdminDashboardView.vue'
 import AdminTicketsView from '../views/admin/AdminTicketsView.vue'
+
+
+import ManagerValidationView from '../views/manager/ManagerValidationView.vue' // Validación
+import ManagerClosingView from '../views/manager/ManagerClosingView.vue'
+import ManagerAnalyticsView from '../views/manager/ManagerAnalyticsView.vue'
+
+
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -33,6 +41,9 @@ const router = createRouter({
       name: 'projects',
       component: ProjectsView
     },
+
+    // Rutas para Admin
+
     {
       path: '/admin/users',
       name: 'admin-users',
@@ -72,7 +83,32 @@ const router = createRouter({
       name: 'admin-tickets',
       component: AdminTicketsView,
       meta: { requiresAuth: true, role: 'admin' }
-    }
+    },
+
+
+
+
+    // Rutas para Manager
+
+
+    {
+
+      path: '/manager/validaciones',
+      name: 'manager-validaciones',
+      component: ManagerValidationView
+    },
+    {
+      path: '/manager/cierre', // <--- AQUÍ ESTÁ LA NUEVA
+      name: 'manager-cierre',
+      component: ManagerClosingView
+    },
+    // ...
+    {
+      path: '/manager/analitica',
+      name: 'manager-analitica',
+      component: ManagerAnalyticsView
+    },
+
   ]
 })
 
