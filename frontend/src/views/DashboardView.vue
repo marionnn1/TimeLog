@@ -1,8 +1,8 @@
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import {
-    ChevronLeft, ChevronRight, Plus, Trash2, Save, Building2, Info, AlertTriangle, X, RotateCcw
+    ChevronLeft, ChevronRight, Plus, Trash2, Save, Building2, Info, X, RotateCcw
 } from 'lucide-vue-next'
 
 const route = useRoute()
@@ -28,8 +28,6 @@ const getLabelDia = (date) => {
     return especial ? especial.label : null
 }
 
-const MAX_HORAS_DIARIAS = 8.5
-const MAX_HORAS_SEMANALES = 40.5
 const clientesDisponibles = ['Banco Santander', 'Mapfre', 'Inditex', 'BBVA', 'Naturgy']
 const proyectosDisponibles = ['Auditoría Backend', 'Migración Cloud', 'Desarrollo Frontend', 'Mantenimiento Legacy', 'Consultoría de Seguridad']
 
@@ -48,6 +46,7 @@ onMounted(() => {
     }
 })
 
+// --- FECHAS Y SEMANAS ---
 const getLunesSemana = (fecha) => {
     const d = new Date(fecha)
     const dia = d.getDay()
@@ -55,8 +54,10 @@ const getLunesSemana = (fecha) => {
     return new Date(d.setDate(diff))
 }
 const lunesActual = computed(() => getLunesSemana(fechaActual.value))
+
 const diasSemana = computed(() => {
     const dias = []
+    // VOLVEMOS A 7 DÍAS
     for (let i = 0; i < 7; i++) {
         const d = new Date(lunesActual.value)
         d.setDate(lunesActual.value.getDate() + i)
@@ -65,6 +66,28 @@ const diasSemana = computed(() => {
     return dias
 })
 
+// --- VALIDACIÓN DE JORNADA ---
+const esJornadaVerano = (date) => {
+    const mes = date.getMonth()
+    return mes === 6 || mes === 7
+}
+
+const getMaxHorasDia = (date) => {
+    // Fines de semana: 0 horas
+    if (date.getDay() === 0 || date.getDay() === 6) return 0
+    
+    if (esJornadaVerano(date)) return 7.0
+    if (date.getDay() === 5) return 6.5
+    return 8.5
+}
+
+const getMaxHorasSemana = () => {
+    return diasSemana.value.reduce((total, dia) => {
+        return total + getMaxHorasDia(dia)
+    }, 0)
+}
+
+// VOLVEMOS A LA LISTA COMPLETA
 const nombresDias = ['LUN', 'MAR', 'MIÉ', 'JUE', 'VIE', 'SÁB', 'DOM']
 const formatoFechaCabecera = (fecha) => fecha.toLocaleDateString('es-ES', { month: 'long', year: 'numeric' })
 const esFinDeSemana = (date) => { const d = date.getDay(); return d === 0 || d === 6 }
@@ -74,30 +97,26 @@ const esHoy = (date) => {
     return date.getDate() === hoy.getDate() && date.getMonth() === hoy.getMonth() && date.getFullYear() === hoy.getFullYear()
 }
 
-// --- LÓGICA DE BLOQUEO ACTUALIZADA ---
 const esEditable = (date) => {
     const hoy = new Date()
     hoy.setHours(0, 0, 0, 0)
     const fechaComparar = new Date(date)
     fechaComparar.setHours(0, 0, 0, 0)
 
-    // 1. Bloquear días pasados
-    if (fechaComparar < hoy) return false
-
-    // 2. BLOQUEO TOTAL: Si existe CUALQUIER tipo de día especial, devuelve false
-    const tipo = getTipoDia(date)
-    if (tipo) return false
-
+    // Bloqueos
+    if (esFinDeSemana(date)) return false // Fines de semana bloqueados
+    if (fechaComparar < hoy) return false // Pasado bloqueado
+    if (getTipoDia(date)) return false // Festivos bloqueados
+    
     return true
 }
 
-// Helper para saber si es pasado PERO no es especial (para ponerlo gris normal)
 const esPasadoNormal = (date) => {
     const hoy = new Date()
     hoy.setHours(0, 0, 0, 0)
     const fechaComparar = new Date(date)
     fechaComparar.setHours(0, 0, 0, 0)
-    return fechaComparar < hoy && !getTipoDia(date)
+    return fechaComparar < hoy && !getTipoDia(date) && !esFinDeSemana(date)
 }
 
 const esSeleccionado = (date) => date.getDate() === diaSeleccionado.value && date.getMonth() === fechaActual.value.getMonth()
@@ -115,34 +134,77 @@ const textoBotonCentral = computed(() => {
     return `${diaSemana} ${diaSeleccionado.value}`
 })
 
+// --- DATOS Y LÓGICA DE LIMPIEZA ---
+// Inicializamos con 7 ceros
 const filas = ref([
-    { id: 1, cliente: 'Banco Santander', proyecto: 'Auditoría Backend', horas: [8, 8, 8, 8, 4, 0, 0], seleccionado: false },
-    { id: 2, cliente: 'Mapfre', proyecto: 'Migración Cloud', horas: [0, 0, 0, 0, 4, 0, 0], seleccionado: false }
+    { id: 1, cliente: 'Banco Santander', proyecto: 'Auditoría Backend', horas: [0, 0, 0, 0, 0, 0, 0], seleccionado: false },
+    { id: 2, cliente: 'Mapfre', proyecto: 'Migración Cloud', horas: [0, 0, 0, 0, 0, 0, 0], seleccionado: false }
 ])
 
+watch(lunesActual, () => {
+    filas.value.forEach(fila => {
+        // Reseteamos a 7 ceros
+        fila.horas = [0, 0, 0, 0, 0, 0, 0]
+    })
+})
+
+const handleFocus = (event) => {
+    if (event.target.value == 0) {
+        event.target.value = ''
+    }
+}
+const handleBlur = (event, fila, index) => {
+    if (event.target.value === '') {
+        fila.horas[index] = 0
+    }
+}
+
 const totalFila = (fila) => fila.horas.reduce((acc, h) => acc + (parseFloat(h) || 0), 0)
-const totalDia = (index) => filas.value.reduce((acc, f) => acc + (parseFloat(f.horas[index]) || 0), 0)
+
+const totalDia = (index) => filas.value.reduce((acc, f) => {
+    const val = parseFloat(f.horas[index])
+    return acc + (isNaN(val) ? 0 : val)
+}, 0)
+
 const totalSemanal = computed(() => filas.value.reduce((acc, f) => acc + totalFila(f), 0))
-const excedeLimiteDiario = (index) => totalDia(index) > MAX_HORAS_DIARIAS
-const excedeLimiteSemanal = computed(() => totalSemanal.value > MAX_HORAS_SEMANALES)
+
+// Validaciones
+const excedeLimiteDiario = (index) => {
+    const fechaDia = diasSemana.value[index]
+    const maxHoras = getMaxHorasDia(fechaDia)
+    // Si maxHoras es 0 (finde), cualquier valor > 0 es exceso
+    return totalDia(index) > maxHoras
+}
+
+const excedeLimiteSemanal = computed(() => totalSemanal.value > getMaxHorasSemana())
+
+const hayErrores = computed(() => {
+    if (excedeLimiteSemanal.value) return true
+    for (let i = 0; i < 7; i++) {
+        if (excedeLimiteDiario(i)) return true
+    }
+    return false
+})
 
 const abrirModal = () => { nuevoRegistro.value = { cliente: '', proyecto: '' }; mostrarModal.value = true }
 const cerrarModal = () => { mostrarModal.value = false }
 const confirmarAnadirLinea = () => {
     if (!nuevoRegistro.value.cliente || !nuevoRegistro.value.proyecto) return
+    // Push de 7 ceros
     filas.value.push({ id: Date.now(), cliente: nuevoRegistro.value.cliente, proyecto: nuevoRegistro.value.proyecto, horas: [0, 0, 0, 0, 0, 0, 0], seleccionado: false })
     cerrarModal()
 }
 const borrarLineas = () => filas.value = filas.value.filter(f => !f.seleccionado)
+
 const guardarCambios = () => {
-    if (excedeLimiteSemanal.value) return alert('Límite semanal excedido')
-    alert('✅ Imputaciones guardadas')
+    if (hayErrores.value) return alert('Por favor corrige los días en rojo antes de guardar.')
+    alert('✅ Imputaciones guardadas correctamente')
 }
 </script>
 
 <template>
     <div class="h-full flex flex-col font-sans bg-gray-50 p-4 gap-6 relative">
-
+        
         <div class="flex flex-col gap-3">
             <div class="flex justify-between items-center">
                 <div class="flex items-center gap-3">
@@ -150,11 +212,10 @@ const guardarCambios = () => {
                         {{ formatoFechaCabecera(lunesActual) }}
                     </h1>
                     <span class="text-sm font-medium text-gray-400 px-2 border-l border-gray-300">
-                        Semana {{ lunesActual.getDate() }} - {{ new Date(lunesActual.getTime() + 6 * 24 * 60 * 60 *
-                        1000).getDate() }}
+                        Semana {{ lunesActual.getDate() }} - {{ new Date(lunesActual.getTime() + 6 * 24 * 60 * 60 * 1000).getDate() }}
                     </span>
                 </div>
-
+                
                 <div class="flex items-center bg-white rounded-lg shadow-sm border border-gray-200">
                     <button @click="semanaAnterior" class="p-2 hover:bg-gray-50 text-gray-600 border-r border-gray-200">
                         <ChevronLeft class="w-5 h-5" />
@@ -176,17 +237,11 @@ const guardarCambios = () => {
                 <div v-for="(fecha, index) in diasSemana" :key="index" @click="seleccionarDia(fecha)"
                     class="relative rounded-xl border shadow-sm flex flex-col items-center justify-between p-3 transition-all cursor-pointer group"
                     :class="[
-                        esFinDeSemana(fecha) ? 'bg-slate-100 border-slate-200' : 'bg-white border-gray-200 hover:border-blue-300 hover:shadow-md',
-                        // REFACTORIZADO: ring-primary border-primary
                         esSeleccionado(fecha) ? 'ring-2 ring-offset-2 ring-primary border-primary' : '',
-                        esHoy(fecha) ? 'bg-blue-50/50' : '',
-
-                        getTipoDia(fecha) === 'festivo' ? 'bg-rose-50 border-rose-100' : '',
-                        getTipoDia(fecha) === 'vacaciones' ? 'bg-teal-50 border-teal-100' : '',
-                        getTipoDia(fecha) === 'libre_disposicion' ? 'bg-amber-50 border-amber-100' : '',
-                        getTipoDia(fecha) === 'asuntos_propios' ? 'bg-violet-50 border-violet-100' : '',
-
-                        excedeLimiteDiario(index) ? 'border-red-400 bg-red-50' : ''
+                        esHoy(fecha) ? 'bg-blue-50/50' : 'bg-white border-gray-200 hover:border-blue-300 hover:shadow-md',
+                        // Estilo FIN DE SEMANA
+                        esFinDeSemana(fecha) ? 'bg-slate-100 border-slate-200 cursor-default' : '',
+                        excedeLimiteDiario(index) ? 'border-red-500 bg-red-50' : ''
                     ]"
                     :style="esFinDeSemana(fecha) ? 'background-image: repeating-linear-gradient(45deg, transparent, transparent 10px, rgba(0,0,0,0.03) 10px, rgba(0,0,0,0.03) 20px);' : ''">
 
@@ -194,7 +249,7 @@ const guardarCambios = () => {
                         :class="esHoy(fecha) ? 'text-primary' : 'text-gray-400'">{{ nombresDias[index] }}</span>
                     <span class="text-2xl font-bold"
                         :class="esHoy(fecha) ? 'text-dark' : (esFinDeSemana(fecha) ? 'text-gray-400' : 'text-gray-700')">{{
-                            fecha.getDate() }}</span>
+                        fecha.getDate() }}</span>
 
                     <div v-if="getTipoDia(fecha)" class="mt-1">
                         <span class="text-[9px] font-bold uppercase px-1.5 py-0.5 rounded shadow-sm" :class="{
@@ -206,9 +261,15 @@ const guardarCambios = () => {
                             {{ getLabelDia(fecha) }}
                         </span>
                     </div>
-                    <div v-else-if="totalDia(index) > 0" class="px-2 py-0.5 rounded-full text-xs font-bold"
-                        :class="excedeLimiteDiario(index) ? 'bg-red-100 text-red-700' : 'bg-blue-100 text-dark'">{{
-                            totalDia(index) }}h</div>
+
+                    <div v-else-if="totalDia(index) > 0" class="px-2 py-0.5 rounded-full text-xs font-bold relative group/tooltip"
+                        :class="excedeLimiteDiario(index) ? 'bg-red-100 text-red-700 animate-pulse' : 'bg-blue-100 text-dark'">
+                        {{ totalDia(index) }}h
+                        
+                        <span v-if="excedeLimiteDiario(index)" class="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 w-max bg-red-800 text-white text-[10px] px-2 py-1 rounded shadow-lg z-50">
+                            Máx permitido: {{ getMaxHorasDia(fecha) }}h
+                        </span>
+                    </div>
                     <div v-else class="h-5"></div>
 
                     <div v-if="esHoy(fecha)" class="absolute top-2 right-2 w-2 h-2 rounded-full bg-primary"></div>
@@ -216,25 +277,11 @@ const guardarCambios = () => {
             </div>
 
             <div class="flex items-center gap-6 mt-1 text-xs text-gray-600">
+                <div class="flex items-center gap-2"><div class="w-3 h-3 rounded-full bg-white border border-gray-200"></div><span>Laborable</span></div>
+                <div class="flex items-center gap-2"><div class="w-3 h-3 rounded-full bg-rose-300"></div><span>Festivo</span></div>
+                <div class="flex items-center gap-2"><div class="w-3 h-3 rounded-full bg-teal-300"></div><span>Vacaciones</span></div>
                 <div class="flex items-center gap-2">
-                    <div class="w-3 h-3 rounded-full bg-white border border-gray-200"></div><span>Laborable</span>
-                </div>
-                <div class="flex items-center gap-2">
-                    <div class="w-3 h-3 rounded-full bg-rose-300"></div><span>Festivo</span>
-                </div>
-                <div class="flex items-center gap-2">
-                    <div class="w-3 h-3 rounded-full bg-teal-300"></div><span>Vacaciones</span>
-                </div>
-                <div class="flex items-center gap-2">
-                    <div class="w-3 h-3 rounded-full bg-blue-200 relative">
-                        <div class="absolute top-0.5 right-0.5 w-1.5 h-1.5 rounded-full bg-primary"></div>
-                    </div><span>Hoy</span>
-                </div>
-                <div class="flex items-center gap-2">
-                    <div class="w-3 h-3 rounded-full bg-amber-300"></div><span>Libre Disp.</span>
-                </div>
-                <div class="flex items-center gap-2">
-                    <div class="w-3 h-3 rounded-full bg-violet-300"></div><span>Asuntos P.</span>
+                    <div class="w-3 h-3 rounded-full bg-blue-200 relative"><div class="absolute top-0.5 right-0.5 w-1.5 h-1.5 rounded-full bg-primary"></div></div><span>Hoy</span>
                 </div>
             </div>
         </div>
@@ -245,12 +292,10 @@ const guardarCambios = () => {
                     <Info class="w-4 h-4 text-primary" /> Detalle de Imputaciones
                 </h2>
                 <div class="flex gap-3">
-                    <button @click="borrarLineas"
-                        class="flex items-center gap-2 px-3 py-1.5 text-xs font-bold text-red-600 hover:bg-red-50 rounded border border-transparent hover:border-red-100 transition uppercase">
+                    <button @click="borrarLineas" class="flex items-center gap-2 px-3 py-1.5 text-xs font-bold text-red-600 hover:bg-red-50 rounded border border-transparent hover:border-red-100 transition uppercase">
                         <Trash2 class="w-3 h-3" /> Borrar
                     </button>
-                    <button @click="abrirModal"
-                        class="flex items-center gap-2 px-4 py-1.5 text-xs font-bold text-white rounded shadow-md transition hover:shadow-lg uppercase tracking-wide bg-primary">
+                    <button @click="abrirModal" class="btn-primary">
                         <Plus class="w-4 h-4" /> Añadir Línea
                     </button>
                 </div>
@@ -264,7 +309,10 @@ const guardarCambios = () => {
                             <th class="p-3 font-bold w-1/4">Cliente</th>
                             <th class="p-3 font-bold w-1/3">Proyecto</th>
                             <th v-for="(fecha, i) in diasSemana" :key="i" class="p-2 text-center w-14"
-                                :class="[esFinDeSemana(fecha) ? 'bg-slate-50 text-gray-400' : '', excedeLimiteDiario(i) ? 'bg-red-50 text-red-600 font-bold' : '']">
+                                :class="[
+                                    esFinDeSemana(fecha) ? 'bg-slate-50 text-gray-400' : '',
+                                    excedeLimiteDiario(i) ? 'bg-red-50 text-red-600 font-bold' : ''
+                                ]">
                                 <div class="flex flex-col items-center">
                                     <span>{{ nombresDias[i] }}</span>
                                     <span class="text-[10px] opacity-60 font-medium">{{ fecha.getDate() }}</span>
@@ -278,8 +326,7 @@ const guardarCambios = () => {
                             <td class="p-3 text-center"><input type="checkbox" v-model="fila.seleccionado"
                                     class="rounded border-gray-300 text-primary focus:ring-primary"></td>
                             <td class="p-2">
-                                <div
-                                    class="flex items-center gap-2 border border-transparent hover:border-gray-200 rounded px-2 py-1 bg-transparent hover:bg-white transition">
+                                <div class="flex items-center gap-2 border border-transparent hover:border-gray-200 rounded px-2 py-1 bg-transparent hover:bg-white transition">
                                     <Building2 class="w-3 h-3 text-gray-400" /><input v-model="fila.cliente"
                                         class="w-full bg-transparent outline-none text-gray-700 font-medium placeholder-gray-400 text-xs">
                                 </div>
@@ -292,25 +339,30 @@ const guardarCambios = () => {
                                 esFinDeSemana(diasSemana[index]) ? 'bg-slate-50' : '',
                                 getTipoDia(diasSemana[index]) === 'festivo' ? 'bg-rose-50' : '',
                                 getTipoDia(diasSemana[index]) === 'vacaciones' ? 'bg-teal-50' : '',
-                                getTipoDia(diasSemana[index]) === 'libre_disposicion' ? 'bg-amber-50' : '',
-                                getTipoDia(diasSemana[index]) === 'asuntos_propios' ? 'bg-violet-50' : '',
                             ]">
-
-                                <input type="number" min="0" max="24" step="0.5" v-model="fila.horas[index]"
+                                
+                                <input type="number" min="0" max="24" step="0.5" 
+                                    v-model="fila.horas[index]"
+                                    @focus="handleFocus" 
+                                    @blur="(e) => handleBlur(e, fila, index)"
                                     :disabled="!esEditable(diasSemana[index])"
-                                    class="w-full text-center p-0 py-1 rounded border transition font-medium bg-transparent text-sm disabled:cursor-not-allowed appearance-none"
+                                    class="w-full text-center p-0 py-1 rounded transition font-medium text-sm disabled:cursor-not-allowed appearance-none"
                                     :class="{
-                                        'text-primary font-bold border-transparent hover:border-gray-300 focus:border-primary focus:ring-1 focus:ring-primary': esEditable(diasSemana[index]) && fila.horas[index] > 0,
-                                        'text-gray-300 border-transparent hover:border-gray-300': esEditable(diasSemana[index]) && fila.horas[index] == 0,
-                                        'bg-gray-100 text-gray-400': esPasadoNormal(diasSemana[index]),
-                                        'bg-rose-50 text-rose-400 placeholder-rose-300': getTipoDia(diasSemana[index]) === 'festivo',
-                                        'bg-teal-50 text-teal-400 placeholder-teal-300': getTipoDia(diasSemana[index]) === 'vacaciones',
-                                        'bg-amber-50 text-amber-400 placeholder-amber-300': getTipoDia(diasSemana[index]) === 'libre_disposicion',
-                                        'bg-violet-50 text-violet-400 placeholder-violet-300': getTipoDia(diasSemana[index]) === 'asuntos_propios',
-                                    }" :placeholder="getTipoDia(diasSemana[index]) ? '—' : ''">
+                                        // 1. RELLENO (>0)
+                                        'text-primary font-bold border border-transparent hover:border-gray-300 focus:border-primary focus:ring-1 focus:ring-primary bg-transparent': esEditable(diasSemana[index]) && fila.horas[index] > 0,
+                                        
+                                        // 2. VACÍO (0)
+                                        'bg-white border border-gray-200 hover:border-[#1F8C7F] hover:bg-teal-50/20 text-[#1F8C7F] shadow-sm cursor-pointer font-bold': esEditable(diasSemana[index]) && fila.horas[index] == 0,
+
+                                        // 3. BLOQUEADO (Fin de semana, Pasado, Festivo)
+                                        'bg-gray-100 text-gray-400 border-transparent': esPasadoNormal(diasSemana[index]) || esFinDeSemana(diasSemana[index]),
+                                        'bg-rose-50 text-rose-400 border-transparent': getTipoDia(diasSemana[index]) === 'festivo',
+
+                                        // 4. ERROR
+                                        'border border-red-300 bg-red-50 text-red-600 font-extrabold shadow-none': esEditable(diasSemana[index]) && excedeLimiteDiario(index)
+                                    }" :placeholder="getTipoDia(diasSemana[index]) || (esFinDeSemana(diasSemana[index]) ? '' : '0')">
                             </td>
-                            <td class="p-3 text-center font-bold text-dark bg-gray-50 text-sm">{{ totalFila(fila) }}
-                            </td>
+                            <td class="p-3 text-center font-bold text-dark bg-gray-50 text-sm">{{ totalFila(fila) }}</td>
                         </tr>
                     </tbody>
                     <tfoot class="bg-gray-50 border-t border-gray-200 text-xs font-bold text-dark">
@@ -319,19 +371,22 @@ const guardarCambios = () => {
                             <td v-for="(dia, index) in diasSemana" :key="index" class="p-2 text-center"
                                 :class="excedeLimiteDiario(index) ? 'bg-red-100' : ''"><span
                                     :class="[excedeLimiteDiario(index) ? 'text-red-600 font-extrabold' : (totalDia(index) > 0 ? 'text-primary' : 'text-gray-400')]">{{
-                                        totalDia(index) }}</span></td>
+                                    totalDia(index) }}</span></td>
                             <td class="p-3 text-center border-l border-blue-100 text-sm transition-colors"
                                 :class="excedeLimiteSemanal ? 'bg-red-600 text-white' : 'bg-blue-50 text-blue-900'">{{
-                                    totalSemanal }} / {{ MAX_HORAS_SEMANALES }}</td>
+                                totalSemanal }} / {{ getMaxHorasSemana() }}</td>
                         </tr>
                     </tfoot>
                 </table>
             </div>
-
-            <div class="p-3 bg-gray-50 border-t border-gray-200 flex justify-end">
-                <button @click="guardarCambios" :disabled="excedeLimiteSemanal"
+            
+            <div class="p-3 bg-gray-50 border-t border-gray-200 flex justify-end gap-3 items-center">
+                <p v-if="hayErrores" class="text-xs font-bold text-red-600 flex items-center gap-1 animate-pulse">
+                    <X class="w-4 h-4"/> Corrige el exceso de horas para guardar
+                </p>
+                <button @click="guardarCambios" :disabled="hayErrores"
                     class="flex items-center gap-2 px-6 py-2 text-white font-bold rounded shadow-md transition text-xs uppercase tracking-wider disabled:opacity-50 disabled:cursor-not-allowed"
-                    :class="excedeLimiteSemanal ? 'bg-gray-400' : 'bg-dark hover:shadow-lg'">
+                    :class="hayErrores ? 'bg-gray-400' : 'bg-dark hover:shadow-lg'">
                     <Save class="w-4 h-4" /> Guardar Imputaciones
                 </button>
             </div>
@@ -339,8 +394,7 @@ const guardarCambios = () => {
 
         <div v-if="mostrarModal"
             class="absolute inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4">
-            <div
-                class="bg-white rounded-xl shadow-2xl w-full max-w-md overflow-hidden animate-in fade-in zoom-in duration-200">
+            <div class="bg-white rounded-xl shadow-2xl w-full max-w-md overflow-hidden animate-in fade-in zoom-in duration-200">
                 <div class="bg-slate-50 border-b border-gray-100 px-6 py-4 flex justify-between items-center">
                     <h3 class="text-lg font-bold text-dark">Nueva Imputación</h3>
                     <button @click="cerrarModal" class="text-gray-400 hover:text-red-500 transition">
@@ -372,11 +426,8 @@ const guardarCambios = () => {
                     </div>
                 </div>
                 <div class="px-6 py-4 bg-gray-50 flex justify-end gap-3 border-t border-gray-100">
-                    <button @click="cerrarModal"
-                        class="px-4 py-2 text-sm font-bold text-gray-500 hover:text-gray-700 transition">Cancelar</button>
-                    <button @click="confirmarAnadirLinea"
-                        class="px-6 py-2 text-sm font-bold text-white rounded-lg shadow transition transform active:scale-95 bg-primary">Añadir
-                        a la Tabla</button>
+                    <button @click="cerrarModal" class="btn-secondary">Cancelar</button>
+                    <button @click="confirmarAnadirLinea" class="btn-primary">Añadir a la Tabla</button>
                 </div>
             </div>
         </div>
@@ -384,7 +435,6 @@ const guardarCambios = () => {
 </template>
 
 <style scoped>
-/* Eliminar flechas del input number */
 input[type=number]::-webkit-inner-spin-button,
 input[type=number]::-webkit-outer-spin-button {
     -webkit-appearance: none;
