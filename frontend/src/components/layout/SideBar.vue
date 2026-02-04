@@ -83,11 +83,6 @@ const claseIcono = "w-5 h-5 text-slate-400 group-hover:text-primary transition s
           <span class="text-sm font-medium truncate">Centro de Control</span>
         </router-link>
 
-        <router-link to="/admin/tickets" :class="claseLink">
-          <Ticket :class="claseIcono" />
-          <span class="text-sm font-medium truncate">Incidencias</span>
-        </router-link>
-
         <div class="h-px bg-slate-800 my-2 mx-3"></div> 
         
         <router-link to="/admin/users" :class="claseLink">
@@ -98,11 +93,6 @@ const claseIcono = "w-5 h-5 text-slate-400 group-hover:text-primary transition s
         <router-link to="/admin/projects-manager" :class="claseLink">
           <Briefcase :class="claseIcono" />
           <span class="text-sm font-medium truncate">Gestión Proyectos</span>
-        </router-link>
-
-        <router-link to="/admin/announcements" :class="claseLink">
-          <Megaphone :class="claseIcono" />
-          <span class="text-sm font-medium truncate">Anuncios</span>
         </router-link>
 
         <router-link to="/admin/audit" :class="claseLink">
