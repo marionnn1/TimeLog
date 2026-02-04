@@ -43,6 +43,10 @@ onMounted(() => {
             fechaActual.value = fechaUrl
             diaSeleccionado.value = fechaUrl.getDate()
         }
+    } else {
+        // Ponemos fecha de ejemplo (Febrero 2026) para que veas los festivos configurados
+        fechaActual.value = new Date(2026, 1, 9) 
+        diaSeleccionado.value = fechaActual.value.getDate()
     }
 })
 
@@ -57,7 +61,6 @@ const lunesActual = computed(() => getLunesSemana(fechaActual.value))
 
 const diasSemana = computed(() => {
     const dias = []
-    // VOLVEMOS A 7 DÍAS
     for (let i = 0; i < 7; i++) {
         const d = new Date(lunesActual.value)
         d.setDate(lunesActual.value.getDate() + i)
@@ -66,28 +69,34 @@ const diasSemana = computed(() => {
     return dias
 })
 
-// --- VALIDACIÓN DE JORNADA ---
+// --- VALIDACIÓN DE JORNADA (LÓGICA ACTUALIZADA) ---
 const esJornadaVerano = (date) => {
     const mes = date.getMonth()
     return mes === 6 || mes === 7
 }
 
 const getMaxHorasDia = (date) => {
-    // Fines de semana: 0 horas
+    // 1. SI ES FESTIVO O VACACIONES -> 0 HORAS
+    // Esto hace que la suma semanal disminuya automáticamente
+    if (getTipoDia(date)) return 0
+
+    // 2. Fines de semana -> 0 horas
     if (date.getDay() === 0 || date.getDay() === 6) return 0
     
+    // 3. Reglas normales
     if (esJornadaVerano(date)) return 7.0
     if (date.getDay() === 5) return 6.5
     return 8.5
 }
 
 const getMaxHorasSemana = () => {
+    // Suma los máximos diarios (si hay festivo, suma 0 ese día)
     return diasSemana.value.reduce((total, dia) => {
         return total + getMaxHorasDia(dia)
     }, 0)
 }
 
-// VOLVEMOS A LA LISTA COMPLETA
+// UTILS
 const nombresDias = ['LUN', 'MAR', 'MIÉ', 'JUE', 'VIE', 'SÁB', 'DOM']
 const formatoFechaCabecera = (fecha) => fecha.toLocaleDateString('es-ES', { month: 'long', year: 'numeric' })
 const esFinDeSemana = (date) => { const d = date.getDay(); return d === 0 || d === 6 }
@@ -97,6 +106,7 @@ const esHoy = (date) => {
     return date.getDate() === hoy.getDate() && date.getMonth() === hoy.getMonth() && date.getFullYear() === hoy.getFullYear()
 }
 
+// --- BLOQUEO DE DÍAS ANTERIORES Y FESTIVOS ---
 const esEditable = (date) => {
     const hoy = new Date()
     hoy.setHours(0, 0, 0, 0)
@@ -104,9 +114,12 @@ const esEditable = (date) => {
     fechaComparar.setHours(0, 0, 0, 0)
 
     // Bloqueos
-    if (esFinDeSemana(date)) return false // Fines de semana bloqueados
-    if (fechaComparar < hoy) return false // Pasado bloqueado
-    if (getTipoDia(date)) return false // Festivos bloqueados
+    if (esFinDeSemana(date)) return false 
+    
+    // MANTENIDO: Bloqueo de días pasados
+    if (fechaComparar < hoy) return false 
+    
+    if (getTipoDia(date)) return false 
     
     return true
 }
@@ -135,7 +148,6 @@ const textoBotonCentral = computed(() => {
 })
 
 // --- DATOS Y LÓGICA DE LIMPIEZA ---
-// Inicializamos con 7 ceros
 const filas = ref([
     { id: 1, cliente: 'Banco Santander', proyecto: 'Auditoría Backend', horas: [0, 0, 0, 0, 0, 0, 0], seleccionado: false },
     { id: 2, cliente: 'Mapfre', proyecto: 'Migración Cloud', horas: [0, 0, 0, 0, 0, 0, 0], seleccionado: false }
@@ -143,7 +155,6 @@ const filas = ref([
 
 watch(lunesActual, () => {
     filas.value.forEach(fila => {
-        // Reseteamos a 7 ceros
         fila.horas = [0, 0, 0, 0, 0, 0, 0]
     })
 })
@@ -172,7 +183,6 @@ const totalSemanal = computed(() => filas.value.reduce((acc, f) => acc + totalFi
 const excedeLimiteDiario = (index) => {
     const fechaDia = diasSemana.value[index]
     const maxHoras = getMaxHorasDia(fechaDia)
-    // Si maxHoras es 0 (finde), cualquier valor > 0 es exceso
     return totalDia(index) > maxHoras
 }
 
@@ -190,7 +200,6 @@ const abrirModal = () => { nuevoRegistro.value = { cliente: '', proyecto: '' }; 
 const cerrarModal = () => { mostrarModal.value = false }
 const confirmarAnadirLinea = () => {
     if (!nuevoRegistro.value.cliente || !nuevoRegistro.value.proyecto) return
-    // Push de 7 ceros
     filas.value.push({ id: Date.now(), cliente: nuevoRegistro.value.cliente, proyecto: nuevoRegistro.value.proyecto, horas: [0, 0, 0, 0, 0, 0, 0], seleccionado: false })
     cerrarModal()
 }
