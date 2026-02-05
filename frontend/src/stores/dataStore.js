@@ -5,7 +5,18 @@ import { initialData } from '../data/initialData'
 const state = reactive({
     ...initialData,
     // Aseguramos que el array exista aunque initialData no lo traiga
-    imputaciones: initialData.imputaciones || [] 
+    imputaciones: initialData.imputaciones || [],
+    
+    // --- NUEVO: AUSENCIAS GLOBALES (Vacaciones, Festivos, Asuntos) ---
+    ausencias: [
+        // Datos Mock Iniciales para pruebas inmediatas
+        { date: '2026-02-16', userId: 2, nombre: 'Ana', iniciales: 'AR', type: 'vacaciones' },
+        { date: '2026-02-16', userId: 3, nombre: 'Pedro', iniciales: 'PS', type: 'vacaciones' },
+        { date: '2026-02-16', userId: 4, nombre: 'Laura', iniciales: 'LP', type: 'vacaciones' },
+        { date: '2026-02-28', userId: 2, nombre: 'Ana', iniciales: 'AR', type: 'festivo' },
+        // Puedes descomentar la siguiente línea para ver vacaciones asignadas a TU usuario (Mario)
+        // { date: '2026-02-12', userId: 1, nombre: 'Mario', iniciales: 'ML', type: 'vacaciones' }
+    ]
 })
 
 // Exportamos métodos para interactuar con los datos (como si fuera una API)
@@ -103,13 +114,12 @@ export const useDataStore = () => {
         }
     }
 
-    // --- IMPUTACIONES (DASHBOARD SEMANAL Y USUARIO) --- [NUEVO]
+    // --- IMPUTACIONES (DASHBOARD SEMANAL) ---
     const getImputacionesUsuario = (usuarioId) => {
         return state.imputaciones.filter(i => i.usuarioId === usuarioId)
     }
 
     const addImputacion = (imputacion) => {
-        // Buscamos si ya existe un registro para ese usuario, proyecto y fecha
         const index = state.imputaciones.findIndex(i => 
             i.usuarioId === imputacion.usuarioId && 
             i.proyectoId === imputacion.proyectoId && 
@@ -117,12 +127,40 @@ export const useDataStore = () => {
         )
 
         if (index !== -1) {
-            // Si existe, actualizamos las horas
             state.imputaciones[index] = { ...state.imputaciones[index], horas: imputacion.horas }
         } else {
-            // Si no existe, creamos uno nuevo
             state.imputaciones.push({ ...imputacion, id: Date.now() })
         }
+    }
+
+    // --- NUEVO: GESTIÓN DE AUSENCIAS (CALENDARIO GLOBAL) ---
+    
+    // Obtener todas las ausencias (para pintar el calendario completo)
+    const getAusencias = () => state.ausencias
+
+    // Añadir ausencia (Evitando duplicados)
+    const addAusencia = (ausencia) => {
+        const existe = state.ausencias.find(a => a.date === ausencia.date && a.userId === ausencia.userId)
+        if (!existe) {
+            state.ausencias.push(ausencia)
+            // Log automático para auditoría
+            addLog(ausencia.nombre, 'SOLICITUD_AUSENCIA', `Solicitó ${ausencia.type} para el ${ausencia.date}`, 'info')
+        }
+    }
+
+    // Borrar ausencia
+    const removeAusencia = (date, userId) => {
+        state.ausencias = state.ausencias.filter(a => !(a.date === date && a.userId === userId))
+    }
+
+    // Obtener si UN usuario tiene vacaciones UN día (Usado por Dashboard para bloquear input)
+    const getAusenciaPorFecha = (dateString, userId) => {
+        return state.ausencias.find(a => a.date === dateString && a.userId === userId)
+    }
+
+    // Obtener quiénes faltan un día (Usado por Calendario para ver concurrencia)
+    const getAusenciasEquipoPorFecha = (dateString) => {
+        return state.ausencias.filter(a => a.date === dateString)
     }
 
     return {
@@ -141,7 +179,9 @@ export const useDataStore = () => {
         getCurrentUser,
         // Stats
         getStats,
-        // Imputaciones [NUEVO]
-        getImputacionesUsuario, addImputacion
+        // Imputaciones
+        getImputacionesUsuario, addImputacion,
+        // Ausencias / Calendario [NUEVO]
+        getAusencias, addAusencia, removeAusencia, getAusenciaPorFecha, getAusenciasEquipoPorFecha
     }
 }

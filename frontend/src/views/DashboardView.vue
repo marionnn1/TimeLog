@@ -1,32 +1,34 @@
 <script setup>
 import { ref, computed, onMounted, watch } from 'vue'
 import { useRoute } from 'vue-router'
+import { useDataStore } from '../stores/dataStore' // <--- 1. IMPORTAR STORE
 import {
     ChevronLeft, ChevronRight, Plus, Trash2, Save, Building2, Info, X, RotateCcw
 } from 'lucide-vue-next'
 
 const route = useRoute()
+const store = useDataStore() // <--- 2. USAR STORE
 
-// --- DÍAS ESPECIALES ---
-const diasEspeciales = [
-    { dia: 12, mes: 1, tipo: 'festivo', label: 'Festivo' },
-    { dia: 16, mes: 1, tipo: 'vacaciones', label: 'Vacaciones' },
-    { dia: 20, mes: 1, tipo: 'asuntos_propios', label: 'Asuntos P.' },
-    { dia: 27, mes: 1, tipo: 'libre_disposicion', label: 'Libre Disp.' }
-]
+// --- GESTIÓN DE FECHAS DESDE EL STORE ---
+const getInfoDia = (date) => {
+    // Ajuste zona horaria para coincidir con el string del store (YYYY-MM-DD)
+    const offset = date.getTimezoneOffset() * 60000
+    const isoDate = new Date(date.getTime() - offset).toISOString().split('T')[0]
+    
+    // Consultamos al store
+    const ausencia = store.getAusenciaPorFecha(isoDate, store.getCurrentUser().id)
+    
+    if (!ausencia) return null
+    
+    return {
+        // Mapeamos 'asuntos' del store a 'asuntos_propios' que usa tu template original
+        tipo: ausencia.type === 'asuntos' ? 'asuntos_propios' : ausencia.type,
+        label: ausencia.type === 'asuntos' ? 'Asuntos P.' : (ausencia.type.charAt(0).toUpperCase() + ausencia.type.slice(1))
+    }
+}
 
-const getTipoDia = (date) => {
-    const especial = diasEspeciales.find(d =>
-        d.dia === date.getDate() && d.mes === date.getMonth() && date.getFullYear() === 2026
-    )
-    return especial ? especial.tipo : null
-}
-const getLabelDia = (date) => {
-    const especial = diasEspeciales.find(d =>
-        d.dia === date.getDate() && d.mes === date.getMonth() && date.getFullYear() === 2026
-    )
-    return especial ? especial.label : null
-}
+const getTipoDia = (date) => getInfoDia(date)?.tipo
+const getLabelDia = (date) => getInfoDia(date)?.label
 
 const clientesDisponibles = ['Banco Santander', 'Mapfre', 'Inditex', 'BBVA', 'Naturgy']
 const proyectosDisponibles = ['Auditoría Backend', 'Migración Cloud', 'Desarrollo Frontend', 'Mantenimiento Legacy', 'Consultoría de Seguridad']
@@ -44,8 +46,7 @@ onMounted(() => {
             diaSeleccionado.value = fechaUrl.getDate()
         }
     } else {
-        // Fecha de ejemplo (Febrero 2026)
-        fechaActual.value = new Date(2026, 1, 9) 
+        fechaActual.value = new Date() 
         diaSeleccionado.value = fechaActual.value.getDate()
     }
 })
@@ -76,34 +77,30 @@ const esJornadaVerano = (date) => {
 }
 
 const getMaxHorasDia = (date) => {
-    if (getTipoDia(date)) return 0 // Festivos = 0
-    if (date.getDay() === 0 || date.getDay() === 6) return 0 // Finde = 0
+    if (getTipoDia(date)) return 0 // Si hay vacación en Store, 0 horas
+    if (date.getDay() === 0 || date.getDay() === 6) return 0 
     if (esJornadaVerano(date)) return 7.0
     if (date.getDay() === 5) return 6.5
     return 8.5
 }
 
-// 🔥 LÓGICA MODIFICADA: Si es pasado y está vacío, no cuenta para el total 🔥
+// LÓGICA MODIFICADA: Si es pasado y está vacío, no cuenta para el total
 const getMaxHorasSemana = () => {
     const hoy = new Date()
-    hoy.setHours(0,0,0,0) // Normalizamos hoy para comparar solo fechas
+    hoy.setHours(0,0,0,0)
 
     return diasSemana.value.reduce((total, fecha, index) => {
         const maxHorasDia = getMaxHorasDia(fecha)
         const horasImputadas = totalDia(index)
         
-        // Creamos fecha del día iterado sin horas
         const fechaDia = new Date(fecha)
         fechaDia.setHours(0,0,0,0)
 
-        // CONDICIÓN CLAVE:
-        // Si el día es ANTERIOR a hoy Y tiene 0 horas imputadas -> NO lo sumamos al objetivo.
-        // (Ej: Si hoy es Miércoles, Lunes y Martes vacíos no suman 8.5h al target).
-        if (fechaDia < hoy && horasImputadas === 0) {
+        // Si es pasado, horas 0 y NO es un día especial (vacaciones), no suma deuda
+        if (fechaDia < hoy && horasImputadas === 0 && !getTipoDia(fecha)) {
             return total 
         }
 
-        // Si es hoy, si es futuro, o si es pasado PERO trabajaste, sumamos el objetivo.
         return total + maxHorasDia
     }, 0)
 }
@@ -125,8 +122,8 @@ const esEditable = (date) => {
     fechaComparar.setHours(0, 0, 0, 0)
 
     if (esFinDeSemana(date)) return false 
-    if (fechaComparar < hoy) return false // Bloqueo pasado
-    if (getTipoDia(date)) return false 
+    if (fechaComparar < hoy) return false 
+    if (getTipoDia(date)) return false // Bloqueado si hay dato en Store
     
     return true
 }
@@ -184,10 +181,10 @@ const totalSemanal = computed(() => filas.value.reduce((acc, f) => acc + totalFi
 const excedeLimiteDiario = (index) => {
     const fechaDia = diasSemana.value[index]
     const maxHoras = getMaxHorasDia(fechaDia)
+    if (maxHoras === 0) return false 
     return totalDia(index) > maxHoras
 }
 
-// Comparamos contra el nuevo dinámico
 const excedeLimiteSemanal = computed(() => totalSemanal.value > getMaxHorasSemana())
 
 const hayErrores = computed(() => {
@@ -262,10 +259,9 @@ const guardarCambios = () => {
 
                     <div v-if="getTipoDia(fecha)" class="mt-1">
                         <span class="text-[9px] font-bold uppercase px-1.5 py-0.5 rounded shadow-sm" :class="{
-                            'bg-rose-100 text-rose-600': getTipoDia(fecha) === 'festivo',
-                            'bg-teal-100 text-teal-600': getTipoDia(fecha) === 'vacaciones',
-                            'bg-amber-100 text-amber-600': getTipoDia(fecha) === 'libre_disposicion',
-                            'bg-violet-100 text-violet-600': getTipoDia(fecha) === 'asuntos_propios'
+                            'bg-orange-100 text-orange-700': getTipoDia(fecha) === 'festivo',
+                            'bg-emerald-100 text-emerald-700': getTipoDia(fecha) === 'vacaciones',
+                            'bg-blue-100 text-blue-700': getTipoDia(fecha) === 'asuntos_propios'
                         }">
                             {{ getLabelDia(fecha) }}
                         </span>
@@ -287,8 +283,9 @@ const guardarCambios = () => {
 
             <div class="flex items-center gap-6 mt-1 text-xs text-gray-600">
                 <div class="flex items-center gap-2"><div class="w-3 h-3 rounded-full bg-white border border-gray-200"></div><span>Laborable</span></div>
-                <div class="flex items-center gap-2"><div class="w-3 h-3 rounded-full bg-rose-300"></div><span>Festivo</span></div>
-                <div class="flex items-center gap-2"><div class="w-3 h-3 rounded-full bg-teal-300"></div><span>Vacaciones</span></div>
+                <div class="flex items-center gap-2"><div class="w-3 h-3 rounded-full bg-orange-500"></div><span>Festivo</span></div>
+                <div class="flex items-center gap-2"><div class="w-3 h-3 rounded-full bg-emerald-500"></div><span>Vacaciones</span></div>
+                <div class="flex items-center gap-2"><div class="w-3 h-3 rounded-full bg-blue-500"></div><span>Asuntos P.</span></div>
                 <div class="flex items-center gap-2">
                     <div class="w-3 h-3 rounded-full bg-blue-200 relative"><div class="absolute top-0.5 right-0.5 w-1.5 h-1.5 rounded-full bg-primary"></div></div><span>Hoy</span>
                 </div>
@@ -346,8 +343,10 @@ const guardarCambios = () => {
 
                             <td v-for="(hora, index) in fila.horas" :key="index" class="p-1 text-center" :class="[
                                 esFinDeSemana(diasSemana[index]) ? 'bg-slate-50' : '',
-                                getTipoDia(diasSemana[index]) === 'festivo' ? 'bg-rose-50' : '',
-                                getTipoDia(diasSemana[index]) === 'vacaciones' ? 'bg-teal-50' : '',
+                                // 5. COLORES DE FONDO DE CELDA
+                                getTipoDia(diasSemana[index]) === 'festivo' ? 'bg-orange-50' : '',
+                                getTipoDia(diasSemana[index]) === 'vacaciones' ? 'bg-emerald-50' : '',
+                                getTipoDia(diasSemana[index]) === 'asuntos_propios' ? 'bg-blue-50' : '',
                             ]">
                                 
                                 <input type="number" min="0" max="24" step="0.5" 
@@ -360,9 +359,18 @@ const guardarCambios = () => {
                                         'text-primary font-bold border border-transparent hover:border-gray-300 focus:border-primary focus:ring-1 focus:ring-primary bg-transparent': esEditable(diasSemana[index]) && fila.horas[index] > 0,
                                         'bg-white border border-gray-200 hover:border-[#1F8C7F] hover:bg-teal-50/20 text-[#1F8C7F] shadow-sm cursor-pointer font-bold': esEditable(diasSemana[index]) && fila.horas[index] == 0,
                                         'bg-gray-100 text-gray-400 border-transparent': esPasadoNormal(diasSemana[index]) || esFinDeSemana(diasSemana[index]),
-                                        'bg-rose-50 text-rose-400 border-transparent': getTipoDia(diasSemana[index]) === 'festivo',
+                                        
+                                        // 6. COLORES DE INPUT Y TEXTO
+                                        'bg-orange-50 text-orange-600 border-transparent font-bold placeholder-orange-300': getTipoDia(diasSemana[index]) === 'festivo',
+                                        'bg-emerald-50 text-emerald-600 border-transparent font-bold placeholder-emerald-300': getTipoDia(diasSemana[index]) === 'vacaciones',
+                                        'bg-blue-50 text-blue-600 border-transparent font-bold placeholder-blue-300': getTipoDia(diasSemana[index]) === 'asuntos_propios',
+
                                         'border border-red-300 bg-red-50 text-red-600 font-extrabold shadow-none': esEditable(diasSemana[index]) && excedeLimiteDiario(index)
                                     }" :placeholder="getTipoDia(diasSemana[index]) || (esFinDeSemana(diasSemana[index]) ? '' : '0')">
+                                    
+                                    <div v-if="getTipoDia(diasSemana[index])" class="text-[9px] text-center uppercase font-bold opacity-60">
+                                        {{ getLabelDia(diasSemana[index]).substring(0,3) }}
+                                    </div>
                             </td>
                             <td class="p-3 text-center font-bold text-dark bg-gray-50 text-sm">{{ totalFila(fila) }}</td>
                         </tr>

@@ -63,9 +63,9 @@ const abrirModalEditar = (proy) => {
 const toggleUsuarioEnForm = (usuario) => {
     const index = proyectoForm.value.equipo.findIndex(u => u.id === usuario.id)
     if (index >= 0) {
-        proyectoForm.value.equipo.splice(index, 1) // Quitar
+        proyectoForm.value.equipo.splice(index, 1) 
     } else {
-        proyectoForm.value.equipo.push(usuario) // Añadir
+        proyectoForm.value.equipo.push(usuario) 
     }
 }
 

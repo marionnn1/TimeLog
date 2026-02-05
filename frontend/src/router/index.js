@@ -2,8 +2,9 @@ import { createRouter, createWebHistory } from 'vue-router'
 
 // 1. Importamos las vistas
 import DashboardView from '../views/DashboardView.vue'
+import GlobalCalendarView from '../views/GlobalCalendarView.vue'
 
-import ImputacionesView from '../views/ImputacionesView.vue' // <--- NUEVO IMPORT
+import ImputacionesView from '../views/ImputacionesView.vue'
 import AdminUsersView from '../views/admin/AdminUsersView.vue'
 import AdminProjectsView from '@/views/admin/AdminProjectsView.vue'
 import AdminAnnouncementsView from '../views/admin/AdminAnnouncementsView.vue'
@@ -12,7 +13,7 @@ import AdminDashboardView from '../views/admin/AdminDashboardView.vue'
 import AdminTicketsView from '../views/admin/AdminTicketsView.vue'
 
 
-import ManagerValidationView from '../views/manager/ManagerValidationView.vue' // Validación
+import ManagerValidationView from '../views/manager/ManagerValidationView.vue'
 import ManagerClosingView from '../views/manager/ManagerClosingView.vue'
 import ManagerAnalyticsView from '../views/manager/ManagerAnalyticsView.vue'
 import ProjectsView from '../views/manager/ProjectsView.vue'
@@ -34,12 +35,17 @@ const router = createRouter({
     {
       path: '/imputaciones',
       name: 'imputaciones',
-      component: ImputacionesView // Vista Mensual (Histórico) <--- NUEVA RUTA
+      component: ImputacionesView // Vista Mensual (Histórico)
     },
     {
       path: '/projects',
       name: 'projects',
       component: ProjectsView
+    },
+    {
+      path: '/calendario-global',
+      name: 'calendario-global',
+      component: GlobalCalendarView
     },
 
     // Rutas para Admin
@@ -98,7 +104,7 @@ const router = createRouter({
       component: ManagerValidationView
     },
     {
-      path: '/manager/cierre', // <--- AQUÍ ESTÁ LA NUEVA
+      path: '/manager/cierre',
       name: 'manager-cierre',
       component: ManagerClosingView
     },
