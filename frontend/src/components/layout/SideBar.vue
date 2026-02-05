@@ -1,13 +1,9 @@
 <script setup>
 import { computed } from 'vue'
 import {
-<<<<<<< HEAD
   // Iconos Generales
   LayoutDashboard, Clock, FolderKanban, FileBarChart, LogOut, ShieldCheck, Calendar, // <--- AÑADIDO CALENDAR
   // Iconos de Gestión (JP)
-=======
-  LayoutDashboard, Clock, FolderKanban, FileBarChart, LogOut, ShieldCheck,
->>>>>>> 01b45ab189253d30465ed8601f6a0a10a7cb648d
   CheckCircle,
   Users, Briefcase, Megaphone, History, Ticket, Activity
 } from 'lucide-vue-next'
