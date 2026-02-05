@@ -73,7 +73,32 @@ const empleadosExcedidos = computed(() => cargaEmpleados.value.filter(e => e.hor
 const horasLibres = computed(() => totalCapacidadTeorica - totalHorasImputadas)
 const porcentajeOcupacionGlobal = computed(() => Math.round((totalHorasImputadas / totalCapacidadTeorica) * 100))
 
-const exportarReporte = () => showToast(`Generando reporte PDF...`, 'success')
+const exportarReporte = () => {
+    const headers = ['Empleado', 'Rol', 'Horas Imputadas', 'Capacidad', 'Estado']
+    const rows = cargaEmpleados.value.map(emp => {
+        let estado = 'Correcto'
+        if (emp.horas > emp.capacidad) estado = 'Exceso'
+        else if (emp.horas < emp.capacidad * 0.5) estado = 'Baja Ocupación'
+        return [emp.nombre, emp.rol, emp.horas, emp.capacidad, estado]
+    })
+ 
+    const csvContent = [
+        headers.join(';'),
+        ...rows.map(row => row.join(';'))
+    ].join('\n')
+  
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.setAttribute('href', url)
+    link.setAttribute('download', `reporte_carga_${mesAnalisis.value}.csv`)
+    document.body.appendChild(link)
+    
+    link.click()
+    document.body.removeChild(link)
+
+    showToast(`Reporte generado: reporte_carga_${mesAnalisis.value}.csv`, 'success')
+}
 </script>
 
 <template>

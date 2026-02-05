@@ -122,6 +122,27 @@ const irAlDashboard = (dia) => {
 }
 
 const exportarDatos = () => {
+    const headers = ['Fecha', 'Cliente', 'Código Proyecto', 'Proyecto', 'Horas']
+    const rows = imputaciones.value.map(imp => {
+        const fechaStr = `${imp.dia}/${mesActualIndex.value + 1}/${anioActual.value}`
+        return [fechaStr, imp.cliente, imp.codigo, imp.proyecto, imp.horas]
+    })
+
+    const csvContent = [
+        headers.join(';'),
+        ...rows.map(row => row.join(';'))
+    ].join('\n')
+
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.setAttribute('href', url)
+    link.setAttribute('download', `imputaciones_${nombreMes.value}_${anioActual.value}.csv`)
+    document.body.appendChild(link)
+    
+    link.click()
+    document.body.removeChild(link)
+
     showToast('Informe exportado correctamente', 'success')
 }
 </script>
