@@ -8,12 +8,25 @@ import {
   Calendar as CalendarIcon, 
   FileText,
   Hash, 
-  Briefcase
+  Briefcase,
+  CheckCircle2,
+  AlertCircle,
+  X
 } from 'lucide-vue-next'
 
 const router = useRouter()
-
 const store = useDataStore()
+
+const toast = ref({ show: false, message: '', type: 'success' })
+let toastTimeout = null
+
+const showToast = (message, type = 'success') => {
+    toast.value = { show: true, message, type }
+    if (toastTimeout) clearTimeout(toastTimeout)
+    toastTimeout = setTimeout(() => {
+        toast.value.show = false
+    }, 3000)
+}
 
 const getInfoDia = (date) => {
   const currentUser = store.getCurrentUser()
@@ -33,7 +46,7 @@ const getInfoDia = (date) => {
   }
   
   return {
-      tipo: ausencia.type, // 'vacaciones', 'festivo', 'asuntos'
+      tipo: ausencia.type, 
       label: mapLabels[ausencia.type] || 'Ausencia'
   }
 }
@@ -41,7 +54,6 @@ const getInfoDia = (date) => {
 const getTipoDia = (date) => getInfoDia(date)?.tipo
 const getLabelDia = (date) => getInfoDia(date)?.label
 
-// --- LÓGICA FECHAS (Sin cambios) ---
 const fechaActual = ref(new Date()) 
 const hoy = new Date() 
 
@@ -70,7 +82,6 @@ const mesAnterior = () => fechaActual.value = new Date(anioActual.value, mesActu
 const mesSiguiente = () => fechaActual.value = new Date(anioActual.value, mesActualIndex.value + 1, 1)
 const irAHoy = () => fechaActual.value = new Date()
 
-// --- DATOS SIMULADOS (IMPUTACIONES) ---
 const imputaciones = ref([
   { dia: 5, cliente: 'Banco Santander', codigo: 'SAN-001', proyecto: 'Auditoría Backend', horas: 8, color: 'bg-blue-50 text-blue-700 border-blue-100 hover:bg-blue-100' },
   { dia: 6, cliente: 'Mapfre', codigo: 'MAP-220', proyecto: 'Migración Cloud', horas: 4, color: 'bg-cyan-50 text-cyan-800 border-cyan-100 hover:bg-cyan-100' },
@@ -109,10 +120,14 @@ const irAlDashboard = (dia) => {
   const fechaLocal = new Date(fechaDestino.getTime() - (offset*60*1000))
   router.push({ name: 'dashboard', query: { fecha: fechaLocal.toISOString().split('T')[0] } })
 }
+
+const exportarDatos = () => {
+    showToast('Informe exportado correctamente', 'success')
+}
 </script>
 
 <template>
-  <div class="h-full flex flex-col font-sans bg-gray-50 p-6 overflow-y-auto">
+  <div class="h-full flex flex-col font-sans bg-gray-50 p-6 overflow-y-auto relative">
     
     <div class="flex justify-between items-center mb-6">
       <div class="flex items-center gap-4">
@@ -136,7 +151,7 @@ const irAlDashboard = (dia) => {
         </div>
       </div>
       
-      <button class="btn-secondary">
+      <button @click="exportarDatos" class="btn-secondary">
         <FileText class="w-4 h-4"/> Exportar
       </button>
     </div>
@@ -175,7 +190,6 @@ const irAlDashboard = (dia) => {
              class="min-h-[100px] p-2 border-b border-r border-gray-100 transition relative flex flex-col gap-1"
              :class="[
                esFinDeSemana(dia) ? 'bg-slate-100 cursor-default' : 'bg-white',
-               // COLORES DE FONDO DINÁMICOS (Si vienen del Store)
                getTipoDia(new Date(anioActual, mesActualIndex, dia)) === 'festivo' ? 'bg-orange-50/40' : '',
                getTipoDia(new Date(anioActual, mesActualIndex, dia)) === 'vacaciones' ? 'bg-emerald-50/40' : '',
                getTipoDia(new Date(anioActual, mesActualIndex, dia)) === 'asuntos' ? 'bg-blue-50/40' : '',
@@ -270,6 +284,18 @@ const irAlDashboard = (dia) => {
             </table>
         </div>
     </div>
+
+    <transition enter-active-class="transform ease-out duration-300 transition" enter-from-class="translate-y-2 opacity-0 sm:translate-y-0 sm:translate-x-2" enter-to-class="translate-y-0 opacity-100 sm:translate-x-0" leave-active-class="transition ease-in duration-100" leave-from-class="opacity-100" leave-to-class="opacity-0">
+        <div v-if="toast.show" class="absolute bottom-6 right-6 z-50 flex items-center w-full max-w-xs p-4 space-x-3 text-gray-500 bg-white rounded-lg shadow-lg border border-gray-100" role="alert">
+            <div class="inline-flex items-center justify-center flex-shrink-0 w-8 h-8 rounded-lg" :class="toast.type === 'success' ? 'text-green-500 bg-green-100' : 'text-red-500 bg-red-100'">
+                <component :is="toast.type === 'success' ? CheckCircle2 : AlertCircle" class="w-5 h-5"/>
+            </div>
+            <div class="ml-3 text-sm font-bold text-gray-800">{{ toast.message }}</div>
+            <button @click="toast.show = false" type="button" class="ml-auto -mx-1.5 -my-1.5 bg-white text-gray-400 hover:text-gray-900 rounded-lg focus:ring-2 focus:ring-gray-300 p-1.5 hover:bg-gray-100 inline-flex h-8 w-8 items-center justify-center">
+                <X class="w-4 h-4"/>
+            </button>
+        </div>
+    </transition>
 
   </div>
 </template>

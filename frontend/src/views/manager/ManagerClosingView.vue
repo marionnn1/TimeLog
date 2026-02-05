@@ -2,15 +2,35 @@
 import { ref, computed, watch } from 'vue'
 import {
     Lock, Unlock, Search, Calendar, AlertCircle, CheckCircle2,
-    FileDown, XCircle, Ban
+    FileDown, XCircle, Ban, Trash2, AlertTriangle, X
 } from 'lucide-vue-next'
 
-// --- ESTADO ---
 const fechaCierre = ref('2026-01')
 const busqueda = ref('')
 const mesCerrado = ref(false)
 
-// --- GENERADOR DE DATOS INTELIGENTE ---
+const toast = ref({ show: false, message: '', type: 'success' })
+let toastTimeout = null
+
+const showToast = (message, type = 'success') => {
+    toast.value = { show: true, message, type }
+    if (toastTimeout) clearTimeout(toastTimeout)
+    toastTimeout = setTimeout(() => {
+        toast.value.show = false
+    }, 3000)
+}
+
+const confirmState = ref({ show: false, title: '', message: '', type: 'neutral', action: null })
+
+const solicitarConfirmacion = (title, message, type, callback) => {
+    confirmState.value = { show: true, title, message, type, action: callback }
+}
+
+const ejecutarConfirmacion = () => {
+    if (confirmState.value.action) confirmState.value.action()
+    confirmState.value.show = false
+}
+
 const getDatosPorMes = (fecha) => {
     if (fecha === '2026-01') {
         return [
@@ -36,7 +56,6 @@ watch(fechaCierre, (nuevoMes) => {
     auditoriaUsuarios.value = getDatosPorMes(nuevoMes)
 })
 
-// --- COMPUTADOS ---
 const usuariosFiltrados = computed(() => {
     return auditoriaUsuarios.value.filter(u =>
         u.nombre.toLowerCase().includes(busqueda.value.toLowerCase())
@@ -55,24 +74,47 @@ const resumenEstado = computed(() => {
     return { total, incompletos, vacios, completos: total - incompletos - vacios }
 })
 
-// --- ACCIONES ---
+const procesarCierre = () => {
+    mesCerrado.value = true
+    showToast(`Mes de ${fechaCierre.value} cerrado correctamente`, 'success')
+}
+
 const ejecutarCierre = () => {
     if (!puedeCerrarMes.value) {
-        const confirmar = confirm("Hay usuarios con días incompletos. ¿Estás seguro de que quieres forzar el cierre?")
-        if (!confirmar) return
+        solicitarConfirmacion(
+            'Cierre Forzoso',
+            'Hay usuarios con días incompletos. ¿Estás seguro de que quieres forzar el cierre del mes? Esto bloqueará futuras imputaciones.',
+            'warning',
+            procesarCierre
+        )
+        return
     }
+    
     if (resumenEstado.value.vacios === resumenEstado.value.total) {
-        if (!confirm("⚠️ El mes parece estar vacío. ¿Cerrar igualmente?")) return;
+        solicitarConfirmacion(
+            'Mes Vacío',
+            'El mes parece no tener actividad registrada. ¿Cerrar igualmente?',
+            'neutral',
+            procesarCierre
+        )
+        return
     }
-    mesCerrado.value = true
-    alert(`Mes de ${fechaCierre.value} cerrado correctamente.`)
+    
+    procesarCierre()
 }
 
 const reabrirMes = () => {
-    if (confirm("¿Reabrir el mes?")) mesCerrado.value = false
+    solicitarConfirmacion(
+        'Reabrir Mes',
+        '¿Estás seguro de que quieres reabrir este periodo? Los usuarios podrán volver a editar sus imputaciones.',
+        'neutral',
+        () => {
+            mesCerrado.value = false
+            showToast('Mes reabierto correctamente', 'success')
+        }
+    )
 }
 
-// --- FUNCIÓN DE EXPORTACIÓN CSV CORREGIDA ---
 const exportarExcel = () => {   
     const headers = ['ID', 'Nombre', 'Rol', 'Horas Reales', 'Horas Teoricas', 'Estado', 'Dias Faltantes']
     const rows = auditoriaUsuarios.value.map(u => [
@@ -99,15 +141,16 @@ const exportarExcel = () => {
 
     link.click() 
     document.body.removeChild(link) 
+    showToast('Archivo CSV descargado', 'success')
 }
 
 const notificarUsuario = (nombre) => {
-    alert(`Recordatorio enviado a ${nombre} correctamente.`)
+    showToast(`Recordatorio enviado a ${nombre}`, 'success')
 }
 </script>
 
 <template>
-    <div class="h-full flex flex-col font-sans bg-gray-50 p-6 gap-6 overflow-hidden">
+    <div class="h-full flex flex-col font-sans bg-gray-50 p-6 gap-6 overflow-hidden relative">
 
         <div class="flex justify-between items-end shrink-0">
             <div>
@@ -220,10 +263,10 @@ const notificarUsuario = (nombre) => {
                                     </span>
                                     <div class="w-24 h-1.5 bg-gray-100 rounded-full overflow-hidden">
                                         <div class="h-full rounded-full transition-all" :class="{
-                                            'bg-emerald-500': user.estado === 'completo',
-                                            'bg-amber-500': user.estado === 'incompleto',
-                                            'bg-transparent': user.estado === 'vacio'
-                                        }"
+                                                'bg-emerald-500': user.estado === 'completo',
+                                                'bg-amber-500': user.estado === 'incompleto',
+                                                'bg-transparent': user.estado === 'vacio'
+                                            }"
                                             :style="`width: ${Math.min((user.horasReales / user.horasTeoricas) * 100, 100)}%`">
                                         </div>
                                     </div>
@@ -281,6 +324,40 @@ const notificarUsuario = (nombre) => {
                 </table>
             </div>
         </div>
+
+        <div v-if="confirmState.show" class="fixed inset-0 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center z-[60] p-4">
+            <div class="bg-white w-full max-w-sm rounded-xl shadow-2xl p-6 animate-in zoom-in-95">
+                <div class="flex flex-col items-center text-center gap-3">
+                    <div class="w-12 h-12 rounded-full flex items-center justify-center mb-2"
+                         :class="confirmState.type === 'warning' ? 'bg-amber-100 text-amber-600' : 'bg-slate-100 text-slate-600'">
+                        <component :is="confirmState.type === 'warning' ? AlertTriangle : CheckCircle2" class="w-6 h-6" />
+                    </div>
+                    <h3 class="text-lg font-bold text-slate-900">{{ confirmState.title }}</h3>
+                    <p class="text-sm text-slate-500 leading-relaxed">{{ confirmState.message }}</p>
+                    
+                    <div class="flex gap-3 w-full mt-4">
+                        <button @click="confirmState.show = false" class="btn-secondary flex-1 justify-center">Cancelar</button>
+                        <button @click="ejecutarConfirmacion" 
+                                class="flex-1 justify-center btn-primary"
+                                :class="confirmState.type === 'warning' ? 'bg-amber-600 hover:bg-amber-700' : 'bg-slate-700 hover:bg-slate-800'">
+                            Confirmar
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <transition enter-active-class="transform ease-out duration-300 transition" enter-from-class="translate-y-2 opacity-0 sm:translate-y-0 sm:translate-x-2" enter-to-class="translate-y-0 opacity-100 sm:translate-x-0" leave-active-class="transition ease-in duration-100" leave-from-class="opacity-100" leave-to-class="opacity-0">
+            <div v-if="toast.show" class="absolute bottom-6 right-6 z-50 flex items-center w-full max-w-xs p-4 space-x-3 text-gray-500 bg-white rounded-lg shadow-lg border border-gray-100" role="alert">
+                <div class="inline-flex items-center justify-center flex-shrink-0 w-8 h-8 rounded-lg" :class="toast.type === 'success' ? 'text-green-500 bg-green-100' : 'text-red-500 bg-red-100'">
+                    <component :is="toast.type === 'success' ? CheckCircle2 : AlertCircle" class="w-5 h-5"/>
+                </div>
+                <div class="ml-3 text-sm font-bold text-gray-800">{{ toast.message }}</div>
+                <button @click="toast.show = false" type="button" class="ml-auto -mx-1.5 -my-1.5 bg-white text-gray-400 hover:text-gray-900 rounded-lg focus:ring-2 focus:ring-gray-300 p-1.5 hover:bg-gray-100 inline-flex h-8 w-8 items-center justify-center">
+                    <X class="w-4 h-4"/>
+                </button>
+            </div>
+        </transition>
 
     </div>
 </template>

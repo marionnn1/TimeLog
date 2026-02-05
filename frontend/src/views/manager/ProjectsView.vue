@@ -2,9 +2,9 @@
 import { ref, computed } from 'vue'
 import {
     LayoutGrid, Search, Plus, Pencil, Trash2, X, Check,
-    Briefcase, UserPlus, Tag, Hash, Save
+    Briefcase, UserPlus, Tag, Hash, Save,
+    CheckCircle2, AlertCircle, AlertTriangle
 } from 'lucide-vue-next'
-
 
 const proyectos = ref([
     { 
@@ -26,14 +26,34 @@ const proyectos = ref([
     },
 ])
 
-
 const usuariosDisponibles = [
     { id: 1, nombre: 'Mario León', rol: 'Dev', iniciales: 'ML', color: 'bg-indigo-100 text-indigo-600' },
     { id: 2, nombre: 'Ana Ruiz', rol: 'QA', iniciales: 'AR', color: 'bg-rose-100 text-rose-600' },
     { id: 3, nombre: 'Pedro Sola', rol: 'Junior', iniciales: 'PS', color: 'bg-cyan-100 text-cyan-600' },
 ]
 
-// --- ESTADOS ---
+const toast = ref({ show: false, message: '', type: 'success' })
+let toastTimeout = null
+
+const showToast = (message, type = 'success') => {
+    toast.value = { show: true, message, type }
+    if (toastTimeout) clearTimeout(toastTimeout)
+    toastTimeout = setTimeout(() => {
+        toast.value.show = false
+    }, 3000)
+}
+
+const confirmState = ref({ show: false, title: '', message: '', type: 'neutral', action: null })
+
+const solicitarConfirmacion = (title, message, type, callback) => {
+    confirmState.value = { show: true, title, message, type, action: callback }
+}
+
+const ejecutarConfirmacion = () => {
+    if (confirmState.value.action) confirmState.value.action()
+    confirmState.value.show = false
+}
+
 const mostrarModalAsignar = ref(false)
 const mostrarModalProyecto = ref(false) 
 const esEdicion = ref(false)
@@ -44,7 +64,6 @@ const proyectoForm = ref({ id: null, nombre: '', cliente: '', idCliente: '', cod
 const busqueda = ref('')
 const filtroEstado = ref('todos')
 
-// --- LÓGICA FILTROS ---
 const proyectosFiltrados = computed(() => {
     return proyectos.value.filter(p => {
         const textoMatch =
@@ -60,8 +79,6 @@ const proyectosFiltrados = computed(() => {
     })
 })
 
-// --- GESTIÓN PROYECTOS ---
-
 const abrirCrearProyecto = () => {
     esEdicion.value = false
     proyectoForm.value = { id: null, nombre: '', cliente: '', idCliente: '', codigo: '', estado: true }
@@ -75,7 +92,10 @@ const abrirEditarProyecto = (proy) => {
 }
 
 const guardarProyecto = () => {
-    if (!proyectoForm.value.nombre || !proyectoForm.value.cliente) return alert("Nombre y Cliente son obligatorios")
+    if (!proyectoForm.value.nombre || !proyectoForm.value.cliente) {
+        showToast("Nombre y Cliente son obligatorios", "error")
+        return
+    }
 
     if (esEdicion.value) {
         const index = proyectos.value.findIndex(p => p.id === proyectoForm.value.id)
@@ -95,28 +115,40 @@ const guardarProyecto = () => {
         })
     }
     mostrarModalProyecto.value = false
+    showToast(esEdicion.value ? "Proyecto actualizado" : "Proyecto creado", "success")
 }
 
 const eliminarProyecto = (id) => {
-    if(confirm('¿Seguro que quieres eliminar este proyecto?')) {
-        proyectos.value = proyectos.value.filter(p => p.id !== id)
-    }
+    solicitarConfirmacion(
+        'Eliminar Proyecto',
+        '¿Estás seguro de que deseas eliminar este proyecto de forma permanente?',
+        'danger',
+        () => {
+            proyectos.value = proyectos.value.filter(p => p.id !== id)
+            showToast("Proyecto eliminado correctamente", "success")
+        }
+    )
 }
 
-// --- ASIGNACIÓN USUARIOS ---
 const abrirModalAsignacion = (proyecto) => {
     asignacionData.value = { proyectoId: proyecto.id, nombreProyecto: proyecto.nombre, usuarioId: '' }
     mostrarModalAsignar.value = true
 }
 
 const confirmarAsignacion = () => {
-    if (!asignacionData.value.usuarioId) return
+    if (!asignacionData.value.usuarioId) {
+        showToast("Selecciona un empleado", "error")
+        return
+    }
     const usuarioObj = usuariosDisponibles.find(u => u.id === asignacionData.value.usuarioId)
     const proyectoTarget = proyectos.value.find(p => p.id === asignacionData.value.proyectoId)
     
     if(proyectoTarget && usuarioObj) {
         if(!proyectoTarget.equipo.find(u => u.nombre === usuarioObj.nombre)){
              proyectoTarget.equipo.push({ ...usuarioObj })
+             showToast("Usuario asignado correctamente", "success")
+        } else {
+            showToast("El usuario ya está en el equipo", "error")
         }
     }
     mostrarModalAsignar.value = false
@@ -124,7 +156,7 @@ const confirmarAsignacion = () => {
 </script>
 
 <template>
-    <div class="h-full flex flex-col font-sans p-8 bg-slate-50 overflow-y-auto">
+    <div class="h-full flex flex-col font-sans p-8 bg-slate-50 overflow-y-auto relative">
 
         <div class="flex justify-between items-center mb-8">
             <div class="flex items-center gap-4">
@@ -235,7 +267,7 @@ const confirmarAsignacion = () => {
                         </template>
 
                         <div v-else class="h-full flex flex-col items-center justify-center text-slate-300 gap-2 min-h-[100px]">
-                            <Users class="w-8 h-8 opacity-20" />
+                            <UserPlus class="w-8 h-8 opacity-20" />
                             <span class="text-xs italic">Sin equipo asignado</span>
                         </div>
 
@@ -332,11 +364,48 @@ const confirmarAsignacion = () => {
             </div>
         </div>
 
+        <div v-if="confirmState.show" class="fixed inset-0 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center z-[60] p-4">
+            <div class="bg-white w-full max-w-sm rounded-xl shadow-2xl p-6 animate-in zoom-in-95">
+                <div class="flex flex-col items-center text-center gap-3">
+                    <div class="w-12 h-12 rounded-full flex items-center justify-center mb-2"
+                         :class="confirmState.type === 'danger' ? 'bg-red-100 text-red-600' : 'bg-amber-100 text-amber-600'">
+                        <component :is="confirmState.type === 'danger' ? Trash2 : AlertTriangle" class="w-6 h-6" />
+                    </div>
+                    <h3 class="text-lg font-bold text-slate-900">{{ confirmState.title }}</h3>
+                    <p class="text-sm text-slate-500 leading-relaxed">{{ confirmState.message }}</p>
+                    
+                    <div class="flex gap-3 w-full mt-4">
+                        <button @click="confirmState.show = false" class="btn-secondary flex-1 justify-center">Cancelar</button>
+                        <button @click="ejecutarConfirmacion" 
+                                class="flex-1 justify-center btn-primary"
+                                :class="confirmState.type === 'danger' ? 'bg-red-600 hover:bg-red-700' : 'bg-amber-600 hover:bg-amber-700'">
+                            Confirmar
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <transition enter-active-class="transform ease-out duration-300 transition" enter-from-class="translate-y-2 opacity-0 sm:translate-y-0 sm:translate-x-2" enter-to-class="translate-y-0 opacity-100 sm:translate-x-0" leave-active-class="transition ease-in duration-100" leave-from-class="opacity-100" leave-to-class="opacity-0">
+            <div v-if="toast.show" class="absolute bottom-6 right-6 z-50 flex items-center w-full max-w-xs p-4 space-x-3 text-gray-500 bg-white rounded-lg shadow-lg border border-gray-100" role="alert">
+                <div class="inline-flex items-center justify-center flex-shrink-0 w-8 h-8 rounded-lg" :class="toast.type === 'success' ? 'text-green-500 bg-green-100' : 'text-red-500 bg-red-100'">
+                    <component :is="toast.type === 'success' ? CheckCircle2 : AlertCircle" class="w-5 h-5"/>
+                </div>
+                <div class="ml-3 text-sm font-bold text-gray-800">{{ toast.message }}</div>
+                <button @click="toast.show = false" type="button" class="ml-auto -mx-1.5 -my-1.5 bg-white text-gray-400 hover:text-gray-900 rounded-lg focus:ring-2 focus:ring-gray-300 p-1.5 hover:bg-gray-100 inline-flex h-8 w-8 items-center justify-center">
+                    <X class="w-4 h-4"/>
+                </button>
+            </div>
+        </transition>
+
     </div>
 </template>
 
 <style scoped>
 .btn-primary {
     @apply bg-[#26AA9B] hover:bg-[#208f82] text-white px-5 py-2.5 rounded-xl font-bold text-sm transition-all flex items-center gap-2;
+}
+.btn-secondary {
+    @apply bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 px-5 py-2.5 rounded-xl font-bold text-sm transition-all flex items-center gap-2;
 }
 </style>

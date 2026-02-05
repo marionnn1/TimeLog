@@ -1,12 +1,23 @@
 <script setup>
 import { ref, computed } from 'vue'
-import { FolderPlus, Pencil, Tag, X, Briefcase, Users, Check } from 'lucide-vue-next'
+import { FolderPlus, Pencil, Tag, X, Briefcase, Users, Check, CheckCircle2, AlertCircle } from 'lucide-vue-next'
 import { useDataStore } from '../../stores/dataStore'
 
 const store = useDataStore()
 const proyectos = computed(() => store.getProjects())
 
-// --- DATOS DE USUARIOS DISPONIBLES ---
+const toast = ref({ show: false, message: '', type: 'success' })
+let toastTimeout = null
+
+const showToast = (message, type = 'success') => {
+    toast.value = { show: true, message, type }
+    if (toastTimeout) clearTimeout(toastTimeout)
+    toastTimeout = setTimeout(() => {
+        toast.value.show = false
+    }, 3000)
+}
+
+// --- DATOS DE USUARIOS ---
 const usuariosFake = [
     { id: 1, nombre: 'Ana García', iniciales: 'AG', color: 'bg-pink-100 text-pink-700' },
     { id: 2, nombre: 'Carlos Ruiz', iniciales: 'CR', color: 'bg-blue-100 text-blue-700' },
@@ -26,7 +37,6 @@ const getDisplayUsuarios = (proy) => {
 const mostrarModal = ref(false)
 const esEdicion = ref(false) 
 
-
 const proyectoForm = ref({
     id: null,
     nombre: '',
@@ -41,7 +51,6 @@ const abrirModalCrear = () => {
     mostrarModal.value = true
 }
 
-
 const abrirModalEditar = (proy) => {
     esEdicion.value = true
     const equipoActual = proy.equipo || getDisplayUsuarios(proy)
@@ -52,7 +61,6 @@ const abrirModalEditar = (proy) => {
     }
     mostrarModal.value = true
 }
-
 
 const toggleUsuarioEnForm = (usuario) => {
     const index = proyectoForm.value.equipo.findIndex(u => u.id === usuario.id)
@@ -67,20 +75,21 @@ const estaSeleccionado = (userId) => {
     return proyectoForm.value.equipo.some(u => u.id === userId)
 }
 
-
 const guardarProyecto = () => {
     if (esEdicion.value) {
         store.deleteProject(proyectoForm.value.id)
         store.addProject(proyectoForm.value)
+        showToast('Proyecto actualizado correctamente', 'success')
     } else {
         store.addProject(proyectoForm.value)
+        showToast('Proyecto creado correctamente', 'success')
     }
     mostrarModal.value = false
 }
 </script>
 
 <template>
-    <div class="h-full p-6 bg-gray-50 flex flex-col gap-6 font-sans">
+    <div class="h-full p-6 bg-gray-50 flex flex-col gap-6 font-sans relative">
 
         <div class="flex justify-between items-center">
             <div>
@@ -214,5 +223,18 @@ const guardarProyecto = () => {
                 </div>
             </div>
         </div>
+
+        <transition enter-active-class="transform ease-out duration-300 transition" enter-from-class="translate-y-2 opacity-0 sm:translate-y-0 sm:translate-x-2" enter-to-class="translate-y-0 opacity-100 sm:translate-x-0" leave-active-class="transition ease-in duration-100" leave-from-class="opacity-100" leave-to-class="opacity-0">
+            <div v-if="toast.show" class="absolute bottom-6 right-6 z-50 flex items-center w-full max-w-xs p-4 space-x-3 text-gray-500 bg-white rounded-lg shadow-lg border border-gray-100" role="alert">
+                <div class="inline-flex items-center justify-center flex-shrink-0 w-8 h-8 rounded-lg" :class="toast.type === 'success' ? 'text-green-500 bg-green-100' : 'text-red-500 bg-red-100'">
+                    <component :is="toast.type === 'success' ? CheckCircle2 : AlertCircle" class="w-5 h-5"/>
+                </div>
+                <div class="ml-3 text-sm font-bold text-gray-800">{{ toast.message }}</div>
+                <button @click="toast.show = false" type="button" class="ml-auto -mx-1.5 -my-1.5 bg-white text-gray-400 hover:text-gray-900 rounded-lg focus:ring-2 focus:ring-gray-300 p-1.5 hover:bg-gray-100 inline-flex h-8 w-8 items-center justify-center">
+                    <X class="w-4 h-4"/>
+                </button>
+            </div>
+        </transition>
+
     </div>
 </template>

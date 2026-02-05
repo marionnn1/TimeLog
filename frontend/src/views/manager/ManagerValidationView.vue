@@ -1,10 +1,10 @@
 <script setup>
 import { ref } from 'vue'
 import { 
-    AlertOctagon, Check, X, FileEdit, MessageSquare, Calendar, Clock, Save 
+    AlertOctagon, Check, X, FileEdit, MessageSquare, Calendar, Clock, Save,
+    CheckCircle2, AlertCircle, Trash2, AlertTriangle
 } from 'lucide-vue-next'
 
-// --- Solicitudes pendientes ---
 const solicitudes = ref([
     { 
         id: 1, 
@@ -30,7 +30,28 @@ const solicitudes = ref([
     }
 ])
 
-// --- LÓGICA DE EDICIÓN ---
+const toast = ref({ show: false, message: '', type: 'success' })
+let toastTimeout = null
+
+const showToast = (message, type = 'success') => {
+    toast.value = { show: true, message, type }
+    if (toastTimeout) clearTimeout(toastTimeout)
+    toastTimeout = setTimeout(() => {
+        toast.value.show = false
+    }, 3000)
+}
+
+const confirmState = ref({ show: false, title: '', message: '', type: 'neutral', action: null, inputMode: false, inputValue: '' })
+
+const solicitarConfirmacion = (title, message, type, callback, inputMode = false) => {
+    confirmState.value = { show: true, title, message, type, action: callback, inputMode, inputValue: '' }
+}
+
+const ejecutarConfirmacion = () => {
+    if (confirmState.value.action) confirmState.value.action(confirmState.value.inputValue)
+    confirmState.value.show = false
+}
+
 const solicitudSeleccionada = ref(null)
 const horasEditadas = ref(0)
 const mostrarModal = ref(false)
@@ -47,25 +68,31 @@ const cerrarModal = () => {
 }
 
 const guardarCorreccion = () => {
-    // AQUÍ IRÍA LA LLAMADA AL BACKEND PARA ACTUALIZAR EL REGISTRO
-    alert(`✅ Corrección Guardada:\nUsuario: ${solicitudSeleccionada.value.usuario}\nFecha: ${solicitudSeleccionada.value.fecha}\nNuevas Horas: ${horasEditadas.value}`)
-    
-    // Eliminamos la solicitud de la lista porque ya está resuelta
     solicitudes.value = solicitudes.value.filter(s => s.id !== solicitudSeleccionada.value.id)
     cerrarModal()
+    showToast(`Corrección aplicada correctamente`, 'success')
 }
 
 const rechazarSolicitud = (id) => {
-    const motivoRechazo = prompt("Escribe el motivo del rechazo para el usuario:")
-    if (motivoRechazo) {
-        solicitudes.value = solicitudes.value.filter(s => s.id !== id)
-        alert("❌ Solicitud rechazada. Se ha notificado al usuario.")
-    }
+    solicitarConfirmacion(
+        'Rechazar Solicitud',
+        'Por favor, indica el motivo del rechazo para notificar al usuario:',
+        'danger',
+        (motivo) => {
+            if (motivo) {
+                solicitudes.value = solicitudes.value.filter(s => s.id !== id)
+                showToast("Solicitud rechazada y notificada.", "success")
+            } else {
+                showToast("Debes indicar un motivo", "error")
+            }
+        },
+        true 
+    )
 }
 </script>
 
 <template>
-  <div class="h-full flex flex-col font-sans bg-gray-50 p-6 gap-6 overflow-y-auto">
+  <div class="h-full flex flex-col font-sans bg-gray-50 p-6 gap-6 overflow-y-auto relative">
     
     <div>
         <h1 class="h1-title flex items-center gap-2">
@@ -145,7 +172,7 @@ const rechazarSolicitud = (id) => {
 
             <div v-if="solicitudSeleccionada" class="p-6 space-y-4">
                 <div class="bg-gray-50 p-3 rounded border border-gray-200 text-sm space-y-1">
-                    <p><span class="font-bold text-gray-500 w-20 inline-block">Usuario:</span> {{ solicitudSeleccionada.usuario }}</p>
+                    <p><span class="font-bold text-gray-500 w--20 inline-block">Usuario:</span> {{ solicitudSeleccionada.usuario }}</p>
                     <p><span class="font-bold text-gray-500 w-20 inline-block">Proyecto:</span> {{ solicitudSeleccionada.proyecto }}</p>
                     <p><span class="font-bold text-gray-500 w-20 inline-block">Fecha:</span> {{ solicitudSeleccionada.fecha }}</p>
                 </div>
@@ -171,6 +198,44 @@ const rechazarSolicitud = (id) => {
             </div>
         </div>
     </div>
+
+    <div v-if="confirmState.show" class="fixed inset-0 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center z-[60] p-4">
+        <div class="bg-white w-full max-w-sm rounded-xl shadow-2xl p-6 animate-in zoom-in-95">
+            <div class="flex flex-col items-center text-center gap-3">
+                <div class="w-12 h-12 rounded-full flex items-center justify-center mb-2"
+                     :class="confirmState.type === 'danger' ? 'bg-red-100 text-red-600' : 'bg-amber-100 text-amber-600'">
+                    <component :is="confirmState.type === 'danger' ? Trash2 : AlertTriangle" class="w-6 h-6" />
+                </div>
+                <h3 class="text-lg font-bold text-slate-900">{{ confirmState.title }}</h3>
+                <p class="text-sm text-slate-500 leading-relaxed">{{ confirmState.message }}</p>
+                
+                <div v-if="confirmState.inputMode" class="w-full mt-2">
+                    <input v-model="confirmState.inputValue" type="text" placeholder="Motivo..." class="input-std w-full" autofocus>
+                </div>
+
+                <div class="flex gap-3 w-full mt-4">
+                    <button @click="confirmState.show = false" class="btn-secondary flex-1 justify-center">Cancelar</button>
+                    <button @click="ejecutarConfirmacion" 
+                            class="flex-1 justify-center btn-primary"
+                            :class="confirmState.type === 'danger' ? 'bg-red-600 hover:bg-red-700' : 'bg-amber-600 hover:bg-amber-700'">
+                        Confirmar
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <transition enter-active-class="transform ease-out duration-300 transition" enter-from-class="translate-y-2 opacity-0 sm:translate-y-0 sm:translate-x-2" enter-to-class="translate-y-0 opacity-100 sm:translate-x-0" leave-active-class="transition ease-in duration-100" leave-from-class="opacity-100" leave-to-class="opacity-0">
+        <div v-if="toast.show" class="absolute bottom-6 right-6 z-50 flex items-center w-full max-w-xs p-4 space-x-3 text-gray-500 bg-white rounded-lg shadow-lg border border-gray-100" role="alert">
+            <div class="inline-flex items-center justify-center flex-shrink-0 w-8 h-8 rounded-lg" :class="toast.type === 'success' ? 'text-green-500 bg-green-100' : 'text-red-500 bg-red-100'">
+                <component :is="toast.type === 'success' ? CheckCircle2 : AlertCircle" class="w-5 h-5"/>
+            </div>
+            <div class="ml-3 text-sm font-bold text-gray-800">{{ toast.message }}</div>
+            <button @click="toast.show = false" type="button" class="ml-auto -mx-1.5 -my-1.5 bg-white text-gray-400 hover:text-gray-900 rounded-lg focus:ring-2 focus:ring-gray-300 p-1.5 hover:bg-gray-100 inline-flex h-8 w-8 items-center justify-center">
+                <X class="w-4 h-4"/>
+            </button>
+        </div>
+    </transition>
 
   </div>
 </template>

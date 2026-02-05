@@ -1,15 +1,14 @@
 <script setup>
 import { ref, computed } from 'vue'
 import { History, Search, ShieldAlert } from 'lucide-vue-next'
-// 1. IMPORTAR STORE
 import { useDataStore } from '../../stores/dataStore'
 
 const store = useDataStore()
 
-// 2. LEER LOGS REALES DEL STORE
+
 const logs = computed(() => store.getLogs())
 
-// --- FILTROS (Igual que antes) ---
+// --- FILTROS  ---
 const busqueda = ref('')
 const filtroGravedad = ref('todos')
 
