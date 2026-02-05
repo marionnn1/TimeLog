@@ -1,15 +1,27 @@
 <script setup>
 import { ref, computed } from 'vue'
-import { Plus, Pencil, Trash2, Search, MapPin, X, Save } from 'lucide-vue-next'
+import { 
+    Plus, Pencil, Trash2, Search, MapPin, X, Save,
+    AlertTriangle, CheckCircle2, AlertCircle
+} from 'lucide-vue-next'
 import { useDataStore } from '../../stores/dataStore'
 
 const store = useDataStore()
 
-// Datos
 const usuarios = computed(() => store.getUsers())
 const sedesDisponibles = store.getSedes()
 
-// Estado Modal
+const confirmState = ref({ show: false, title: '', message: '', type: 'neutral', action: null })
+
+const solicitarConfirmacion = (title, message, type, callback) => {
+    confirmState.value = { show: true, title, message, type, action: callback }
+}
+
+const ejecutarConfirmacion = () => {
+    if (confirmState.value.action) confirmState.value.action()
+    confirmState.value.show = false
+}
+
 const mostrarModal = ref(false)
 const modoEdicion = ref(false)
 const formulario = ref({ id: null, nombre: '', email: '', rol: 'Técnico', sede: 'Madrid' })
@@ -33,10 +45,14 @@ const guardarUsuario = () => {
 }
 
 const eliminarUsuario = (id) => {
-    if(confirm('¿Seguro que deseas dar de baja a este usuario?')) store.deleteUser(id)
+    solicitarConfirmacion(
+        'Eliminar Usuario',
+        '¿Estás seguro de que deseas dar de baja a este usuario de forma permanente?',
+        'danger',
+        () => store.deleteUser(id)
+    )
 }
 
-// Filtros
 const busqueda = ref('')
 const usuariosFiltrados = computed(() => {
     return usuarios.value.filter(u => 
@@ -55,7 +71,7 @@ const getRolStyle = (rol) => {
 </script>
 
 <template>
-  <div class="h-full flex flex-col font-sans bg-gray-50 p-6 gap-6 overflow-y-auto">
+  <div class="h-full flex flex-col font-sans bg-gray-50 p-6 gap-6 overflow-y-auto relative">
     
     <div class="flex justify-between items-center">
       <div>
@@ -152,5 +168,28 @@ const getRolStyle = (rol) => {
             </div>
         </div>
     </div>
+
+    <div v-if="confirmState.show" class="fixed inset-0 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center z-[60] p-4">
+        <div class="bg-white w-full max-w-sm rounded-xl shadow-2xl p-6 animate-in zoom-in-95">
+            <div class="flex flex-col items-center text-center gap-3">
+                <div class="w-12 h-12 rounded-full flex items-center justify-center mb-2"
+                     :class="confirmState.type === 'danger' ? 'bg-red-100 text-red-600' : 'bg-slate-100 text-slate-600'">
+                    <component :is="confirmState.type === 'danger' ? Trash2 : AlertTriangle" class="w-6 h-6" />
+                </div>
+                <h3 class="text-lg font-bold text-slate-900">{{ confirmState.title }}</h3>
+                <p class="text-sm text-slate-500 leading-relaxed">{{ confirmState.message }}</p>
+                
+                <div class="flex gap-3 w-full mt-4">
+                    <button @click="confirmState.show = false" class="btn-secondary flex-1 justify-center">Cancelar</button>
+                    <button @click="ejecutarConfirmacion" 
+                            class="flex-1 justify-center btn-primary"
+                            :class="confirmState.type === 'danger' ? 'bg-red-600 hover:bg-red-700' : 'bg-slate-700 hover:bg-slate-800'">
+                        Confirmar
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
   </div>
 </template>

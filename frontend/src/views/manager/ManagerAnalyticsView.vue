@@ -4,19 +4,27 @@ import { useDataStore } from '../../stores/dataStore'
 import {
     PieChart, BarChart3, AlertCircle, Users, Activity, Download,
     Calendar, Battery, ArrowUpRight, ArrowDownRight, Clock,
-    AlertTriangle // Usamos Triángulo en vez de Sirena para "Warning"
+    AlertTriangle, CheckCircle2, X
 } from 'lucide-vue-next'
 
 const store = useDataStore()
 
-// --- ESTADO ---
 const mesAnalisis = ref('2026-02')
 
-// --- DATOS MOCK ---
 const totalHorasImputadas = 1450
 const totalCapacidadTeorica = 1600
 
-// --- LÓGICA DE ALERTA DE CONCURRENCIA ---
+const toast = ref({ show: false, message: '', type: 'success' })
+let toastTimeout = null
+
+const showToast = (message, type = 'success') => {
+    toast.value = { show: true, message, type }
+    if (toastTimeout) clearTimeout(toastTimeout)
+    toastTimeout = setTimeout(() => {
+        toast.value.show = false
+    }, 3000)
+}
+
 const diasCriticos = computed(() => {
     const todasAusencias = store.getAusencias()
     const ausenciasDelMes = todasAusencias.filter(a => a.date.startsWith(mesAnalisis.value))
@@ -37,7 +45,6 @@ const diasCriticos = computed(() => {
         .sort((a, b) => new Date(a.fecha) - new Date(b.fecha))
 })
 
-// --- DATOS GRÁFICOS ---
 const proyectosStats = ref([
     { nombre: 'Santander', horas: 600, color: 'bg-red-600', contributors: ['ML', 'AR', 'PS'] },
     { nombre: 'Mapfre', horas: 300, color: 'bg-red-500', contributors: ['LG'] },
@@ -53,7 +60,6 @@ const cargaEmpleados = ref([
     { nombre: 'Carlos M.', horas: 40, capacidad: 160, rol: 'Dev', avatar: 'CM', trend: 'down' },
 ])
 
-// --- CÁLCULOS VISUALES ---
 const getPorcentaje = (horas) => Math.round((horas / totalHorasImputadas) * 100)
 const getWidth = (horas) => `${Math.min((horas / 180) * 100, 100)}%`
 const getBarColor = (horas, capacidad) => {
@@ -67,11 +73,11 @@ const empleadosExcedidos = computed(() => cargaEmpleados.value.filter(e => e.hor
 const horasLibres = computed(() => totalCapacidadTeorica - totalHorasImputadas)
 const porcentajeOcupacionGlobal = computed(() => Math.round((totalHorasImputadas / totalCapacidadTeorica) * 100))
 
-const exportarReporte = () => alert(`Generando PDF...`)
+const exportarReporte = () => showToast(`Generando reporte PDF...`, 'success')
 </script>
 
 <template>
-    <div class="h-full flex flex-col font-sans bg-gray-50 p-6 gap-6 overflow-y-auto">
+    <div class="h-full flex flex-col font-sans bg-gray-50 p-6 gap-6 overflow-y-auto relative">
 
         <div class="flex flex-col md:flex-row justify-between items-start md:items-end gap-4">
             <div>
@@ -267,5 +273,18 @@ const exportarReporte = () => alert(`Generando PDF...`)
                 </div>
             </div>
         </div>
+
+        <transition enter-active-class="transform ease-out duration-300 transition" enter-from-class="translate-y-2 opacity-0 sm:translate-y-0 sm:translate-x-2" enter-to-class="translate-y-0 opacity-100 sm:translate-x-0" leave-active-class="transition ease-in duration-100" leave-from-class="opacity-100" leave-to-class="opacity-0">
+            <div v-if="toast.show" class="absolute bottom-6 right-6 z-50 flex items-center w-full max-w-xs p-4 space-x-3 text-gray-500 bg-white rounded-lg shadow-lg border border-gray-100" role="alert">
+                <div class="inline-flex items-center justify-center flex-shrink-0 w-8 h-8 rounded-lg" :class="toast.type === 'success' ? 'text-green-500 bg-green-100' : 'text-red-500 bg-red-100'">
+                    <component :is="toast.type === 'success' ? CheckCircle2 : AlertCircle" class="w-5 h-5"/>
+                </div>
+                <div class="ml-3 text-sm font-bold text-gray-800">{{ toast.message }}</div>
+                <button @click="toast.show = false" type="button" class="ml-auto -mx-1.5 -my-1.5 bg-white text-gray-400 hover:text-gray-900 rounded-lg focus:ring-2 focus:ring-gray-300 p-1.5 hover:bg-gray-100 inline-flex h-8 w-8 items-center justify-center">
+                    <X class="w-4 h-4"/>
+                </button>
+            </div>
+        </transition>
+
     </div>
 </template>

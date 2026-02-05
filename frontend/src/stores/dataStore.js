@@ -1,8 +1,7 @@
-import { reactive, watch } from 'vue' // <--- 1. AÑADE 'watch' AQUÍ
+import { reactive, watch } from 'vue' 
 import { initialData } from '../data/initialData'
 
-// --- LÓGICA DE PERSISTENCIA (LOCALSTORAGE) ---
-// Intentamos leer si hay datos guardados en el navegador
+
 const savedState = localStorage.getItem('timeLog_state')
 const datosIniciales = savedState ? JSON.parse(savedState) : {
     ...initialData,
@@ -15,23 +14,16 @@ const datosIniciales = savedState ? JSON.parse(savedState) : {
     ]
 }
 
-// Creamos el estado reactivo con los datos cargados o los iniciales
 const state = reactive(datosIniciales)
 
-// --- VIGILANTE (WATCHER) ---
-// Cada vez que 'state' cambie, lo guardamos en el navegador automáticamente
 watch(state, (nuevoEstado) => {
     localStorage.setItem('timeLog_state', JSON.stringify(nuevoEstado))
 }, { deep: true })
 
 
-// Exportamos métodos (Esto sigue IGUAL que antes)
+
 export const useDataStore = () => {
 
-    // ... (COPIA AQUÍ TODO EL RESTO DE TUS MÉTODOS: getUsers, addUser, getAusencias, etc.)
-    // NO HACE FALTA CAMBIAR NADA DE LA LÓGICA INTERNA, SOLO EL INICIO DEL ARCHIVO
-    
-    // --- USUARIOS ---
     const getUsers = () => state.usuarios
 
     const addUser = (user) => {
