@@ -44,13 +44,11 @@ onMounted(() => {
             diaSeleccionado.value = fechaUrl.getDate()
         }
     } else {
-        // Fecha de ejemplo (Febrero 2026)
         fechaActual.value = new Date(2026, 1, 9) 
         diaSeleccionado.value = fechaActual.value.getDate()
     }
 })
 
-// --- FECHAS Y SEMANAS ---
 const getLunesSemana = (fecha) => {
     const d = new Date(fecha)
     const dia = d.getDay()
@@ -69,41 +67,35 @@ const diasSemana = computed(() => {
     return dias
 })
 
-// --- CÁLCULO DE LÍMITES ---
 const esJornadaVerano = (date) => {
     const mes = date.getMonth()
     return mes === 6 || mes === 7
 }
 
 const getMaxHorasDia = (date) => {
-    if (getTipoDia(date)) return 0 // Festivos = 0
-    if (date.getDay() === 0 || date.getDay() === 6) return 0 // Finde = 0
+    if (getTipoDia(date)) return 0 
+    if (date.getDay() === 0 || date.getDay() === 6) return 0 
     if (esJornadaVerano(date)) return 7.0
     if (date.getDay() === 5) return 6.5
     return 8.5
 }
 
-// 🔥 LÓGICA MODIFICADA: Si es pasado y está vacío, no cuenta para el total 🔥
+
 const getMaxHorasSemana = () => {
     const hoy = new Date()
-    hoy.setHours(0,0,0,0) // Normalizamos hoy para comparar solo fechas
+    hoy.setHours(0,0,0,0) 
 
     return diasSemana.value.reduce((total, fecha, index) => {
         const maxHorasDia = getMaxHorasDia(fecha)
         const horasImputadas = totalDia(index)
         
-        // Creamos fecha del día iterado sin horas
         const fechaDia = new Date(fecha)
         fechaDia.setHours(0,0,0,0)
 
-        // CONDICIÓN CLAVE:
-        // Si el día es ANTERIOR a hoy Y tiene 0 horas imputadas -> NO lo sumamos al objetivo.
-        // (Ej: Si hoy es Miércoles, Lunes y Martes vacíos no suman 8.5h al target).
         if (fechaDia < hoy && horasImputadas === 0) {
             return total 
         }
 
-        // Si es hoy, si es futuro, o si es pasado PERO trabajaste, sumamos el objetivo.
         return total + maxHorasDia
     }, 0)
 }
@@ -125,7 +117,7 @@ const esEditable = (date) => {
     fechaComparar.setHours(0, 0, 0, 0)
 
     if (esFinDeSemana(date)) return false 
-    if (fechaComparar < hoy) return false // Bloqueo pasado
+    if (fechaComparar < hoy) return false 
     if (getTipoDia(date)) return false 
     
     return true
@@ -180,14 +172,12 @@ const totalDia = (index) => filas.value.reduce((acc, f) => {
 }, 0)
 const totalSemanal = computed(() => filas.value.reduce((acc, f) => acc + totalFila(f), 0))
 
-// Validaciones
 const excedeLimiteDiario = (index) => {
     const fechaDia = diasSemana.value[index]
     const maxHoras = getMaxHorasDia(fechaDia)
     return totalDia(index) > maxHoras
 }
 
-// Comparamos contra el nuevo dinámico
 const excedeLimiteSemanal = computed(() => totalSemanal.value > getMaxHorasSemana())
 
 const hayErrores = computed(() => {

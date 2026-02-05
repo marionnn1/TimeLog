@@ -5,7 +5,7 @@ import {
     Briefcase, UserPlus, Tag, Hash, Save
 } from 'lucide-vue-next'
 
-// --- DATOS MOCK PROYECTOS ---
+
 const proyectos = ref([
     { 
         id: 1, nombre: 'Auditoría Backend', cliente: 'Banco Santander', idCliente: 'SAN-001', codigo: 'PRJ-SAN-001', tipo: 'Proyecto', estado: true, jp: 'Ana García',
@@ -26,7 +26,7 @@ const proyectos = ref([
     },
 ])
 
-// --- DATOS MOCK USUARIOS ---
+
 const usuariosDisponibles = [
     { id: 1, nombre: 'Mario León', rol: 'Dev', iniciales: 'ML', color: 'bg-indigo-100 text-indigo-600' },
     { id: 2, nombre: 'Ana Ruiz', rol: 'QA', iniciales: 'AR', color: 'bg-rose-100 text-rose-600' },
@@ -35,7 +35,7 @@ const usuariosDisponibles = [
 
 // --- ESTADOS ---
 const mostrarModalAsignar = ref(false)
-const mostrarModalProyecto = ref(false) // Modal para Crear/Editar
+const mostrarModalProyecto = ref(false) 
 const esEdicion = ref(false)
 
 const asignacionData = ref({ proyectoId: null, nombreProyecto: '', usuarioId: '' })
@@ -60,18 +60,16 @@ const proyectosFiltrados = computed(() => {
     })
 })
 
-// --- GESTIÓN PROYECTOS (CREAR / EDITAR) ---
+// --- GESTIÓN PROYECTOS ---
 
 const abrirCrearProyecto = () => {
     esEdicion.value = false
-    // Formulario limpio
     proyectoForm.value = { id: null, nombre: '', cliente: '', idCliente: '', codigo: '', estado: true }
     mostrarModalProyecto.value = true
 }
 
 const abrirEditarProyecto = (proy) => {
     esEdicion.value = true
-    // Clonamos los datos del proyecto al formulario
     proyectoForm.value = { ...proy }
     mostrarModalProyecto.value = true
 }
@@ -80,13 +78,11 @@ const guardarProyecto = () => {
     if (!proyectoForm.value.nombre || !proyectoForm.value.cliente) return alert("Nombre y Cliente son obligatorios")
 
     if (esEdicion.value) {
-        // ACTUALIZAR
         const index = proyectos.value.findIndex(p => p.id === proyectoForm.value.id)
         if (index !== -1) {
-            // Actualizamos datos manteniendo el equipo existente
             proyectos.value[index] = { 
-                ...proyectos.value[index], // Mantener cosas que no están en el form (como equipo)
-                ...proyectoForm.value      // Sobrescribir con lo nuevo
+                ...proyectos.value[index], 
+                ...proyectoForm.value      
             }
         }
     } else {
@@ -95,8 +91,8 @@ const guardarProyecto = () => {
         proyectos.value.push({
             ...proyectoForm.value,
             id: nuevoId,
-            codigo: `PRJ-${Math.floor(Math.random()*1000)}`, // Generar código fake
-            equipo: [] // Empieza sin equipo
+            codigo: `PRJ-${Math.floor(Math.random()*1000)}`, 
+            equipo: [] 
         })
     }
     mostrarModalProyecto.value = false
@@ -120,7 +116,6 @@ const confirmarAsignacion = () => {
     const proyectoTarget = proyectos.value.find(p => p.id === asignacionData.value.proyectoId)
     
     if(proyectoTarget && usuarioObj) {
-        // Evitar duplicados
         if(!proyectoTarget.equipo.find(u => u.nombre === usuarioObj.nombre)){
              proyectoTarget.equipo.push({ ...usuarioObj })
         }

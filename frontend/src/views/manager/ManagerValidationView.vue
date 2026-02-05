@@ -4,7 +4,7 @@ import {
     AlertOctagon, Check, X, FileEdit, MessageSquare, Calendar, Clock, Save 
 } from 'lucide-vue-next'
 
-// --- DATOS MOCK: Solicitudes pendientes ---
+// --- Solicitudes pendientes ---
 const solicitudes = ref([
     { 
         id: 1, 
@@ -13,7 +13,7 @@ const solicitudes = ref([
         fecha: '2026-02-02', 
         proyecto: 'Migración Cloud', 
         cliente: 'Banco Santander',
-        horasActuales: 8, // Lo que puso mal
+        horasActuales: 8, 
         motivo: 'Me equivoqué al imputar. Puse 8 horas pero estuve 4 en el médico. Deberían ser 4h.',
         estado: 'pendiente'
     },
@@ -24,7 +24,7 @@ const solicitudes = ref([
         fecha: '2026-01-28', 
         proyecto: 'Inditex TPV', 
         cliente: 'Inditex',
-        horasActuales: 0, // Se le olvidó
+        horasActuales: 0, 
         motivo: 'Se me olvidó imputar este día y el mes ya está cerrado. ¿Podéis ponerme 8h?',
         estado: 'pendiente'
     }
@@ -37,7 +37,6 @@ const mostrarModal = ref(false)
 
 const abrirEditor = (solicitud) => {
     solicitudSeleccionada.value = solicitud
-    // Pre-cargamos las horas actuales (o 0 si no había)
     horasEditadas.value = solicitud.horasActuales
     mostrarModal.value = true
 }

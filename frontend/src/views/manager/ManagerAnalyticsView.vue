@@ -46,8 +46,8 @@ const getPorcentaje = (horas) => Math.round((horas / totalHorasImputadas) * 100)
 
 const getBarColor = (horas, capacidad) => {
     const ratio = horas / capacidad
-    if (ratio > 1.0) return 'bg-rose-500' // Se pasó
-    if (ratio < 0.5) return 'bg-amber-400' // Muy poco
+    if (ratio > 1.0) return 'bg-rose-500' 
+    if (ratio < 0.5) return 'bg-amber-400' 
     return 'bg-emerald-500' 
 }
 
@@ -55,10 +55,10 @@ const getWidth = (horas) => {
     return `${Math.min((horas / 180) * 100, 100)}%`
 }
 
-// KPI: Empleados que se han pasado de horas
+// Empleados que se han pasado de horas
 const empleadosExcedidos = computed(() => cargaEmpleados.value.filter(e => e.horas > e.capacidad).length)
 
-// KPI: Capacidad Restante (Bolsa de horas libres del equipo)
+// Capacidad Restante (Bolsa de horas libres del equipo)
 const horasLibres = computed(() => totalCapacidadTeorica - totalHorasImputadas)
 const porcentajeOcupacionGlobal = computed(() => Math.round((totalHorasImputadas / totalCapacidadTeorica) * 100))
 
