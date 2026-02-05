@@ -44,7 +44,7 @@ onMounted(() => {
             diaSeleccionado.value = fechaUrl.getDate()
         }
     } else {
-        // Ponemos fecha de ejemplo (Febrero 2026) para que veas los festivos configurados
+        // Fecha de ejemplo (Febrero 2026)
         fechaActual.value = new Date(2026, 1, 9) 
         diaSeleccionado.value = fechaActual.value.getDate()
     }
@@ -69,30 +69,42 @@ const diasSemana = computed(() => {
     return dias
 })
 
-// --- VALIDACIÓN DE JORNADA (LÓGICA ACTUALIZADA) ---
+// --- CÁLCULO DE LÍMITES ---
 const esJornadaVerano = (date) => {
     const mes = date.getMonth()
     return mes === 6 || mes === 7
 }
 
 const getMaxHorasDia = (date) => {
-    // 1. SI ES FESTIVO O VACACIONES -> 0 HORAS
-    // Esto hace que la suma semanal disminuya automáticamente
-    if (getTipoDia(date)) return 0
-
-    // 2. Fines de semana -> 0 horas
-    if (date.getDay() === 0 || date.getDay() === 6) return 0
-    
-    // 3. Reglas normales
+    if (getTipoDia(date)) return 0 // Festivos = 0
+    if (date.getDay() === 0 || date.getDay() === 6) return 0 // Finde = 0
     if (esJornadaVerano(date)) return 7.0
     if (date.getDay() === 5) return 6.5
     return 8.5
 }
 
+// 🔥 LÓGICA MODIFICADA: Si es pasado y está vacío, no cuenta para el total 🔥
 const getMaxHorasSemana = () => {
-    // Suma los máximos diarios (si hay festivo, suma 0 ese día)
-    return diasSemana.value.reduce((total, dia) => {
-        return total + getMaxHorasDia(dia)
+    const hoy = new Date()
+    hoy.setHours(0,0,0,0) // Normalizamos hoy para comparar solo fechas
+
+    return diasSemana.value.reduce((total, fecha, index) => {
+        const maxHorasDia = getMaxHorasDia(fecha)
+        const horasImputadas = totalDia(index)
+        
+        // Creamos fecha del día iterado sin horas
+        const fechaDia = new Date(fecha)
+        fechaDia.setHours(0,0,0,0)
+
+        // CONDICIÓN CLAVE:
+        // Si el día es ANTERIOR a hoy Y tiene 0 horas imputadas -> NO lo sumamos al objetivo.
+        // (Ej: Si hoy es Miércoles, Lunes y Martes vacíos no suman 8.5h al target).
+        if (fechaDia < hoy && horasImputadas === 0) {
+            return total 
+        }
+
+        // Si es hoy, si es futuro, o si es pasado PERO trabajaste, sumamos el objetivo.
+        return total + maxHorasDia
     }, 0)
 }
 
@@ -106,19 +118,14 @@ const esHoy = (date) => {
     return date.getDate() === hoy.getDate() && date.getMonth() === hoy.getMonth() && date.getFullYear() === hoy.getFullYear()
 }
 
-// --- BLOQUEO DE DÍAS ANTERIORES Y FESTIVOS ---
 const esEditable = (date) => {
     const hoy = new Date()
     hoy.setHours(0, 0, 0, 0)
     const fechaComparar = new Date(date)
     fechaComparar.setHours(0, 0, 0, 0)
 
-    // Bloqueos
     if (esFinDeSemana(date)) return false 
-    
-    // MANTENIDO: Bloqueo de días pasados
-    if (fechaComparar < hoy) return false 
-    
+    if (fechaComparar < hoy) return false // Bloqueo pasado
     if (getTipoDia(date)) return false 
     
     return true
@@ -147,9 +154,9 @@ const textoBotonCentral = computed(() => {
     return `${diaSemana} ${diaSeleccionado.value}`
 })
 
-// --- DATOS Y LÓGICA DE LIMPIEZA ---
+// --- DATOS TABLA ---
 const filas = ref([
-    { id: 1, cliente: 'Banco Santander', proyecto: 'Auditoría Backend', horas: [0, 0, 0, 0, 0, 0, 0], seleccionado: false },
+    { id: 1, cliente: 'Banco Santander', proyecto: 'Auditoría Backend', horas: [0, 0, 8.5, 0, 6.5, 0, 0], seleccionado: false },
     { id: 2, cliente: 'Mapfre', proyecto: 'Migración Cloud', horas: [0, 0, 0, 0, 0, 0, 0], seleccionado: false }
 ])
 
@@ -160,23 +167,17 @@ watch(lunesActual, () => {
 })
 
 const handleFocus = (event) => {
-    if (event.target.value == 0) {
-        event.target.value = ''
-    }
+    if (event.target.value == 0) event.target.value = ''
 }
 const handleBlur = (event, fila, index) => {
-    if (event.target.value === '') {
-        fila.horas[index] = 0
-    }
+    if (event.target.value === '') fila.horas[index] = 0
 }
 
 const totalFila = (fila) => fila.horas.reduce((acc, h) => acc + (parseFloat(h) || 0), 0)
-
 const totalDia = (index) => filas.value.reduce((acc, f) => {
     const val = parseFloat(f.horas[index])
     return acc + (isNaN(val) ? 0 : val)
 }, 0)
-
 const totalSemanal = computed(() => filas.value.reduce((acc, f) => acc + totalFila(f), 0))
 
 // Validaciones
@@ -186,6 +187,7 @@ const excedeLimiteDiario = (index) => {
     return totalDia(index) > maxHoras
 }
 
+// Comparamos contra el nuevo dinámico
 const excedeLimiteSemanal = computed(() => totalSemanal.value > getMaxHorasSemana())
 
 const hayErrores = computed(() => {
@@ -204,7 +206,6 @@ const confirmarAnadirLinea = () => {
     cerrarModal()
 }
 const borrarLineas = () => filas.value = filas.value.filter(f => !f.seleccionado)
-
 const guardarCambios = () => {
     if (hayErrores.value) return alert('Por favor corrige los días en rojo antes de guardar.')
     alert('✅ Imputaciones guardadas correctamente')
@@ -248,7 +249,6 @@ const guardarCambios = () => {
                     :class="[
                         esSeleccionado(fecha) ? 'ring-2 ring-offset-2 ring-primary border-primary' : '',
                         esHoy(fecha) ? 'bg-blue-50/50' : 'bg-white border-gray-200 hover:border-blue-300 hover:shadow-md',
-                        // Estilo FIN DE SEMANA
                         esFinDeSemana(fecha) ? 'bg-slate-100 border-slate-200 cursor-default' : '',
                         excedeLimiteDiario(index) ? 'border-red-500 bg-red-50' : ''
                     ]"
@@ -357,17 +357,10 @@ const guardarCambios = () => {
                                     :disabled="!esEditable(diasSemana[index])"
                                     class="w-full text-center p-0 py-1 rounded transition font-medium text-sm disabled:cursor-not-allowed appearance-none"
                                     :class="{
-                                        // 1. RELLENO (>0)
                                         'text-primary font-bold border border-transparent hover:border-gray-300 focus:border-primary focus:ring-1 focus:ring-primary bg-transparent': esEditable(diasSemana[index]) && fila.horas[index] > 0,
-                                        
-                                        // 2. VACÍO (0)
                                         'bg-white border border-gray-200 hover:border-[#1F8C7F] hover:bg-teal-50/20 text-[#1F8C7F] shadow-sm cursor-pointer font-bold': esEditable(diasSemana[index]) && fila.horas[index] == 0,
-
-                                        // 3. BLOQUEADO (Fin de semana, Pasado, Festivo)
                                         'bg-gray-100 text-gray-400 border-transparent': esPasadoNormal(diasSemana[index]) || esFinDeSemana(diasSemana[index]),
                                         'bg-rose-50 text-rose-400 border-transparent': getTipoDia(diasSemana[index]) === 'festivo',
-
-                                        // 4. ERROR
                                         'border border-red-300 bg-red-50 text-red-600 font-extrabold shadow-none': esEditable(diasSemana[index]) && excedeLimiteDiario(index)
                                     }" :placeholder="getTipoDia(diasSemana[index]) || (esFinDeSemana(diasSemana[index]) ? '' : '0')">
                             </td>
