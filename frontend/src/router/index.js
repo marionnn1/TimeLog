@@ -30,17 +30,12 @@ const router = createRouter({
     {
       path: '/dashboard',
       name: 'dashboard',
-      component: DashboardView // Vista Semanal (Excel style)
+      component: DashboardView // Vista Semanal 
     },
     {
       path: '/imputaciones',
       name: 'imputaciones',
       component: ImputacionesView // Vista Mensual (Histórico)
-    },
-    {
-      path: '/projects',
-      name: 'projects',
-      component: ProjectsView
     },
     {
       path: '/calendario-global',
@@ -95,7 +90,11 @@ const router = createRouter({
 
 
     // Rutas para Manager
-
+    {
+      path: '/manager/projects',
+      name: 'projects',
+      component: ProjectsView
+    },
 
     {
 

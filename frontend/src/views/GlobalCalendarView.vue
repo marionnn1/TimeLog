@@ -1,13 +1,11 @@
 <script setup>
 import { ref, computed } from 'vue'
-// 1. Importamos el Store
 import { useDataStore } from '../stores/dataStore'
 import { 
     Calendar as CalendarIcon, ChevronLeft, ChevronRight, 
     AlertTriangle, UserPlus, X, Check, Palmtree, MapPin, Briefcase 
 } from 'lucide-vue-next'
 
-// 2. Inicializamos Store
 const store = useDataStore()
 const currentUser = store.getCurrentUser() 
 
@@ -69,11 +67,9 @@ const startPadding = computed(() => {
 
 // --- ACCIONES ---
 
-// 1. Clic en un día
 const abrirModal = (day) => {
     if (day.isWeekend) return
 
-    // Si ya existe ausencia, la borramos del STORE
     const existing = getMiAusencia(day.isoDate)
     if (existing) {
         if(confirm(`¿Eliminar tu ${existing.type} del día ${day.dayNum}?`)) {
@@ -82,7 +78,6 @@ const abrirModal = (day) => {
         return
     }
 
-    // Si no, abrimos modal para crear
     form.value = {
         fechaInicio: day.isoDate,
         fechaFin: day.isoDate, 
@@ -91,7 +86,6 @@ const abrirModal = (day) => {
     mostrarModal.value = true
 }
 
-// 2. Confirmar -> Guardar en STORE
 const confirmarSolicitud = () => {
     const start = new Date(form.value.fechaInicio)
     const end = new Date(form.value.fechaFin)
@@ -107,7 +101,6 @@ const confirmarSolicitud = () => {
 
     if (diasSolicitados.length === 0) return alert("Selecciona días laborables.")
 
-    // Verificar Concurrencia (La regla del jefe)
     let alertaJefe = false
     diasSolicitados.forEach(date => {
         const total = getAusenciasDia(date).length
@@ -119,7 +112,6 @@ const confirmarSolicitud = () => {
         if (!confirmar) return
     }
 
-    // GUARDAR
     diasSolicitados.forEach(date => {
         store.addAusencia({
             date: date,
@@ -133,7 +125,7 @@ const confirmarSolicitud = () => {
     mostrarModal.value = false
 }
 
-// Navegación
+
 const prevMonth = () => currentDate.value = new Date(year.value, month.value - 1, 1)
 const nextMonth = () => currentDate.value = new Date(year.value, month.value + 1, 1)
 </script>

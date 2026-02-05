@@ -1,7 +1,6 @@
 <script setup>
 import { ref, computed, onMounted, watch, onUnmounted } from 'vue'
 import { useRoute } from 'vue-router'
-// 1. IMPORTAR STORE (Para persistencia de vacaciones)
 import { useDataStore } from '../stores/dataStore'
 import {
     ChevronLeft, ChevronRight, Plus, Trash2, Save, Building2, Info, X, RotateCcw, 
@@ -10,7 +9,6 @@ import {
 } from 'lucide-vue-next'
 
 const route = useRoute()
-// 2. INICIALIZAR STORE
 const store = useDataStore()
 
 // --- CONFIGURACIÓN DE JORNADA POR HORAS ---
@@ -50,7 +48,7 @@ onMounted(() => {
             diaSeleccionado.value = fechaUrl.getDate()
         }
     } else {
-        fechaActual.value = new Date() // Usamos fecha real por defecto
+        fechaActual.value = new Date() 
         diaSeleccionado.value = fechaActual.value.getDate()
     }
 })
@@ -64,12 +62,12 @@ const getInfoDia = (date) => {
     const offset = date.getTimezoneOffset() * 60000
     const isoDate = new Date(date.getTime() - offset).toISOString().split('T')[0]
     
-    // Consultamos al store
+
     const ausencia = store.getAusenciaPorFecha(isoDate, store.getCurrentUser().id)
     
     if (!ausencia) return null
     
-    // Mapeo de tipos
+
     const mapTipos = {
         'vacaciones': 'vacaciones',
         'festivo': 'festivo',
@@ -126,21 +124,19 @@ const esJornadaVerano = (date) => {
     return mes === 6 || mes === 7
 }
 
-// 🔥 LÓGICA DE HORAS DIARIAS 🔥
 const getMaxHorasDia = (date) => {
     const tipo = getTipoDia(date)
-    // 1. Si hay ausencia en el store o es finde -> 0 horas
+
     if (tipo) return 0 
     if (date.getDay() === 0 || date.getDay() === 6) return 0 
 
-    // 2. Si se selecciona el máximo (8.5h), aplicamos reglas especiales
     if (horasDiarias.value === 8.5) {
         if (esJornadaVerano(date)) return 7.0
         if (date.getDay() === 5) return 6.5 
         return 8.5
     }
 
-    // 3. Lineal
+   
     return horasDiarias.value
 }
 
@@ -168,7 +164,7 @@ const esFinDeSemana = (date) => { const d = date.getDay(); return d === 0 || d =
 
 const esHoy = (date) => {
     const hoy = new Date()
-    return date.getDate() === hoy.getDate() && date.getMonth() === hoy.getMonth() && date.getFullYear() === hoy.getFullYear()
+    return date.getDate() === hoy.getDate() && date.getMonth() === hoy.etMonth() && date.getFullYear() === hoy.getFullYear()
 }
 
 const esEditable = (date) => {
@@ -178,7 +174,7 @@ const esEditable = (date) => {
     fechaComparar.setHours(0, 0, 0, 0)
     if (esFinDeSemana(date)) return false 
     if (fechaComparar < hoy) return false 
-    if (getTipoDia(date)) return false // Bloqueado si hay datos en store
+    if (getTipoDia(date)) return false 
     return true
 }
 

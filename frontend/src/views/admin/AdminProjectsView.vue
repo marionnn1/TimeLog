@@ -6,7 +6,7 @@ import { useDataStore } from '../../stores/dataStore'
 const store = useDataStore()
 const proyectos = computed(() => store.getProjects())
 
-// --- DATOS DE USUARIOS DISPONIBLES (MOCK) ---
+// --- DATOS DE USUARIOS DISPONIBLES ---
 const usuariosFake = [
     { id: 1, nombre: 'Ana García', iniciales: 'AG', color: 'bg-pink-100 text-pink-700' },
     { id: 2, nombre: 'Carlos Ruiz', iniciales: 'CR', color: 'bg-blue-100 text-blue-700' },
@@ -16,20 +16,17 @@ const usuariosFake = [
     { id: 6, nombre: 'Mario L.', iniciales: 'ML', color: 'bg-indigo-100 text-indigo-700' },
 ]
 
-// Helper para visualización: Si el proyecto tiene equipo real (editado) lo usa, si no, usa el fake por ID
 const getDisplayUsuarios = (proy) => {
     if (proy.equipo && proy.equipo.length > 0) return proy.equipo
-    // Fallback a lógica fake antigua para demos
     if (proy.id % 2 === 0) return usuariosFake
     else if (proy.id % 3 === 0) return [usuariosFake[0], usuariosFake[3]]
     return []
 }
 
-// --- LÓGICA DE MODAL Y FORMULARIO ---
 const mostrarModal = ref(false)
-const esEdicion = ref(false) // Para saber si estamos creando o editando
+const esEdicion = ref(false) 
 
-// Modelo del formulario
+
 const proyectoForm = ref({
     id: null,
     nombre: '',
@@ -38,28 +35,25 @@ const proyectoForm = ref({
     equipo: []
 })
 
-// Abrir modal para NUEVO proyecto
 const abrirModalCrear = () => {
     esEdicion.value = false
     proyectoForm.value = { id: Date.now(), nombre: '', cliente: '', estado: 'Activo', equipo: [] }
     mostrarModal.value = true
 }
 
-// Abrir modal para EDITAR proyecto
+
 const abrirModalEditar = (proy) => {
     esEdicion.value = true
-    // Copiamos los datos para no modificar directamente hasta guardar
-    // Importante: Si no tiene equipo asignado, cargamos el fake inicial o vacío
     const equipoActual = proy.equipo || getDisplayUsuarios(proy)
 
     proyectoForm.value = {
         ...proy,
-        equipo: [...equipoActual] // Clonamos el array para no mutar por referencia
+        equipo: [...equipoActual] 
     }
     mostrarModal.value = true
 }
 
-// Gestionar selección de usuarios en el modal
+
 const toggleUsuarioEnForm = (usuario) => {
     const index = proyectoForm.value.equipo.findIndex(u => u.id === usuario.id)
     if (index >= 0) {
@@ -73,12 +67,9 @@ const estaSeleccionado = (userId) => {
     return proyectoForm.value.equipo.some(u => u.id === userId)
 }
 
-// Guardar (Crear o Actualizar)
+
 const guardarProyecto = () => {
     if (esEdicion.value) {
-        // Lógica de actualización (Simulada si no tienes updateProject en el store)
-        // store.updateProject(proyectoForm.value) <--- Lo ideal
-        // Como parche, borramos y creamos (o actualizamos localmente si el store lo permite)
         store.deleteProject(proyectoForm.value.id)
         store.addProject(proyectoForm.value)
     } else {

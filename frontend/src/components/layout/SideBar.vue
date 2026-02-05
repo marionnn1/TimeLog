@@ -73,7 +73,7 @@ const claseIcono = "w-5 h-5 text-slate-400 group-hover:text-primary transition s
           <span class="text-sm font-medium truncate">Cierre Mensual</span>
         </router-link>
 
-        <router-link to="/manager/proyectos" :class="claseLink">
+        <router-link to="/manager/projects" :class="claseLink">
           <FolderKanban :class="claseIcono" />
           <span class="text-sm font-medium truncate">Ver Proyectos</span>
         </router-link>

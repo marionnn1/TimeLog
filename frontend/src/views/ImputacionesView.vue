@@ -1,7 +1,6 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
-// 1. IMPORTAR STORE (Para leer los datos reales)
 import { useDataStore } from '../stores/dataStore'
 import { 
   ChevronLeft, 
@@ -13,25 +12,20 @@ import {
 } from 'lucide-vue-next'
 
 const router = useRouter()
-// 2. INICIALIZAR STORE
+
 const store = useDataStore()
 
-// --- LÓGICA DE DATOS CONECTADA AL STORE ---
-// Esta función sustituye al array hardcodeado. Ahora lee la "verdad" del sistema.
 const getInfoDia = (date) => {
   const currentUser = store.getCurrentUser()
   if (!currentUser) return null
 
-  // Ajuste zona horaria para coincidir con el formato YYYY-MM-DD del store
   const offset = date.getTimezoneOffset() * 60000
   const isoDate = new Date(date.getTime() - offset).toISOString().split('T')[0]
   
-  // Preguntamos al store si hay ausencia ese día para el usuario actual
   const ausencia = store.getAusenciaPorFecha(isoDate, currentUser.id)
   
   if (!ausencia) return null
   
-  // Mapeo de tipos para visualización
   const mapLabels = {
       'vacaciones': 'Vacaciones',
       'festivo': 'Festivo',

@@ -86,7 +86,6 @@ const guardarProyecto = () => {
             }
         }
     } else {
-        // CREAR
         const nuevoId = Date.now()
         proyectos.value.push({
             ...proyectoForm.value,
