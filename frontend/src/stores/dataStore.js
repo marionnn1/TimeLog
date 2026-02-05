@@ -1,27 +1,36 @@
-import { reactive } from 'vue'
+import { reactive, watch } from 'vue' // <--- 1. AÑADE 'watch' AQUÍ
 import { initialData } from '../data/initialData'
 
-// Creamos un estado reactivo global (Single Source of Truth)
-const state = reactive({
+// --- LÓGICA DE PERSISTENCIA (LOCALSTORAGE) ---
+// Intentamos leer si hay datos guardados en el navegador
+const savedState = localStorage.getItem('timeLog_state')
+const datosIniciales = savedState ? JSON.parse(savedState) : {
     ...initialData,
-    // Aseguramos que el array exista aunque initialData no lo traiga
     imputaciones: initialData.imputaciones || [],
-    
-    // --- NUEVO: AUSENCIAS GLOBALES (Vacaciones, Festivos, Asuntos) ---
     ausencias: [
-        // Datos Mock Iniciales para pruebas inmediatas
         { date: '2026-02-16', userId: 2, nombre: 'Ana', iniciales: 'AR', type: 'vacaciones' },
         { date: '2026-02-16', userId: 3, nombre: 'Pedro', iniciales: 'PS', type: 'vacaciones' },
         { date: '2026-02-16', userId: 4, nombre: 'Laura', iniciales: 'LP', type: 'vacaciones' },
         { date: '2026-02-28', userId: 2, nombre: 'Ana', iniciales: 'AR', type: 'festivo' },
-        // Puedes descomentar la siguiente línea para ver vacaciones asignadas a TU usuario (Mario)
-        // { date: '2026-02-12', userId: 1, nombre: 'Mario', iniciales: 'ML', type: 'vacaciones' }
     ]
-})
+}
 
-// Exportamos métodos para interactuar con los datos (como si fuera una API)
+// Creamos el estado reactivo con los datos cargados o los iniciales
+const state = reactive(datosIniciales)
+
+// --- VIGILANTE (WATCHER) ---
+// Cada vez que 'state' cambie, lo guardamos en el navegador automáticamente
+watch(state, (nuevoEstado) => {
+    localStorage.setItem('timeLog_state', JSON.stringify(nuevoEstado))
+}, { deep: true })
+
+
+// Exportamos métodos (Esto sigue IGUAL que antes)
 export const useDataStore = () => {
 
+    // ... (COPIA AQUÍ TODO EL RESTO DE TUS MÉTODOS: getUsers, addUser, getAusencias, etc.)
+    // NO HACE FALTA CAMBIAR NADA DE LA LÓGICA INTERNA, SOLO EL INICIO DEL ARCHIVO
+    
     // --- USUARIOS ---
     const getUsers = () => state.usuarios
 
@@ -134,54 +143,38 @@ export const useDataStore = () => {
     }
 
     // --- NUEVO: GESTIÓN DE AUSENCIAS (CALENDARIO GLOBAL) ---
-    
-    // Obtener todas las ausencias (para pintar el calendario completo)
     const getAusencias = () => state.ausencias
 
-    // Añadir ausencia (Evitando duplicados)
     const addAusencia = (ausencia) => {
         const existe = state.ausencias.find(a => a.date === ausencia.date && a.userId === ausencia.userId)
         if (!existe) {
             state.ausencias.push(ausencia)
-            // Log automático para auditoría
             addLog(ausencia.nombre, 'SOLICITUD_AUSENCIA', `Solicitó ${ausencia.type} para el ${ausencia.date}`, 'info')
         }
     }
 
-    // Borrar ausencia
     const removeAusencia = (date, userId) => {
         state.ausencias = state.ausencias.filter(a => !(a.date === date && a.userId === userId))
     }
 
-    // Obtener si UN usuario tiene vacaciones UN día (Usado por Dashboard para bloquear input)
     const getAusenciaPorFecha = (dateString, userId) => {
         return state.ausencias.find(a => a.date === dateString && a.userId === userId)
     }
 
-    // Obtener quiénes faltan un día (Usado por Calendario para ver concurrencia)
     const getAusenciasEquipoPorFecha = (dateString) => {
         return state.ausencias.filter(a => a.date === dateString)
     }
 
     return {
         state,
-        // Usuarios
         getUsers, addUser, updateUser, deleteUser,
-        // Proyectos
         getProjects, addProject, deleteProject,
-        // Tickets
         getTickets, resolveTicket, deleteTicket,
-        // Logs
         getLogs, addLog,
-        // Config
         getSedes, getAnuncio, updateAnuncio,
-        // Usuario
         getCurrentUser,
-        // Stats
         getStats,
-        // Imputaciones
         getImputacionesUsuario, addImputacion,
-        // Ausencias / Calendario [NUEVO]
         getAusencias, addAusencia, removeAusencia, getAusenciaPorFecha, getAusenciasEquipoPorFecha
     }
 }

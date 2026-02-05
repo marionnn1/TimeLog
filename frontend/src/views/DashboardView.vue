@@ -1,18 +1,22 @@
 <script setup>
 import { ref, computed, onMounted, watch, onUnmounted } from 'vue'
 import { useRoute } from 'vue-router'
+// 1. IMPORTAR STORE (Para persistencia de vacaciones)
+import { useDataStore } from '../stores/dataStore'
 import {
     ChevronLeft, ChevronRight, Plus, Trash2, Save, Building2, Info, X, RotateCcw, 
-    Clock, ChevronDown, Check
+    Clock, ChevronDown, Check,
+    Palmtree, MapPin, Briefcase 
 } from 'lucide-vue-next'
 
 const route = useRoute()
+// 2. INICIALIZAR STORE
+const store = useDataStore()
 
 // --- CONFIGURACIÓN DE JORNADA POR HORAS ---
-const horasDiarias = ref(8.5) // Valor por defecto
+const horasDiarias = ref(8.5) 
 const mostrarSelectorJornada = ref(false)
 
-// Opciones de jornada
 const opcionesHoras = computed(() => {
     const opts = []
     for (let h = 8.5; h >= 4; h -= 0.5) {
@@ -30,7 +34,6 @@ const seleccionarHoras = (valor) => {
     mostrarSelectorJornada.value = false
 }
 
-// Click Outside para cerrar el menú
 const selectorRef = ref(null)
 const handleClickOutside = (event) => {
     if (selectorRef.value && !selectorRef.value.contains(event.target)) {
@@ -47,7 +50,7 @@ onMounted(() => {
             diaSeleccionado.value = fechaUrl.getDate()
         }
     } else {
-        fechaActual.value = new Date(2026, 1, 9) 
+        fechaActual.value = new Date() // Usamos fecha real por defecto
         diaSeleccionado.value = fechaActual.value.getDate()
     }
 })
@@ -56,27 +59,40 @@ onUnmounted(() => {
     document.removeEventListener('click', handleClickOutside)
 })
 
-// --- DÍAS ESPECIALES (SISTEMA) ---
-const diasEspeciales = [
-    { dia: 12, mes: 1, tipo: 'festivo', label: 'Festivo' },
-    { dia: 16, mes: 1, tipo: 'vacaciones', label: 'Vacaciones' },
-    { dia: 20, mes: 1, tipo: 'asuntos_propios', label: 'Asuntos P.' },
-    { dia: 27, mes: 1, tipo: 'libre_disposicion', label: 'Libre Disp.' }
-]
-
-// --- LÓGICA CALENDARIO ---
-const getTipoDia = (date) => {
-    const especial = diasEspeciales.find(d =>
-        d.dia === date.getDate() && d.mes === date.getMonth() && date.getFullYear() === 2026
-    )
-    return especial ? especial.tipo : null
+// --- LÓGICA CALENDARIO CONECTADA AL STORE ---
+const getInfoDia = (date) => {
+    const offset = date.getTimezoneOffset() * 60000
+    const isoDate = new Date(date.getTime() - offset).toISOString().split('T')[0]
+    
+    // Consultamos al store
+    const ausencia = store.getAusenciaPorFecha(isoDate, store.getCurrentUser().id)
+    
+    if (!ausencia) return null
+    
+    // Mapeo de tipos
+    const mapTipos = {
+        'vacaciones': 'vacaciones',
+        'festivo': 'festivo',
+        'asuntos': 'asuntos_propios'
+    }
+    
+    return {
+        tipo: mapTipos[ausencia.type] || ausencia.type,
+        label: ausencia.type === 'asuntos' ? 'Asuntos P.' : (ausencia.type.charAt(0).toUpperCase() + ausencia.type.slice(1))
+    }
 }
 
-const getLabelDia = (date) => {
-    const especial = diasEspeciales.find(d =>
-        d.dia === date.getDate() && d.mes === date.getMonth() && date.getFullYear() === 2026
-    )
-    return especial ? especial.label : null
+const getTipoDia = (date) => getInfoDia(date)?.tipo
+const getLabelDia = (date) => getInfoDia(date)?.label
+
+// --- ICONOS PARA EL GRID ---
+const getIconoDia = (tipo) => {
+    switch(tipo) {
+        case 'vacaciones': return Palmtree
+        case 'festivo': return MapPin
+        case 'asuntos_propios': return Briefcase
+        default: return null
+    }
 }
 
 const clientesDisponibles = ['Banco Santander', 'Mapfre', 'Inditex', 'BBVA', 'Naturgy']
@@ -113,18 +129,18 @@ const esJornadaVerano = (date) => {
 // 🔥 LÓGICA DE HORAS DIARIAS 🔥
 const getMaxHorasDia = (date) => {
     const tipo = getTipoDia(date)
-    // 1. Festivos y fines de semana siempre 0
+    // 1. Si hay ausencia en el store o es finde -> 0 horas
     if (tipo) return 0 
     if (date.getDay() === 0 || date.getDay() === 6) return 0 
 
-    // 2. Si se selecciona el máximo (8.5h), aplicamos reglas especiales (Viernes/Verano)
+    // 2. Si se selecciona el máximo (8.5h), aplicamos reglas especiales
     if (horasDiarias.value === 8.5) {
         if (esJornadaVerano(date)) return 7.0
-        if (date.getDay() === 5) return 6.5 // Viernes corto
+        if (date.getDay() === 5) return 6.5 
         return 8.5
     }
 
-    // 3. Para cualquier otra selección, se asume lineal L-V
+    // 3. Lineal
     return horasDiarias.value
 }
 
@@ -137,7 +153,10 @@ const getMaxHorasSemana = () => {
         const fechaDia = new Date(fecha)
         fechaDia.setHours(0,0,0,0)
         
-        if (fechaDia < hoy && horasImputadas === 0) return total 
+        // Si es pasado, no imputado y NO es día especial, no suma deuda
+        if (fechaDia < hoy && horasImputadas === 0 && !getTipoDia(fecha)) {
+             return total 
+        }
         
         return total + maxHorasDia
     }, 0)
@@ -159,7 +178,7 @@ const esEditable = (date) => {
     fechaComparar.setHours(0, 0, 0, 0)
     if (esFinDeSemana(date)) return false 
     if (fechaComparar < hoy) return false 
-    if (getTipoDia(date)) return false 
+    if (getTipoDia(date)) return false // Bloqueado si hay datos en store
     return true
 }
 
@@ -187,7 +206,7 @@ const textoBotonCentral = computed(() => {
 })
 
 const filas = ref([
-    { id: 1, cliente: 'Banco Santander', proyecto: 'Auditoría Backend', horas: [0, 0, 8.5, 0, 6.5, 0, 0], seleccionado: false },
+    { id: 1, cliente: 'Banco Santander', proyecto: 'Auditoría Backend', horas: [0, 0, 0, 0, 0, 0, 0], seleccionado: false },
     { id: 2, cliente: 'Mapfre', proyecto: 'Migración Cloud', horas: [0, 0, 0, 0, 0, 0, 0], seleccionado: false }
 ])
 
@@ -214,6 +233,7 @@ const totalSemanal = computed(() => filas.value.reduce((acc, f) => acc + totalFi
 const excedeLimiteDiario = (index) => {
     const fechaDia = diasSemana.value[index]
     const maxHoras = getMaxHorasDia(fechaDia)
+    if (maxHoras === 0) return false 
     return totalDia(index) > maxHoras
 }
 
@@ -319,13 +339,17 @@ const guardarCambios = () => {
                     <span class="text-xs font-bold uppercase tracking-widest" :class="esHoy(fecha) ? 'text-primary' : 'text-gray-400'">{{ nombresDias[index] }}</span>
                     <span class="text-2xl font-bold" :class="esHoy(fecha) ? 'text-dark' : (esFinDeSemana(fecha) ? 'text-gray-400' : 'text-gray-700')">{{ fecha.getDate() }}</span>
 
-                    <div v-if="getTipoDia(fecha)" class="mt-1 w-full flex justify-center">
+                    <div v-if="getTipoDia(fecha)" class="mt-1 w-full flex flex-col items-center justify-center">
+                        <component :is="getIconoDia(getTipoDia(fecha))" class="w-4 h-4 mb-0.5 opacity-70" :class="{
+                            'text-orange-600': getTipoDia(fecha) === 'festivo',
+                            'text-emerald-600': getTipoDia(fecha) === 'vacaciones',
+                            'text-blue-600': getTipoDia(fecha) === 'asuntos_propios'
+                        }"/>
                         <span class="text-[9px] font-bold uppercase px-2 py-0.5 rounded shadow-sm truncate max-w-[90%]" 
                             :class="{
-                                'bg-rose-100 text-rose-600': getTipoDia(fecha) === 'festivo',
-                                'bg-teal-100 text-teal-600': getTipoDia(fecha) === 'vacaciones',
-                                'bg-amber-100 text-amber-600': getTipoDia(fecha) === 'libre_disposicion',
-                                'bg-violet-100 text-violet-600': getTipoDia(fecha) === 'asuntos_propios'
+                                'bg-orange-100 text-orange-700 border border-orange-200': getTipoDia(fecha) === 'festivo',
+                                'bg-emerald-100 text-emerald-700 border border-emerald-200': getTipoDia(fecha) === 'vacaciones',
+                                'bg-blue-100 text-blue-700 border border-blue-200': getTipoDia(fecha) === 'asuntos_propios'
                             }">
                             {{ getLabelDia(fecha) }}
                         </span>
@@ -346,8 +370,9 @@ const guardarCambios = () => {
 
             <div class="flex items-center gap-6 mt-1 text-xs text-gray-600">
                 <div class="flex items-center gap-2"><div class="w-3 h-3 rounded-full bg-white border border-gray-200"></div><span>Laborable</span></div>
-                <div class="flex items-center gap-2"><div class="w-3 h-3 rounded-full bg-rose-300"></div><span>Festivo Sistema</span></div>
-                <div class="flex items-center gap-2"><div class="w-3 h-3 rounded-full bg-teal-300"></div><span>Vacaciones</span></div>
+                <div class="flex items-center gap-2"><div class="w-3 h-3 rounded-full bg-orange-500"></div><span>Festivo</span></div>
+                <div class="flex items-center gap-2"><div class="w-3 h-3 rounded-full bg-emerald-500"></div><span>Vacaciones</span></div>
+                <div class="flex items-center gap-2"><div class="w-3 h-3 rounded-full bg-blue-500"></div><span>Asuntos P.</span></div>
                 <div class="flex items-center gap-2">
                     <div class="w-3 h-3 rounded-full bg-blue-200 relative"><div class="absolute top-0.5 right-0.5 w-1.5 h-1.5 rounded-full bg-primary"></div></div><span>Hoy</span>
                 </div>
@@ -393,10 +418,12 @@ const guardarCambios = () => {
                                 </div>
                             </td>
                             <td class="p-2"><input v-model="fila.proyecto" class="w-full border border-transparent hover:border-gray-200 rounded px-2 py-1 bg-transparent hover:bg-white outline-none transition placeholder-gray-400 text-xs"></td>
+                            
                             <td v-for="(hora, index) in fila.horas" :key="index" class="p-1 text-center" :class="[
                                 esFinDeSemana(diasSemana[index]) ? 'bg-slate-50' : '',
-                                getTipoDia(diasSemana[index]) === 'festivo' ? 'bg-rose-50' : '',
-                                getTipoDia(diasSemana[index]) === 'vacaciones' ? 'bg-teal-50' : ''
+                                getTipoDia(diasSemana[index]) === 'festivo' ? 'bg-orange-50' : '',
+                                getTipoDia(diasSemana[index]) === 'vacaciones' ? 'bg-emerald-50' : '',
+                                getTipoDia(diasSemana[index]) === 'asuntos_propios' ? 'bg-blue-50' : ''
                             ]">
                                 <input type="number" min="0" max="24" step="0.5" 
                                     v-model="fila.horas[index]"
@@ -407,7 +434,12 @@ const guardarCambios = () => {
                                         'text-primary font-bold border border-transparent hover:border-gray-300 focus:border-primary focus:ring-1 focus:ring-primary bg-transparent': esEditable(diasSemana[index]) && fila.horas[index] > 0,
                                         'bg-white border border-gray-200 hover:border-[#1F8C7F] hover:bg-teal-50/20 text-[#1F8C7F] shadow-sm cursor-pointer font-bold': esEditable(diasSemana[index]) && fila.horas[index] == 0,
                                         'bg-gray-100 text-gray-400 border-transparent': esPasadoNormal(diasSemana[index]) || esFinDeSemana(diasSemana[index]),
-                                        'bg-rose-50 text-rose-400 border-transparent': getTipoDia(diasSemana[index]) === 'festivo',
+                                        
+                                        // COLORES INPUTS
+                                        'bg-orange-50 text-orange-600 border-transparent font-bold placeholder-orange-300': getTipoDia(diasSemana[index]) === 'festivo',
+                                        'bg-emerald-50 text-emerald-600 border-transparent font-bold placeholder-emerald-300': getTipoDia(diasSemana[index]) === 'vacaciones',
+                                        'bg-blue-50 text-blue-600 border-transparent font-bold placeholder-blue-300': getTipoDia(diasSemana[index]) === 'asuntos_propios',
+
                                         'border border-red-300 bg-red-50 text-red-600 font-extrabold shadow-none': esEditable(diasSemana[index]) && excedeLimiteDiario(index)
                                     }" :placeholder="getTipoDia(diasSemana[index]) ? (getLabelDia(diasSemana[index]).charAt(0)) : (esFinDeSemana(diasSemana[index]) ? '' : '0')">
                             </td>

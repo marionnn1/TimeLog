@@ -1,7 +1,7 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
-// 1. IMPORTAR STORE (La clave para que se guarden los datos)
+// 1. IMPORTAR STORE (Para leer los datos reales)
 import { useDataStore } from '../stores/dataStore'
 import { 
   ChevronLeft, 
@@ -16,34 +16,38 @@ const router = useRouter()
 // 2. INICIALIZAR STORE
 const store = useDataStore()
 
-// --- GESTIÓN DE FECHAS (CONECTADO AL STORE) ---
+// --- LÓGICA DE DATOS CONECTADA AL STORE ---
+// Esta función sustituye al array hardcodeado. Ahora lee la "verdad" del sistema.
 const getInfoDia = (date) => {
-  // Ajuste zona horaria
+  const currentUser = store.getCurrentUser()
+  if (!currentUser) return null
+
+  // Ajuste zona horaria para coincidir con el formato YYYY-MM-DD del store
   const offset = date.getTimezoneOffset() * 60000
   const isoDate = new Date(date.getTime() - offset).toISOString().split('T')[0]
   
-  // Preguntamos al store si hay vacaciones guardadas para este día
-  const ausencia = store.getAusenciaPorFecha(isoDate, store.getCurrentUser().id)
+  // Preguntamos al store si hay ausencia ese día para el usuario actual
+  const ausencia = store.getAusenciaPorFecha(isoDate, currentUser.id)
   
   if (!ausencia) return null
   
-  // Mapeo de tipos para que coincida con tu diseño
-  const mapTipos = {
-      'vacaciones': 'vacaciones',
-      'festivo': 'festivo',
-      'asuntos': 'asuntos_propios'
+  // Mapeo de tipos para visualización
+  const mapLabels = {
+      'vacaciones': 'Vacaciones',
+      'festivo': 'Festivo',
+      'asuntos': 'Asuntos P.'
   }
   
   return {
-      tipo: mapTipos[ausencia.type] || ausencia.type,
-      label: ausencia.type === 'asuntos' ? 'Asuntos P.' : (ausencia.type.charAt(0).toUpperCase() + ausencia.type.slice(1))
+      tipo: ausencia.type, // 'vacaciones', 'festivo', 'asuntos'
+      label: mapLabels[ausencia.type] || 'Ausencia'
   }
 }
 
 const getTipoDia = (date) => getInfoDia(date)?.tipo
 const getLabelDia = (date) => getInfoDia(date)?.label
 
-// --- LÓGICA FECHAS (Igual que antes) ---
+// --- LÓGICA FECHAS (Sin cambios) ---
 const fechaActual = ref(new Date()) 
 const hoy = new Date() 
 
@@ -73,8 +77,6 @@ const mesSiguiente = () => fechaActual.value = new Date(anioActual.value, mesAct
 const irAHoy = () => fechaActual.value = new Date()
 
 // --- DATOS SIMULADOS (IMPUTACIONES) ---
-// Esto sigue siendo mock porque el store aun no tiene imputaciones reales complejas, 
-// pero las VACACIONES ya salen del store.
 const imputaciones = ref([
   { dia: 5, cliente: 'Banco Santander', codigo: 'SAN-001', proyecto: 'Auditoría Backend', horas: 8, color: 'bg-blue-50 text-blue-700 border-blue-100 hover:bg-blue-100' },
   { dia: 6, cliente: 'Mapfre', codigo: 'MAP-220', proyecto: 'Migración Cloud', horas: 4, color: 'bg-cyan-50 text-cyan-800 border-cyan-100 hover:bg-cyan-100' },
@@ -147,15 +149,19 @@ const irAlDashboard = (dia) => {
 
     <div class="bg-white p-3 rounded-lg border border-gray-200 shadow-sm mb-4 flex flex-wrap items-center gap-4 text-xs font-medium">
         <span class="uppercase text-gray-400 tracking-wider mr-2 font-bold">Leyenda:</span>
+        
         <div class="flex items-center gap-2 px-2 py-1 rounded-md bg-gray-50 border border-gray-100">
             <div class="w-2.5 h-2.5 rounded-full bg-white border border-gray-300"></div><span class="text-gray-600">Laborable</span>
         </div>
+        
         <div class="flex items-center gap-2 px-2 py-1 rounded-md bg-orange-50 border border-orange-100">
             <div class="w-2.5 h-2.5 rounded-full bg-orange-500"></div><span class="text-orange-700">Festivo</span>
         </div>
+        
         <div class="flex items-center gap-2 px-2 py-1 rounded-md bg-emerald-50 border border-emerald-100">
             <div class="w-2.5 h-2.5 rounded-full bg-emerald-500"></div><span class="text-emerald-700">Vacaciones</span>
         </div>
+        
         <div class="flex items-center gap-2 px-2 py-1 rounded-md bg-blue-50 border border-blue-100">
             <div class="w-2.5 h-2.5 rounded-full bg-blue-500"></div><span class="text-blue-700">Asuntos P.</span>
         </div>
@@ -175,10 +181,10 @@ const irAlDashboard = (dia) => {
              class="min-h-[100px] p-2 border-b border-r border-gray-100 transition relative flex flex-col gap-1"
              :class="[
                esFinDeSemana(dia) ? 'bg-slate-100 cursor-default' : 'bg-white',
-               // CLASES DINÁMICAS (Si vienen del Store)
+               // COLORES DE FONDO DINÁMICOS (Si vienen del Store)
                getTipoDia(new Date(anioActual, mesActualIndex, dia)) === 'festivo' ? 'bg-orange-50/40' : '',
                getTipoDia(new Date(anioActual, mesActualIndex, dia)) === 'vacaciones' ? 'bg-emerald-50/40' : '',
-               getTipoDia(new Date(anioActual, mesActualIndex, dia)) === 'asuntos_propios' ? 'bg-blue-50/40' : '',
+               getTipoDia(new Date(anioActual, mesActualIndex, dia)) === 'asuntos' ? 'bg-blue-50/40' : '',
              ]"
              :style="esFinDeSemana(dia) ? 'background-image: repeating-linear-gradient(45deg, transparent, transparent 10px, rgba(0,0,0,0.03) 10px, rgba(0,0,0,0.03) 20px);' : ''"
         >
@@ -198,7 +204,7 @@ const irAlDashboard = (dia) => {
                :class="{
                  'text-orange-700 bg-orange-50 border-orange-100': getTipoDia(new Date(anioActual, mesActualIndex, dia)) === 'festivo',
                  'text-emerald-700 bg-emerald-50 border-emerald-100': getTipoDia(new Date(anioActual, mesActualIndex, dia)) === 'vacaciones',
-                 'text-blue-700 bg-blue-50 border-blue-100': getTipoDia(new Date(anioActual, mesActualIndex, dia)) === 'asuntos_propios'
+                 'text-blue-700 bg-blue-50 border-blue-100': getTipoDia(new Date(anioActual, mesActualIndex, dia)) === 'asuntos'
                }">
                {{ getLabelDia(new Date(anioActual, mesActualIndex, dia)) }}
              </span>
@@ -230,6 +236,7 @@ const irAlDashboard = (dia) => {
                 </span>
             </div>
         </div>
+
         <div class="overflow-x-auto">
             <table class="w-full text-left border-collapse">
                 <thead>
@@ -269,5 +276,6 @@ const irAlDashboard = (dia) => {
             </table>
         </div>
     </div>
+
   </div>
 </template>

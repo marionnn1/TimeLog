@@ -7,9 +7,9 @@ import {
     AlertTriangle, UserPlus, X, Check, Palmtree, MapPin, Briefcase 
 } from 'lucide-vue-next'
 
-// 2. Inicializamos
+// 2. Inicializamos Store
 const store = useDataStore()
-const currentUser = store.getCurrentUser() // Usamos el usuario real del store
+const currentUser = store.getCurrentUser() 
 
 // --- FECHA Y CALENDARIO ---
 const currentDate = ref(new Date())
@@ -17,12 +17,11 @@ const year = computed(() => currentDate.value.getFullYear())
 const month = computed(() => currentDate.value.getMonth())
 const monthNames = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"]
 
-// --- CONEXIÓN DE DATOS (Store Wrappers) ---
-// En lugar de filtrar un array local, pedimos los datos al store
+// --- CONEXIÓN DE DATOS (LEER DEL STORE) ---
 const getAusenciasDia = (isoDate) => store.getAusenciasEquipoPorFecha(isoDate)
 const getMiAusencia = (isoDate) => store.getAusenciaPorFecha(isoDate, currentUser.id)
 
-// --- MODAL DE SOLICITUD ---
+// --- MODAL ---
 const mostrarModal = ref(false)
 const form = ref({
     fechaInicio: '',
@@ -30,7 +29,7 @@ const form = ref({
     tipo: 'vacaciones', 
 })
 
-// --- HELPERS VISUALES (Se mantienen igual) ---
+// --- ESTILOS VISUALES (COINCIDEN CON DASHBOARD E IMPUTACIONES) ---
 const getEstiloTipo = (tipo) => {
     switch(tipo) {
         case 'vacaciones': return 'bg-emerald-100 text-emerald-700 border-emerald-200'
@@ -70,19 +69,20 @@ const startPadding = computed(() => {
 
 // --- ACCIONES ---
 
-// 1. Abrir Modal al hacer clic en un día
+// 1. Clic en un día
 const abrirModal = (day) => {
     if (day.isWeekend) return
 
-    // Si ya tengo algo, preguntar para BORRAR usando el STORE
+    // Si ya existe ausencia, la borramos del STORE
     const existing = getMiAusencia(day.isoDate)
     if (existing) {
         if(confirm(`¿Eliminar tu ${existing.type} del día ${day.dayNum}?`)) {
-            store.removeAusencia(day.isoDate, currentUser.id) // <--- Acción del Store
+            store.removeAusencia(day.isoDate, currentUser.id) 
         }
         return
     }
 
+    // Si no, abrimos modal para crear
     form.value = {
         fechaInicio: day.isoDate,
         fechaFin: day.isoDate, 
@@ -91,7 +91,7 @@ const abrirModal = (day) => {
     mostrarModal.value = true
 }
 
-// 2. Confirmar y Guardar en el STORE
+// 2. Confirmar -> Guardar en STORE
 const confirmarSolicitud = () => {
     const start = new Date(form.value.fechaInicio)
     const end = new Date(form.value.fechaFin)
@@ -107,7 +107,7 @@ const confirmarSolicitud = () => {
 
     if (diasSolicitados.length === 0) return alert("Selecciona días laborables.")
 
-    // Verificar Concurrencia
+    // Verificar Concurrencia (La regla del jefe)
     let alertaJefe = false
     diasSolicitados.forEach(date => {
         const total = getAusenciasDia(date).length
@@ -119,9 +119,8 @@ const confirmarSolicitud = () => {
         if (!confirmar) return
     }
 
-    // GUARDAR EN EL STORE
+    // GUARDAR
     diasSolicitados.forEach(date => {
-        // La función addAusencia del store ya controla duplicados
         store.addAusencia({
             date: date,
             userId: currentUser.id,
@@ -152,9 +151,15 @@ const nextMonth = () => currentDate.value = new Date(year.value, month.value + 1
         </div>
 
         <div class="flex gap-4 text-xs items-center bg-white px-4 py-2 rounded-lg border border-slate-200 shadow-sm">
-            <div class="flex items-center gap-1.5 font-medium text-emerald-700"><div class="w-2 h-2 rounded-full bg-emerald-500"></div> Vacaciones</div>
-            <div class="flex items-center gap-1.5 font-medium text-orange-700"><div class="w-2 h-2 rounded-full bg-orange-500"></div> Festivo Local</div>
-            <div class="flex items-center gap-1.5 font-medium text-blue-700"><div class="w-2 h-2 rounded-full bg-blue-500"></div> Asuntos P.</div>
+            <div class="flex items-center gap-1.5 font-medium text-emerald-700">
+                <div class="w-2 h-2 rounded-full bg-emerald-500"></div> Vacaciones
+            </div>
+            <div class="flex items-center gap-1.5 font-medium text-orange-700">
+                <div class="w-2 h-2 rounded-full bg-orange-500"></div> Festivo Local
+            </div>
+            <div class="flex items-center gap-1.5 font-medium text-blue-700">
+                <div class="w-2 h-2 rounded-full bg-blue-500"></div> Asuntos P.
+            </div>
         </div>
     </div>
 
