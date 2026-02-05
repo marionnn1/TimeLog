@@ -2,7 +2,6 @@ import { createRouter, createWebHistory } from 'vue-router'
 
 // 1. Importamos las vistas
 import DashboardView from '../views/DashboardView.vue'
-import ProjectsView from '../views/ProjectsView.vue'
 
 import ImputacionesView from '../views/ImputacionesView.vue' // <--- NUEVO IMPORT
 import AdminUsersView from '../views/admin/AdminUsersView.vue'
@@ -16,6 +15,7 @@ import AdminTicketsView from '../views/admin/AdminTicketsView.vue'
 import ManagerValidationView from '../views/manager/ManagerValidationView.vue' // Validación
 import ManagerClosingView from '../views/manager/ManagerClosingView.vue'
 import ManagerAnalyticsView from '../views/manager/ManagerAnalyticsView.vue'
+import ProjectsView from '../views/manager/ProjectsView.vue'
 
 
 

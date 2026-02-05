@@ -1,35 +1,27 @@
 <script setup>
-import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { ref, computed } from 'vue'
 import {
-    Briefcase, Search, Plus, Filter, MoreHorizontal, FolderOpen, Clock,
-    CheckCircle2, XCircle, UserPlus, Users, X, Check, Trash2, Tag, LayoutGrid
+    LayoutGrid, Search, Plus, Pencil, Trash2, X, Check,
+    Briefcase, UserPlus, Tag, Hash, Save
 } from 'lucide-vue-next'
 
 // --- DATOS MOCK PROYECTOS ---
 const proyectos = ref([
     { 
-        id: 1, nombre: 'Auditoría Backend', cliente: 'Banco Santander', codigo: 'PRJ-SAN-001', tipo: 'Proyecto', estado: true, jp: 'Ana García',
-        equipo: [] // Vacío para probar el diseño 1
-    },
-    { 
-        id: 2, nombre: 'Migración Cloud', cliente: 'Mapfre', codigo: 'SRV-MAP-023', tipo: 'Servicio', estado: true, jp: 'Carlos Ruiz',
-        equipo: [
-            { nombre: 'Ana García', rol: 'Dev', iniciales: 'AG', color: 'bg-pink-100 text-pink-600' },
-            { nombre: 'Carlos Ruiz', rol: 'QA', iniciales: 'CR', color: 'bg-blue-100 text-blue-600' },
-            { nombre: 'Elena Nito', rol: 'Manager', iniciales: 'EN', color: 'bg-purple-100 text-purple-600' },
-            { nombre: 'Javi M.', rol: 'Dev', iniciales: 'JM', color: 'bg-emerald-100 text-emerald-600' },
-            { nombre: 'Laura P.', rol: 'Dev', iniciales: 'LP', color: 'bg-orange-100 text-orange-600' },
-        ]
-    },
-    { 
-        id: 3, nombre: 'Despliegue TPVs', cliente: 'Inditex', codigo: 'PRJ-IND-104', tipo: 'Proyecto', estado: true, jp: 'Ana García',
+        id: 1, nombre: 'Auditoría Backend', cliente: 'Banco Santander', idCliente: 'SAN-001', codigo: 'PRJ-SAN-001', tipo: 'Proyecto', estado: true, jp: 'Ana García',
         equipo: [] 
     },
     { 
-        id: 4, nombre: 'Auditoría Seguridad', cliente: 'BBVA', codigo: 'PRJ-BBV-009', tipo: 'Proyecto', estado: false, jp: 'Elena Nito',
+        id: 2, nombre: 'Migración Cloud', cliente: 'Mapfre', idCliente: 'MAP-99', codigo: 'SRV-MAP-023', tipo: 'Servicio', estado: true, jp: 'Carlos Ruiz',
         equipo: [
-            { nombre: 'Mario León', rol: 'Dev', iniciales: 'ML', color: 'bg-indigo-100 text-indigo-600' },
-            { nombre: 'Ana Ruiz', rol: 'Security', iniciales: 'AR', color: 'bg-rose-100 text-rose-600' }
+            { nombre: 'Ana García', rol: 'Dev', iniciales: 'AG', color: 'bg-pink-100 text-pink-600' },
+            { nombre: 'Carlos Ruiz', rol: 'QA', iniciales: 'CR', color: 'bg-blue-100 text-blue-600' },
+        ]
+    },
+    { 
+        id: 4, nombre: 'Auditoría Seguridad', cliente: 'BBVA', idCliente: 'BBVA-ES', codigo: 'PRJ-BBV-009', tipo: 'Proyecto', estado: false, jp: 'Elena Nito',
+        equipo: [
+            { nombre: 'Mario León', rol: 'Dev', iniciales: 'ML', color: 'bg-indigo-100 text-indigo-600' }
         ]
     },
 ])
@@ -42,9 +34,13 @@ const usuariosDisponibles = [
 ]
 
 // --- ESTADOS ---
-const menuAbiertoId = ref(null)
 const mostrarModalAsignar = ref(false)
+const mostrarModalProyecto = ref(false) // Modal para Crear/Editar
+const esEdicion = ref(false)
+
 const asignacionData = ref({ proyectoId: null, nombreProyecto: '', usuarioId: '' })
+const proyectoForm = ref({ id: null, nombre: '', cliente: '', idCliente: '', codigo: '', estado: true }) 
+
 const busqueda = ref('')
 const filtroEstado = ref('todos')
 
@@ -53,9 +49,8 @@ const proyectosFiltrados = computed(() => {
     return proyectos.value.filter(p => {
         const textoMatch =
             p.nombre.toLowerCase().includes(busqueda.value.toLowerCase()) ||
-            p.cliente.toLowerCase().includes(busqueda.value.toLowerCase()) ||
-            p.codigo.toLowerCase().includes(busqueda.value.toLowerCase())
-
+            p.cliente.toLowerCase().includes(busqueda.value.toLowerCase())
+        
         const estadoMatch =
             filtroEstado.value === 'todos' ? true :
             filtroEstado.value === 'activos' ? p.estado :
@@ -65,20 +60,57 @@ const proyectosFiltrados = computed(() => {
     })
 })
 
-// --- MENÚS ---
-const toggleMenu = (id) => {
-    menuAbiertoId.value = menuAbiertoId.value === id ? null : id
-}
-const clickOutside = (e) => {
-    if (!e.target.closest('.menu-trigger')) menuAbiertoId.value = null
-}
-onMounted(() => document.addEventListener('click', clickOutside))
-onUnmounted(() => document.removeEventListener('click', clickOutside))
+// --- GESTIÓN PROYECTOS (CREAR / EDITAR) ---
 
-// --- ASIGNACIÓN ---
+const abrirCrearProyecto = () => {
+    esEdicion.value = false
+    // Formulario limpio
+    proyectoForm.value = { id: null, nombre: '', cliente: '', idCliente: '', codigo: '', estado: true }
+    mostrarModalProyecto.value = true
+}
+
+const abrirEditarProyecto = (proy) => {
+    esEdicion.value = true
+    // Clonamos los datos del proyecto al formulario
+    proyectoForm.value = { ...proy }
+    mostrarModalProyecto.value = true
+}
+
+const guardarProyecto = () => {
+    if (!proyectoForm.value.nombre || !proyectoForm.value.cliente) return alert("Nombre y Cliente son obligatorios")
+
+    if (esEdicion.value) {
+        // ACTUALIZAR
+        const index = proyectos.value.findIndex(p => p.id === proyectoForm.value.id)
+        if (index !== -1) {
+            // Actualizamos datos manteniendo el equipo existente
+            proyectos.value[index] = { 
+                ...proyectos.value[index], // Mantener cosas que no están en el form (como equipo)
+                ...proyectoForm.value      // Sobrescribir con lo nuevo
+            }
+        }
+    } else {
+        // CREAR
+        const nuevoId = Date.now()
+        proyectos.value.push({
+            ...proyectoForm.value,
+            id: nuevoId,
+            codigo: `PRJ-${Math.floor(Math.random()*1000)}`, // Generar código fake
+            equipo: [] // Empieza sin equipo
+        })
+    }
+    mostrarModalProyecto.value = false
+}
+
+const eliminarProyecto = (id) => {
+    if(confirm('¿Seguro que quieres eliminar este proyecto?')) {
+        proyectos.value = proyectos.value.filter(p => p.id !== id)
+    }
+}
+
+// --- ASIGNACIÓN USUARIOS ---
 const abrirModalAsignacion = (proyecto) => {
     asignacionData.value = { proyectoId: proyecto.id, nombreProyecto: proyecto.nombre, usuarioId: '' }
-    menuAbiertoId.value = null
     mostrarModalAsignar.value = true
 }
 
@@ -88,36 +120,30 @@ const confirmarAsignacion = () => {
     const proyectoTarget = proyectos.value.find(p => p.id === asignacionData.value.proyectoId)
     
     if(proyectoTarget && usuarioObj) {
+        // Evitar duplicados
         if(!proyectoTarget.equipo.find(u => u.nombre === usuarioObj.nombre)){
              proyectoTarget.equipo.push({ ...usuarioObj })
         }
     }
     mostrarModalAsignar.value = false
 }
-
-// Helper para eliminar
-const eliminarProyecto = (id) => {
-    if(confirm('¿Seguro que quieres eliminar este proyecto?')) {
-        proyectos.value = proyectos.value.filter(p => p.id !== id)
-    }
-}
 </script>
 
 <template>
-    <div class="h-full flex flex-col font-sans p-8 bg-slate-50">
+    <div class="h-full flex flex-col font-sans p-8 bg-slate-50 overflow-y-auto">
 
         <div class="flex justify-between items-center mb-8">
             <div class="flex items-center gap-4">
                 <h1 class="text-3xl font-bold flex items-center gap-3 text-slate-800">
                     <LayoutGrid class="w-8 h-8 text-slate-400" />
-                    Proyectos
+                    Gestión Proyectos
                     <span class="text-sm font-bold px-3 py-1 rounded-full bg-white border border-slate-200 text-slate-500 shadow-sm ml-2">
                         {{ proyectos.length }}
                     </span>
                 </h1>
             </div>
 
-            <button class="btn-primary flex items-center gap-2 shadow-lg shadow-emerald-500/20">
+            <button @click="abrirCrearProyecto" class="btn-primary flex items-center gap-2 shadow-lg shadow-emerald-500/20">
                 <Plus class="w-5 h-5" />
                 Nuevo Proyecto
             </button>
@@ -160,8 +186,14 @@ const eliminarProyecto = (id) => {
                             {{ proy.estado ? 'Activo' : 'Cerrado' }}
                         </span>
 
+                        <button @click.stop="abrirEditarProyecto(proy)"
+                            class="w-7 h-7 flex items-center justify-center rounded bg-white border border-slate-200 text-slate-400 hover:text-blue-600 hover:border-blue-200 transition-all shadow-sm"
+                            title="Editar Proyecto">
+                            <Pencil class="w-3.5 h-3.5" />
+                        </button>
+
                         <button @click.stop="eliminarProyecto(proy.id)"
-                            class="w-7 h-7 flex items-center justify-center rounded bg-slate-900 text-white opacity-0 group-hover:opacity-100 transition-all hover:bg-red-600 shadow-lg translate-x-2 group-hover:translate-x-0"
+                            class="w-7 h-7 flex items-center justify-center rounded bg-white border border-slate-200 text-slate-400 hover:text-red-600 hover:border-red-200 transition-all shadow-sm"
                             title="Eliminar">
                             <Trash2 class="w-3.5 h-3.5" />
                         </button>
@@ -169,13 +201,17 @@ const eliminarProyecto = (id) => {
                 </div>
 
                 <div class="mb-5">
-                    <h3 class="text-lg font-bold text-slate-800 leading-tight mb-1" :title="proy.nombre">
+                    <h3 class="text-lg font-bold text-slate-800 leading-tight mb-1 truncate" :title="proy.nombre">
                         {{ proy.nombre }}
                     </h3>
-                    <p class="text-sm text-slate-400 flex items-center gap-1.5 font-medium">
-                        <Tag class="w-3.5 h-3.5" /> 
-                        {{ proy.cliente }}
-                    </p>
+                    <div class="flex flex-col gap-1">
+                        <p class="text-sm text-slate-500 flex items-center gap-1.5 font-medium truncate">
+                            <Tag class="w-3.5 h-3.5" /> {{ proy.cliente }}
+                        </p>
+                        <p v-if="proy.idCliente" class="text-xs text-slate-400 flex items-center gap-1.5 font-mono">
+                            <Hash class="w-3 h-3" /> {{ proy.idCliente }}
+                        </p>
+                    </div>
                 </div>
 
                 <div class="h-px bg-slate-100 w-full mb-4"></div>
@@ -185,7 +221,7 @@ const eliminarProyecto = (id) => {
                         <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
                             Equipo Asignado
                         </span>
-                        <button @click.stop="abrirModalAsignacion(proy)" class="text-slate-300 hover:text-emerald-600 transition">
+                        <button @click.stop="abrirModalAsignacion(proy)" class="text-slate-300 hover:text-emerald-600 transition" title="Añadir miembro">
                             <UserPlus class="w-4 h-4"/>
                         </button>
                     </div>
@@ -215,12 +251,12 @@ const eliminarProyecto = (id) => {
             </div>
         </div>
 
-        <div v-if="mostrarModalAsignar" class="fixed inset-0 bg-slate-900/20 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+        <div v-if="mostrarModalAsignar" class="fixed inset-0 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center z-50 p-4">
             <div class="bg-white w-full max-w-sm rounded-2xl shadow-2xl p-6 animate-in zoom-in-95">
                 <div class="flex justify-between items-start mb-4">
                     <div>
                         <h3 class="text-lg font-bold text-slate-800">Asignar a Proyecto</h3>
-                        <p class="text-sm text-slate-500">{{ asignacionData.nombreProyecto }}</p>
+                        <p class="text-sm text-slate-500 truncate w-64">{{ asignacionData.nombreProyecto }}</p>
                     </div>
                     <button @click="mostrarModalAsignar=false" class="text-slate-400 hover:text-slate-600">
                         <X class="w-5 h-5"/>
@@ -242,11 +278,70 @@ const eliminarProyecto = (id) => {
             </div>
         </div>
 
+        <div v-if="mostrarModalProyecto" class="fixed inset-0 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+            <div class="bg-white w-full max-w-md rounded-2xl shadow-2xl p-6 animate-in zoom-in-95">
+                <div class="flex justify-between items-start mb-6">
+                    <div>
+                        <h3 class="text-xl font-bold text-slate-800">
+                            {{ esEdicion ? 'Editar Proyecto' : 'Nuevo Proyecto' }}
+                        </h3>
+                        <p class="text-sm text-slate-500">Completa la información del proyecto.</p>
+                    </div>
+                    <button @click="mostrarModalProyecto=false" class="text-slate-400 hover:text-slate-600">
+                        <X class="w-6 h-6"/>
+                    </button>
+                </div>
+
+                <div class="space-y-4">
+                    <div>
+                        <label class="block text-xs font-bold text-slate-500 uppercase mb-2">Nombre Proyecto</label>
+                        <input v-model="proyectoForm.nombre" type="text" placeholder="Ej: Migración Cloud" 
+                               class="w-full p-3 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500">
+                    </div>
+                    
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-xs font-bold text-slate-500 uppercase mb-2">Cliente</label>
+                            <input v-model="proyectoForm.cliente" type="text" placeholder="Ej: Santander" 
+                                class="w-full p-3 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold text-slate-500 uppercase mb-2">ID Cliente</label>
+                            <input v-model="proyectoForm.idCliente" type="text" placeholder="Ej: CLI-001" 
+                                class="w-full p-3 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500">
+                        </div>
+                    </div>
+
+                    <div>
+                         <label class="block text-xs font-bold text-slate-500 uppercase mb-2">Estado</label>
+                         <div class="flex gap-2">
+                            <button @click="proyectoForm.estado = true" 
+                                    class="flex-1 py-2 rounded-lg text-sm font-bold border transition-colors"
+                                    :class="proyectoForm.estado ? 'bg-emerald-50 border-emerald-500 text-emerald-700' : 'bg-white border-slate-200 text-slate-500'">
+                                Activo
+                            </button>
+                            <button @click="proyectoForm.estado = false" 
+                                    class="flex-1 py-2 rounded-lg text-sm font-bold border transition-colors"
+                                    :class="!proyectoForm.estado ? 'bg-slate-100 border-slate-400 text-slate-700' : 'bg-white border-slate-200 text-slate-500'">
+                                Cerrado
+                            </button>
+                         </div>
+                    </div>
+
+                    <div class="pt-2">
+                        <button @click="guardarProyecto" class="w-full btn-primary py-3 justify-center flex items-center gap-2">
+                            <Save class="w-4 h-4"/>
+                            {{ esEdicion ? 'Guardar Cambios' : 'Crear Proyecto' }}
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
     </div>
 </template>
 
 <style scoped>
-/* Estilos extra para botones específicos de este componente */
 .btn-primary {
     @apply bg-[#26AA9B] hover:bg-[#208f82] text-white px-5 py-2.5 rounded-xl font-bold text-sm transition-all flex items-center gap-2;
 }
