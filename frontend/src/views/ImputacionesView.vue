@@ -1,41 +1,49 @@
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
+// 1. IMPORTAR STORE (La clave para que se guarden los datos)
+import { useDataStore } from '../stores/dataStore'
 import { 
   ChevronLeft, 
   ChevronRight, 
   Calendar as CalendarIcon, 
   FileText,
   Hash, 
-  Briefcase, 
-  Clock
+  Briefcase
 } from 'lucide-vue-next'
 
 const router = useRouter()
+// 2. INICIALIZAR STORE
+const store = useDataStore()
 
-// --- CONFIGURACIÓN DE DÍAS ESPECIALES ---
-const diasEspeciales = [
-  { dia: 12, mes: 1, tipo: 'festivo', label: 'Festivo' }, 
-  { dia: 16, mes: 1, tipo: 'vacaciones', label: 'Vacaciones' }, 
-  { dia: 20, mes: 1, tipo: 'asuntos_propios', label: 'Asuntos P.' }, 
-  { dia: 27, mes: 1, tipo: 'libre_disposicion', label: 'Libre Disp.' }
-]
-
-const getTipoDia = (date) => {
-  const especial = diasEspeciales.find(d => 
-    d.dia === date.getDate() && d.mes === date.getMonth() && date.getFullYear() === 2026
-  )
-  return especial ? especial.tipo : null
+// --- GESTIÓN DE FECHAS (CONECTADO AL STORE) ---
+const getInfoDia = (date) => {
+  // Ajuste zona horaria
+  const offset = date.getTimezoneOffset() * 60000
+  const isoDate = new Date(date.getTime() - offset).toISOString().split('T')[0]
+  
+  // Preguntamos al store si hay vacaciones guardadas para este día
+  const ausencia = store.getAusenciaPorFecha(isoDate, store.getCurrentUser().id)
+  
+  if (!ausencia) return null
+  
+  // Mapeo de tipos para que coincida con tu diseño
+  const mapTipos = {
+      'vacaciones': 'vacaciones',
+      'festivo': 'festivo',
+      'asuntos': 'asuntos_propios'
+  }
+  
+  return {
+      tipo: mapTipos[ausencia.type] || ausencia.type,
+      label: ausencia.type === 'asuntos' ? 'Asuntos P.' : (ausencia.type.charAt(0).toUpperCase() + ausencia.type.slice(1))
+  }
 }
 
-const getLabelDia = (date) => {
-  const especial = diasEspeciales.find(d => 
-    d.dia === date.getDate() && d.mes === date.getMonth() && date.getFullYear() === 2026
-  )
-  return especial ? especial.label : null
-}
+const getTipoDia = (date) => getInfoDia(date)?.tipo
+const getLabelDia = (date) => getInfoDia(date)?.label
 
-// --- LÓGICA FECHAS ---
+// --- LÓGICA FECHAS (Igual que antes) ---
 const fechaActual = ref(new Date()) 
 const hoy = new Date() 
 
@@ -64,7 +72,9 @@ const mesAnterior = () => fechaActual.value = new Date(anioActual.value, mesActu
 const mesSiguiente = () => fechaActual.value = new Date(anioActual.value, mesActualIndex.value + 1, 1)
 const irAHoy = () => fechaActual.value = new Date()
 
-// --- DATOS SIMULADOS ---
+// --- DATOS SIMULADOS (IMPUTACIONES) ---
+// Esto sigue siendo mock porque el store aun no tiene imputaciones reales complejas, 
+// pero las VACACIONES ya salen del store.
 const imputaciones = ref([
   { dia: 5, cliente: 'Banco Santander', codigo: 'SAN-001', proyecto: 'Auditoría Backend', horas: 8, color: 'bg-blue-50 text-blue-700 border-blue-100 hover:bg-blue-100' },
   { dia: 6, cliente: 'Mapfre', codigo: 'MAP-220', proyecto: 'Migración Cloud', horas: 4, color: 'bg-cyan-50 text-cyan-800 border-cyan-100 hover:bg-cyan-100' },
@@ -76,7 +86,6 @@ const imputaciones = ref([
 const getImputacionesPorDia = (dia) => imputaciones.value.filter(imp => imp.dia === dia)
 const getTotalHoras = (dia) => getImputacionesPorDia(dia).reduce((acc, curr) => acc + curr.horas, 0)
 
-// --- AGRUPACIÓN POR PROYECTO (TOTAL MES) ---
 const resumenProyectos = computed(() => {
   const grupos = {}
   imputaciones.value.forEach(imp => {
@@ -141,17 +150,14 @@ const irAlDashboard = (dia) => {
         <div class="flex items-center gap-2 px-2 py-1 rounded-md bg-gray-50 border border-gray-100">
             <div class="w-2.5 h-2.5 rounded-full bg-white border border-gray-300"></div><span class="text-gray-600">Laborable</span>
         </div>
-        <div class="flex items-center gap-2 px-2 py-1 rounded-md bg-rose-50 border border-rose-100">
-            <div class="w-2.5 h-2.5 rounded-full bg-rose-300"></div><span class="text-rose-600">Festivo</span>
+        <div class="flex items-center gap-2 px-2 py-1 rounded-md bg-orange-50 border border-orange-100">
+            <div class="w-2.5 h-2.5 rounded-full bg-orange-500"></div><span class="text-orange-700">Festivo</span>
         </div>
-        <div class="flex items-center gap-2 px-2 py-1 rounded-md bg-teal-50 border border-teal-100">
-            <div class="w-2.5 h-2.5 rounded-full bg-teal-300"></div><span class="text-teal-600">Vacaciones</span>
+        <div class="flex items-center gap-2 px-2 py-1 rounded-md bg-emerald-50 border border-emerald-100">
+            <div class="w-2.5 h-2.5 rounded-full bg-emerald-500"></div><span class="text-emerald-700">Vacaciones</span>
         </div>
-        <div class="flex items-center gap-2 px-2 py-1 rounded-md bg-amber-50 border border-amber-100">
-            <div class="w-2.5 h-2.5 rounded-full bg-amber-300"></div><span class="text-amber-600">Libre Disp.</span>
-        </div>
-        <div class="flex items-center gap-2 px-2 py-1 rounded-md bg-violet-50 border border-violet-100">
-            <div class="w-2.5 h-2.5 rounded-full bg-violet-300"></div><span class="text-violet-600">Asuntos P.</span>
+        <div class="flex items-center gap-2 px-2 py-1 rounded-md bg-blue-50 border border-blue-100">
+            <div class="w-2.5 h-2.5 rounded-full bg-blue-500"></div><span class="text-blue-700">Asuntos P.</span>
         </div>
     </div>
 
@@ -169,10 +175,10 @@ const irAlDashboard = (dia) => {
              class="min-h-[100px] p-2 border-b border-r border-gray-100 transition relative flex flex-col gap-1"
              :class="[
                esFinDeSemana(dia) ? 'bg-slate-100 cursor-default' : 'bg-white',
-               getTipoDia(new Date(anioActual, mesActualIndex, dia)) === 'festivo' ? 'bg-rose-50/40' : '',
-               getTipoDia(new Date(anioActual, mesActualIndex, dia)) === 'vacaciones' ? 'bg-teal-50/40' : '',
-               getTipoDia(new Date(anioActual, mesActualIndex, dia)) === 'libre_disposicion' ? 'bg-amber-50/40' : '',
-               getTipoDia(new Date(anioActual, mesActualIndex, dia)) === 'asuntos_propios' ? 'bg-violet-50/40' : '',
+               // CLASES DINÁMICAS (Si vienen del Store)
+               getTipoDia(new Date(anioActual, mesActualIndex, dia)) === 'festivo' ? 'bg-orange-50/40' : '',
+               getTipoDia(new Date(anioActual, mesActualIndex, dia)) === 'vacaciones' ? 'bg-emerald-50/40' : '',
+               getTipoDia(new Date(anioActual, mesActualIndex, dia)) === 'asuntos_propios' ? 'bg-blue-50/40' : '',
              ]"
              :style="esFinDeSemana(dia) ? 'background-image: repeating-linear-gradient(45deg, transparent, transparent 10px, rgba(0,0,0,0.03) 10px, rgba(0,0,0,0.03) 20px);' : ''"
         >
@@ -190,10 +196,9 @@ const irAlDashboard = (dia) => {
           <div v-if="getTipoDia(new Date(anioActual, mesActualIndex, dia))" class="mb-1 flex justify-center">
              <span class="text-[9px] font-bold uppercase px-2 py-0.5 rounded-full border shadow-sm tracking-wide"
                :class="{
-                 'text-rose-600 bg-rose-50 border-rose-100': getTipoDia(new Date(anioActual, mesActualIndex, dia)) === 'festivo',
-                 'text-teal-600 bg-teal-50 border-teal-100': getTipoDia(new Date(anioActual, mesActualIndex, dia)) === 'vacaciones',
-                 'text-amber-600 bg-amber-50 border-amber-100': getTipoDia(new Date(anioActual, mesActualIndex, dia)) === 'libre_disposicion',
-                 'text-violet-600 bg-violet-50 border-violet-100': getTipoDia(new Date(anioActual, mesActualIndex, dia)) === 'asuntos_propios'
+                 'text-orange-700 bg-orange-50 border-orange-100': getTipoDia(new Date(anioActual, mesActualIndex, dia)) === 'festivo',
+                 'text-emerald-700 bg-emerald-50 border-emerald-100': getTipoDia(new Date(anioActual, mesActualIndex, dia)) === 'vacaciones',
+                 'text-blue-700 bg-blue-50 border-blue-100': getTipoDia(new Date(anioActual, mesActualIndex, dia)) === 'asuntos_propios'
                }">
                {{ getLabelDia(new Date(anioActual, mesActualIndex, dia)) }}
              </span>
@@ -213,7 +218,6 @@ const irAlDashboard = (dia) => {
     </div>
 
     <div class="card p-0 overflow-hidden shadow-lg">
-        
         <div class="px-6 py-4 border-b border-gray-200 bg-gray-50/50 flex justify-between items-center">
             <h2 class="font-bold text-lg text-dark flex items-center gap-2">
                 <FileText class="w-5 h-5 text-primary" />
@@ -226,7 +230,6 @@ const irAlDashboard = (dia) => {
                 </span>
             </div>
         </div>
-
         <div class="overflow-x-auto">
             <table class="w-full text-left border-collapse">
                 <thead>
@@ -239,31 +242,24 @@ const irAlDashboard = (dia) => {
                 </thead>
                 <tbody class="text-sm text-gray-700 divide-y divide-gray-50">
                     <tr v-for="(item, index) in resumenProyectos" :key="index" class="hover:bg-blue-50/10 transition">
-                        
                         <td class="px-6 py-3">
                             <div class="flex items-center gap-2 font-medium text-dark">
                                 <Briefcase class="w-3.5 h-3.5 text-gray-400"/>
                                 <span>{{ item.cliente }}</span>
                             </div>
                         </td>
-
                         <td class="px-6 py-3">
                             <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-gray-100 text-gray-600 text-xs font-mono border border-gray-200">
                                 <Hash class="w-3 h-3 opacity-50"/> {{ item.codigo }}
                             </span>
                         </td>
-
-                        <td class="px-6 py-3 font-medium">
-                            {{ item.proyecto }}
-                        </td>
-
+                        <td class="px-6 py-3 font-medium">{{ item.proyecto }}</td>
                         <td class="px-6 py-3 text-center">
                             <span class="inline-flex items-center gap-1 font-bold text-dark bg-blue-50 px-3 py-1 rounded-full border border-blue-100 min-w-[3rem] justify-center">
                                 {{ item.horas }}h
                             </span>
                         </td>
                     </tr>
-                    
                     <tr v-if="resumenProyectos.length === 0">
                         <td colspan="4" class="px-6 py-8 text-center text-gray-400 italic">
                             No hay imputaciones registradas este mes.
@@ -273,6 +269,5 @@ const irAlDashboard = (dia) => {
             </table>
         </div>
     </div>
-
   </div>
 </template>
