@@ -92,7 +92,7 @@ const claseIcono = "w-5 h-5 text-slate-400 group-hover:text-primary transition s
           <span class="text-sm font-medium truncate">Centro de Control</span>
         </router-link>
 
-        <div class="h-px bg-slate-800 my-2 mx-3"></div> 
+      
         
         <router-link to="/admin/users" :class="claseLink">
           <Users :class="claseIcono" />
