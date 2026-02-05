@@ -51,7 +51,6 @@ onMounted(() => {
     }
 })
 
-// --- FECHAS Y SEMANAS ---
 const getLunesSemana = (fecha) => {
     const d = new Date(fecha)
     const dia = d.getDay()
@@ -70,7 +69,6 @@ const diasSemana = computed(() => {
     return dias
 })
 
-// --- CÁLCULO DE LÍMITES ---
 const esJornadaVerano = (date) => {
     const mes = date.getMonth()
     return mes === 6 || mes === 7
@@ -177,7 +175,6 @@ const totalDia = (index) => filas.value.reduce((acc, f) => {
 }, 0)
 const totalSemanal = computed(() => filas.value.reduce((acc, f) => acc + totalFila(f), 0))
 
-// Validaciones
 const excedeLimiteDiario = (index) => {
     const fechaDia = diasSemana.value[index]
     const maxHoras = getMaxHorasDia(fechaDia)

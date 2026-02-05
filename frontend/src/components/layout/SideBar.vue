@@ -1,16 +1,18 @@
 <script setup>
 import { computed } from 'vue'
 import {
+<<<<<<< HEAD
   // Iconos Generales
   LayoutDashboard, Clock, FolderKanban, FileBarChart, LogOut, ShieldCheck, Calendar, // <--- AÑADIDO CALENDAR
   // Iconos de Gestión (JP)
+=======
+  LayoutDashboard, Clock, FolderKanban, FileBarChart, LogOut, ShieldCheck,
+>>>>>>> 01b45ab189253d30465ed8601f6a0a10a7cb648d
   CheckCircle,
-  // Iconos de Admin
   Users, Briefcase, Megaphone, History, Ticket, Activity
 } from 'lucide-vue-next'
 
-// --- CONFIGURACIÓN DE ROL ---
-// Puedes cambiar a 'jp' o 'admin' para ver las opciones
+
 const rolActual = 'admin'
 
 const usuario = {
@@ -22,7 +24,6 @@ const usuario = {
 const esAdmin = computed(() => rolActual === 'admin')
 const esJefe = computed(() => rolActual === 'jp' || rolActual === 'admin')
 
-// --- CLASES CSS OPTIMIZADAS ---
 const claseLink = "flex items-center gap-3 px-3 py-2.5 rounded-r-lg text-slate-300 hover:text-white hover:bg-slate-800 transition group cursor-pointer border-l-4 border-transparent whitespace-nowrap"
 const claseIcono = "w-5 h-5 text-slate-400 group-hover:text-primary transition shrink-0"
 </script>

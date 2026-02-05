@@ -73,11 +73,8 @@ const reabrirMes = () => {
 }
 
 // --- FUNCIÓN DE EXPORTACIÓN CSV CORREGIDA ---
-const exportarExcel = () => {
-    // 1. Cabeceras del CSV
+const exportarExcel = () => {   
     const headers = ['ID', 'Nombre', 'Rol', 'Horas Reales', 'Horas Teoricas', 'Estado', 'Dias Faltantes']
-
-    // 2. Mapear datos a filas CSV
     const rows = auditoriaUsuarios.value.map(u => [
         u.id,
         u.nombre,
@@ -85,16 +82,14 @@ const exportarExcel = () => {
         u.horasReales,
         u.horasTeoricas,
         u.estado,
-        u.diasFaltantes.join(' | ') // Unir días con separador
+        u.diasFaltantes.join(' | ') 
     ])
 
-    // 3. Construir el contenido CSV (separado por comas o punto y coma)
     const csvContent = [
         headers.join(';'),
         ...rows.map(row => row.join(';'))
     ].join('\n')
 
-    // 4. Crear Blob y descargar
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
     const url = URL.createObjectURL(blob)
     const link = document.createElement('a')
@@ -102,8 +97,8 @@ const exportarExcel = () => {
     link.setAttribute('download', `auditoria_cierre_${fechaCierre.value}.csv`)
     document.body.appendChild(link)
 
-    link.click() // Simular click para descargar
-    document.body.removeChild(link) // Limpiar DOM
+    link.click() 
+    document.body.removeChild(link) 
 }
 
 const notificarUsuario = (nombre) => {
