@@ -5,6 +5,22 @@ import { useDataStore } from '../../stores/dataStore'
 
 const store = useDataStore()
 const stats = computed(() => store.getStats())
+
+// --- CONFIGURACIÓN DE VISTA ---
+
+// Métricas del monitor de sistema (para no repetir HTML abajo)
+const metricasSistema = [
+    { label: 'Base de Datos', valor: 'Conectada', colorTexto: 'text-white' },
+    { label: 'Latencia API', valor: '24ms', colorTexto: 'text-primary' },
+    { label: 'Último Backup', valor: '04:00 AM', colorTexto: 'text-white' },
+]
+
+// Botones de acciones rápidas
+const accionesRapidas = [
+    { texto: 'Nuevo Comunicado Global', colorPunto: 'bg-primary' },
+    { texto: 'Exportar Logs de Auditoría', colorPunto: 'bg-blue-500' },
+    { texto: 'Revisar Tickets Críticos', colorPunto: 'bg-amber-500' },
+]
 </script>
 
 <template>
@@ -69,31 +85,23 @@ const stats = computed(() => store.getStats())
             </div>
 
             <div class="grid grid-cols-3 gap-4 mt-8 relative z-10">
-                <div class="bg-white/5 p-4 rounded-lg border border-white/10">
-                    <p class="text-xs text-slate-400 mb-1">Base de Datos</p>
-                    <div class="text-xl font-mono font-bold text-white">Conectada</div>
-                </div>
-                <div class="bg-white/5 p-4 rounded-lg border border-white/10">
-                    <p class="text-xs text-slate-400 mb-1">Latencia API</p>
-                    <div class="text-xl font-mono font-bold text-primary">24ms</div>
-                </div>
-                <div class="bg-white/5 p-4 rounded-lg border border-white/10">
-                    <p class="text-xs text-slate-400 mb-1">Último Backup</p>
-                    <div class="text-xl font-mono font-bold text-white">04:00 AM</div>
+                <div v-for="(metrica, index) in metricasSistema" :key="index" 
+                     class="bg-white/5 p-4 rounded-lg border border-white/10">
+                    <p class="text-xs text-slate-400 mb-1">{{ metrica.label }}</p>
+                    <div class="text-xl font-mono font-bold" :class="metrica.colorTexto">
+                        {{ metrica.valor }}
+                    </div>
                 </div>
             </div>
         </div>
 
         <div class="card flex flex-col gap-3">
             <h3 class="label-std mb-2">Acciones Rápidas</h3>
-            <button class="w-full text-left p-3 rounded-lg bg-gray-50 hover:bg-gray-100 flex items-center gap-3 transition text-sm font-medium text-gray-600">
-                <div class="w-2 h-2 rounded-full bg-primary"></div> Nuevo Comunicado Global
-            </button>
-            <button class="w-full text-left p-3 rounded-lg bg-gray-50 hover:bg-gray-100 flex items-center gap-3 transition text-sm font-medium text-gray-600">
-                <div class="w-2 h-2 rounded-full bg-blue-500"></div> Exportar Logs de Auditoría
-            </button>
-            <button class="w-full text-left p-3 rounded-lg bg-gray-50 hover:bg-gray-100 flex items-center gap-3 transition text-sm font-medium text-gray-600">
-                <div class="w-2 h-2 rounded-full bg-amber-500"></div> Revisar Tickets Críticos
+            
+            <button v-for="(accion, index) in accionesRapidas" :key="index"
+                    class="w-full text-left p-3 rounded-lg bg-gray-50 hover:bg-gray-100 flex items-center gap-3 transition text-sm font-medium text-gray-600">
+                <div class="w-2 h-2 rounded-full" :class="accion.colorPunto"></div>
+                {{ accion.texto }}
             </button>
         </div>
     </div>

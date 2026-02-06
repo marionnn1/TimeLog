@@ -1,42 +1,67 @@
 import { reactive, watch } from 'vue' 
 import { initialData } from '../data/initialData'
 
+const STORAGE_KEY = 'timeLog_state'
 
-const savedState = localStorage.getItem('timeLog_state')
-const datosIniciales = savedState ? JSON.parse(savedState) : {
-    ...initialData,
-    imputaciones: initialData.imputaciones || [],
-    ausencias: [
-        { date: '2026-02-16', userId: 2, nombre: 'Ana', iniciales: 'AR', type: 'vacaciones' },
-        { date: '2026-02-16', userId: 3, nombre: 'Pedro', iniciales: 'PS', type: 'vacaciones' },
-        { date: '2026-02-16', userId: 4, nombre: 'Laura', iniciales: 'LP', type: 'vacaciones' },
-        { date: '2026-02-28', userId: 2, nombre: 'Ana', iniciales: 'AR', type: 'festivo' },
-    ]
+// carga inicial de estado 
+const loadState = () => {
+    const saved = localStorage.getItem(STORAGE_KEY)
+    if (saved) return JSON.parse(saved)
+    
+    return {
+        ...initialData,
+        imputaciones: initialData.imputaciones || [],
+        ausencias: [
+            { date: '2026-02-16', userId: 2, nombre: 'Ana', iniciales: 'AR', type: 'vacaciones' },
+            { date: '2026-02-16', userId: 3, nombre: 'Pedro', iniciales: 'PS', type: 'vacaciones' },
+            { date: '2026-02-16', userId: 4, nombre: 'Laura', iniciales: 'LP', type: 'vacaciones' },
+            { date: '2026-02-28', userId: 2, nombre: 'Ana', iniciales: 'AR', type: 'festivo' },
+        ]
+    }
 }
 
-const state = reactive(datosIniciales)
+const state = reactive(loadState())
 
 watch(state, (nuevoEstado) => {
-    localStorage.setItem('timeLog_state', JSON.stringify(nuevoEstado))
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(nuevoEstado))
 }, { deep: true })
-
 
 
 export const useDataStore = () => {
 
-    const getUsers = () => state.usuarios
+    // --- HELPER INTERNO PARA LOGS ---
+    const _addLog = (accion, detalle, gravedad = 'info', actor = null) => {
+        state.logs.unshift({
+            id: Date.now(),
+            fecha: new Date().toLocaleString(),
+            actor: actor || state.currentUser?.nombre || 'Sistema',
+            accion,
+            detalle,
+            gravedad
+        })
+    }
 
+    // --- GETTERS ---
+    const getUsers = () => state.usuarios
+    const getProjects = () => state.proyectos
+    const getTickets = () => state.tickets || []
+    const getLogs = () => state.logs
+    const getSedes = () => state.sedes
+    const getAnuncio = () => state.anuncio
+    const getCurrentUser = () => state.currentUser
+    const getAusencias = () => state.ausencias
+
+    // --- ACTIONS: USUARIOS ---
     const addUser = (user) => {
-        const newUser = { ...user, id: Date.now() }
-        state.usuarios.push(newUser)
-        addLog('Admin', 'CREATE_USER', `Creó al usuario ${user.nombre}`, 'info')
+        state.usuarios.push({ ...user, id: Date.now() })
+        _addLog('CREATE_USER', `Creó al usuario ${user.nombre}`)
     }
 
     const updateUser = (user) => {
         const index = state.usuarios.findIndex(u => u.id === user.id)
         if (index !== -1) {
-            state.usuarios[index] = user
-            addLog('Admin', 'UPDATE_USER', `Modificó datos de ${user.nombre}`, 'info')
+            state.usuarios[index] = { ...user }
+            _addLog('UPDATE_USER', `Modificó datos de ${user.nombre}`)
         }
     }
 
@@ -44,78 +69,54 @@ export const useDataStore = () => {
         const user = state.usuarios.find(u => u.id === id)
         if (user) {
             state.usuarios = state.usuarios.filter(u => u.id !== id)
-            addLog('Admin', 'DELETE_USER', `Eliminó al usuario ${user.nombre}`, 'danger')
+            _addLog('DELETE_USER', `Eliminó al usuario ${user.nombre}`, 'danger')
         }
     }
 
-    // --- PROYECTOS ---
-    const getProjects = () => state.proyectos
-
+    // --- ACTIONS: PROYECTOS ---
     const addProject = (project) => {
         state.proyectos.push({ ...project, id: Date.now() })
-        addLog('Admin', 'CREATE_PROJECT', `Creó proyecto ${project.nombre}`, 'info')
+        _addLog('CREATE_PROJECT', `Creó proyecto ${project.nombre}`)
     }
 
     const deleteProject = (id) => {
         state.proyectos = state.proyectos.filter(p => p.id !== id)
-        addLog('Admin', 'DELETE_PROJECT', `Eliminó un proyecto ID: ${id}`, 'warning')
+        _addLog('DELETE_PROJECT', `Eliminó un proyecto ID: ${id}`, 'warning')
     }
 
-    // --- TICKETS (INCIDENCIAS) ---
-    const getTickets = () => state.tickets || []
+    const saveProject = (project) => {
+        if (project.id) {
+            const index = state.proyectos.findIndex(p => p.id === project.id)
+            if (index !== -1) {
+                state.proyectos[index] = { ...project }
+                _addLog('UPDATE_PROJECT', `Actualizó proyecto ${project.nombre}`)
+                return
+            }
+        }
+        addProject(project)
+    }
 
+    // --- ACTIONS: TICKETS ---
     const resolveTicket = (id) => {
         const ticket = state.tickets.find(t => t.id === id)
         if (ticket) {
             ticket.estado = 'resuelto'
-            addLog('Admin', 'RESOLVE_TICKET', `Ticket #${id} resuelto (${ticket.asunto})`, 'info')
+            _addLog('RESOLVE_TICKET', `Ticket #${id} resuelto (${ticket.asunto})`)
         }
     }
 
     const deleteTicket = (id) => {
         state.tickets = state.tickets.filter(t => t.id !== id)
-        addLog('Admin', 'DELETE_TICKET', `Ticket #${id} eliminado`, 'warning')
+        _addLog('DELETE_TICKET', `Ticket #${id} eliminado`, 'warning')
     }
 
-    // --- LOGS ---
-    const getLogs = () => state.logs
-
-    const addLog = (actor, accion, detalle, gravedad) => {
-        const nuevoLog = {
-            id: Date.now(),
-            fecha: new Date().toLocaleString(),
-            actor: actor || state.currentUser.nombre,
-            accion,
-            detalle,
-            gravedad
-        }
-        state.logs.unshift(nuevoLog)
-    }
-
-    // --- CONFIG / MAESTROS ---
-    const getSedes = () => state.sedes
-    const getAnuncio = () => state.anuncio
+    // --- ACTIONS: CONFIGURACIÓN ---
     const updateAnuncio = (nuevoAnuncio) => {
-        state.anuncio = nuevoAnuncio
-        addLog('Admin', 'UPDATE_BANNER', 'Actualizó el banner global', 'warning')
+        state.anuncio = { ...nuevoAnuncio }
+        _addLog('UPDATE_BANNER', 'Actualizó el banner global', 'warning')
     }
 
-    // --- USUARIO ACTUAL ---
-    const getCurrentUser = () => state.currentUser
-
-    // --- ESTADÍSTICAS (DASHBOARD ADMIN) ---
-    const getStats = () => {
-        return {
-            totalUsuarios: state.usuarios.length,
-            usuariosMadrid: state.usuarios.filter(u => u.sede === 'Madrid').length,
-            proyectosActivos: state.proyectos.filter(p => p.estado === 'Activo').length,
-            ticketsPendientes: state.tickets ? state.tickets.filter(t => t.estado === 'pendiente').length : 0,
-            ticketsTotales: state.tickets ? state.tickets.length : 0,
-            logsCriticos: state.logs.filter(l => l.gravedad === 'danger').length
-        }
-    }
-
-    // --- IMPUTACIONES (DASHBOARD SEMANAL) ---
+    // --- ACTIONS: IMPUTACIONES ---
     const getImputacionesUsuario = (usuarioId) => {
         return state.imputaciones.filter(i => i.usuarioId === usuarioId)
     }
@@ -134,14 +135,12 @@ export const useDataStore = () => {
         }
     }
 
-    // --- NUEVO: GESTIÓN DE AUSENCIAS (CALENDARIO GLOBAL) ---
-    const getAusencias = () => state.ausencias
-
+    // --- ACTIONS: AUSENCIAS ---
     const addAusencia = (ausencia) => {
         const existe = state.ausencias.find(a => a.date === ausencia.date && a.userId === ausencia.userId)
         if (!existe) {
             state.ausencias.push(ausencia)
-            addLog(ausencia.nombre, 'SOLICITUD_AUSENCIA', `Solicitó ${ausencia.type} para el ${ausencia.date}`, 'info')
+            _addLog('SOLICITUD_AUSENCIA', `Solicitó ${ausencia.type} para el ${ausencia.date}`, 'info', ausencia.nombre)
         }
     }
 
@@ -157,10 +156,22 @@ export const useDataStore = () => {
         return state.ausencias.filter(a => a.date === dateString)
     }
 
+    // --- ESTADÍSTICAS ---
+    const getStats = () => ({
+        totalUsuarios: state.usuarios.length,
+        usuariosMadrid: state.usuarios.filter(u => u.sede === 'Madrid').length,
+        proyectosActivos: state.proyectos.filter(p => p.estado === 'Activo').length,
+        ticketsPendientes: state.tickets ? state.tickets.filter(t => t.estado === 'pendiente').length : 0,
+        ticketsTotales: state.tickets ? state.tickets.length : 0,
+        logsCriticos: state.logs.filter(l => l.gravedad === 'danger').length
+    })
+
+    const addLog = (actor, accion, detalle, gravedad) => _addLog(accion, detalle, gravedad, actor)
+
     return {
         state,
         getUsers, addUser, updateUser, deleteUser,
-        getProjects, addProject, deleteProject,
+        getProjects, addProject, deleteProject, saveProject,
         getTickets, resolveTicket, deleteTicket,
         getLogs, addLog,
         getSedes, getAnuncio, updateAnuncio,
