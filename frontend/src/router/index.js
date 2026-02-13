@@ -109,20 +109,16 @@ const router = createRouter({
   ]
 })
 
-// --- GUARDIA DE NAVEGACIÓN (Protección de Rutas) ---
+
 router.beforeEach((to, from, next) => {
-  // Leemos si el usuario está autenticado (simulado en localStorage)
   const isAuthenticated = localStorage.getItem('isAuthenticated') === 'true'
 
-  // 1. Si vas a un sitio protegido y NO estás logueado -> Login
   if (to.meta.requiresAuth && !isAuthenticated) {
     next('/login')
   } 
-  // 2. Si ya estás logueado e intentas ir al Login -> Dashboard
   else if (to.path === '/login' && isAuthenticated) {
     next('/')
   } 
-  // 3. Acceso permitido
   else {
     next()
   }
