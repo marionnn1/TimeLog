@@ -1,0 +1,52 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer components {
+
+    /* --- BOTONES --- */
+
+    /* Botón Principal (Verde) */
+    .btn-primary {
+        @apply px-4 py-2 rounded-lg font-bold text-sm transition flex items-center gap-2 justify-center shadow-sm disabled:opacity-50 disabled:cursor-not-allowed;
+        @apply bg-primary text-white hover:bg-primary-hover shadow-md hover:shadow-lg;
+    }
+
+    /* Botón Secundario (Blanco) */
+    .btn-secondary {
+        @apply px-4 py-2 rounded-lg font-bold text-sm transition flex items-center gap-2 justify-center shadow-sm disabled:opacity-50 disabled:cursor-not-allowed;
+        @apply bg-white text-slate-600 border border-gray-200 hover:bg-gray-50 hover:text-primary hover:border-primary;
+    }
+
+    /* Botón Ghost (Iconos sin borde) */
+    .btn-ghost {
+        @apply p-2 rounded-lg text-slate-400 hover:bg-slate-100 hover:text-dark transition cursor-pointer;
+    }
+
+    /* --- FORMULARIOS --- */
+    .input-std {
+        @apply w-full bg-white border border-gray-300 text-gray-900 text-sm rounded-lg p-2.5 outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition;
+    }
+
+    .label-std {
+        @apply block text-xs font-bold text-gray-500 uppercase mb-1 tracking-wider;
+    }
+
+    /* --- CONTENEDORES --- */
+    .card {
+        @apply bg-white rounded-xl shadow-sm border border-gray-200 p-6;
+    }
+
+    /* --- TEXTOS --- */
+    .h1-title {
+        @apply text-2xl font-bold text-dark;
+    }
+
+    .subtitle {
+        @apply text-sm text-gray-500 mt-1;
+    }
+
+    .badge {
+        @apply px-2 py-1 rounded text-xs font-bold uppercase border tracking-wider;
+    }
+}
