@@ -1,0 +1,46 @@
+version: '3.8'
+
+services:
+  db:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    environment:
+      - ACCEPT_EULA=Y
+      - MSSQL_SA_PASSWORD=SuperPassword123!
+    ports:
+      - "1455:1433" # Mantenemos el 1455 para tu PC
+    volumes:
+      - sqldata:/var/opt/mssql
+      - ./backend:/app 
+    command: /bin/bash -c "/opt/mssql/bin/sqlservr & /app/init-db.sh; wait"
+
+  backend:
+    build:
+      context: ./backend
+    ports:
+      - "5000:5000"
+    volumes:
+      - ./backend:/app
+    environment:
+      - FLASK_ENV=development
+      # La magia de Docker: El backend habla con la BD a través de la red interna
+      - DB_SERVER=db
+      - DB_PORT=1433 # Internamente siempre es 1433
+      - DB_NAME=timelog
+      - DB_USER=sa
+      - DB_PASSWORD=SuperPassword123!
+    depends_on:
+      - db 
+
+  frontend:
+    build:
+      context: ./frontend
+    ports:
+      - "5173:5173"
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    depends_on:
+      - backend
+
+volumes:
+  sqldata:

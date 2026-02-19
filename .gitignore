@@ -1,5 +1,37 @@
-
+# =========================
+# Variables de entorno (Seguridad)
+# =========================
 .env
 .env.local
 .env.*
 backend/.env
+
+# =========================
+# Frontend (Node / Vue)
+# =========================
+node_modules/
+frontend/node_modules/
+frontend/dist/
+frontend/build/
+npm-debug.log*
+yarn-error.log*
+
+# =========================
+# Backend (Python / Flask)
+# =========================
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+env/
+backend/.venv/
+backend/venv/
+backend/timelog.db  # Ignoramos la vieja base de datos SQLite por si sigue por ahí
+
+# =========================
+# Entornos e IDE (Visual Studio Code / OS)
+# =========================
+.vscode/
+.DS_Store
+Thumbs.db
