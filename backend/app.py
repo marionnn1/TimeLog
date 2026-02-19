@@ -1,25 +1,18 @@
-from flask import Flask, jsonify
+from flask import Flask
 from flask_cors import CORS
-from database.db_service import obtener_usuarios
+from controllers.proyectos_controller import proyectos_bp
+
+# Importamos nuestros controladores
+from controllers.usuarios_controller import usuarios_bp
 
 app = Flask(__name__)
 CORS(app)
 
-@app.route('/api/usuarios', methods=['GET'])
-def get_usuarios():
-    # Llamamos al servicio que creamos, dejando este controlador súper limpio
-    usuarios = obtener_usuarios()
-    
-    if usuarios is not None:
-        return jsonify({
-            "status": "success", 
-            "data": usuarios
-        }), 200
-    else:
-        return jsonify({
-            "status": "error", 
-            "message": "Fallo en la conexión a SQL Server"
-        }), 500
+# Registramos los módulos (Blueprints)
+app.register_blueprint(usuarios_bp)
+app.register_blueprint(proyectos_bp)
+# Cuando creemos proyectos, simplemente añadiremos: app.register_blueprint(proyectos_bp)
 
 if __name__ == '__main__':
-    app.run(debug=True, port=5000)
+    # Usamos 0.0.0.0 para que Docker pueda exponer el puerto correctamente
+    app.run(debug=True, host='0.0.0.0', port=5000)

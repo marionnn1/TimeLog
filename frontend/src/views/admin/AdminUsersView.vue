@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, reactive } from 'vue'
+import { ref, computed, reactive, onMounted } from 'vue'
 import { 
     Plus, Pencil, Trash2, Search, MapPin, X, Save,
     AlertTriangle, CheckCircle2, AlertCircle
@@ -18,7 +18,9 @@ const DEFAULT_FORM = {
 }
 
 // --- ESTADO ---
-const usuarios = computed(() => store.getUsers())
+const usuarios = ref([])
+const cargando = ref(true)
+
 const sedesDisponibles = store.getSedes()
 const busqueda = ref('')
 
@@ -31,7 +33,38 @@ const confirmacion = reactive({
     title: '',
     message: '',
     type: 'neutral',
-    action: null
+    action: null,
+    usuarioId: null // Nuevo: Para guardar el ID del usuario a borrar
+})
+
+// --- LÓGICA DE API: LEER (GET) ---
+const cargarUsuariosDesdeAPI = async () => {
+    try {
+        cargando.value = true
+        const respuesta = await fetch('http://127.0.0.1:5000/api/usuarios')
+        const json = await respuesta.json()
+        
+        if (json.status === 'success') {
+            usuarios.value = json.data.map(u => ({
+                id: u.Id,
+                nombre: u.Nombre,
+                email: u.OidAzure,
+                rol: u.Rol,
+                sede: u.Sede,
+                activo: u.Activo // Mapeamos el campo activo
+            }))
+        } else {
+            console.error("Error del servidor:", json.message)
+        }
+    } catch (error) {
+        console.error("Error de red al conectar con la API:", error)
+    } finally {
+        cargando.value = false
+    }
+}
+
+onMounted(() => {
+    cargarUsuariosDesdeAPI()
 })
 
 // --- LÓGICA DE FILTRADO ---
@@ -62,33 +95,77 @@ const abrirEditar = (usuario) => {
     mostrarModal.value = true
 }
 
-const guardar = () => {
-    if (esEdicion.value) {
-        store.updateUser(formulario.value)
-    } else {
-        store.addUser(formulario.value)
+// --- LÓGICA DE API: CREAR Y EDITAR (POST/PUT) ---
+const guardar = async () => {
+    try {
+        const metodo = esEdicion.value ? 'PUT' : 'POST'
+        const url = esEdicion.value 
+            ? `http://localhost:5000/api/usuarios/${formulario.value.id}`
+            : 'http://localhost:5000/api/usuarios'
+        
+        // Preparamos el paquete de datos exactamente como lo espera el servicio de Python
+        const payload = {
+            nombre: formulario.value.nombre,
+            email: formulario.value.email,
+            rol: formulario.value.rol,
+            sede: formulario.value.sede
+        }
+
+        console.log("Enviando datos al backend:", payload) // Esto es para que lo veas en la consola
+
+        const respuesta = await fetch(url, {
+            method: metodo,
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        })
+        
+        const resultado = await respuesta.json()
+        
+        if (respuesta.ok && resultado.status === 'success') {
+            mostrarModal.value = false
+            await cargarUsuariosDesdeAPI() // Forzamos recarga de la tabla
+            console.log("Guardado con éxito")
+        } else {
+            console.error("Error del servidor:", resultado.message)
+        }
+    } catch (error) {
+        console.error("Error de red al intentar guardar:", error)
     }
-    mostrarModal.value = false
 }
 
-// --- GESTIÓN DE ELIMINACIÓN ---
+// --- LÓGICA DE API: ELIMINAR (DELETE) ---
 const solicitarEliminacion = (id) => {
     confirmacion.title = 'Eliminar Usuario'
-    confirmacion.message = '¿Estás seguro de que deseas dar de baja a este usuario de forma permanente?'
+    confirmacion.message = '¿Estás seguro de que deseas dar de baja a este usuario?'
     confirmacion.type = 'danger'
-    confirmacion.action = () => store.deleteUser(id)
+    confirmacion.usuarioId = id // Guardamos el ID real de la BD
+    confirmacion.action = 'eliminar'
     confirmacion.show = true
 }
 
-const confirmarAccion = () => {
-    if (confirmacion.action) confirmacion.action()
+const confirmarAccion = async () => {
+    if (confirmacion.action === 'eliminar') {
+        try {
+            const respuesta = await fetch(`http://127.0.0.1:5000/api/usuarios/${confirmacion.usuarioId}`, {
+                method: 'DELETE'
+            })
+            
+            if (respuesta.ok) {
+                cargarUsuariosDesdeAPI() // Recargamos la tabla
+            } else {
+                console.error("Error del servidor al intentar dar de baja")
+            }
+        } catch (error) {
+            console.error("Error de red al intentar eliminar:", error)
+        }
+    }
     confirmacion.show = false
 }
 
 // --- ESTILOS ---
 const obtenerEstiloRol = (rol) => {
-    if (rol === 'Administrador') return 'bg-red-50 text-red-700 border-red-200'
-    if (rol === 'Jefe de Proyecto') return 'bg-amber-50 text-amber-700 border-amber-200'
+    if (rol === 'Admin' || rol === 'Administrador') return 'bg-red-50 text-red-700 border-red-200'
+    if (rol === 'JP' || rol === 'Jefe de Proyecto') return 'bg-amber-50 text-amber-700 border-amber-200'
     return 'bg-blue-50 text-blue-700 border-blue-200'
 }
 </script>
@@ -112,13 +189,18 @@ const obtenerEstiloRol = (rol) => {
             <input 
                 v-model="busqueda" 
                 type="text" 
-                placeholder="Buscar por nombre..." 
+                placeholder="Buscar por nombre o Azure ID..." 
                 class="input-std pl-10"
             >
         </div>
     </div>
 
-    <div class="card p-0 overflow-hidden">
+    <div class="card p-0 overflow-hidden relative min-h-[200px]">
+        <div v-if="cargando" class="absolute inset-0 bg-white/80 backdrop-blur-sm flex flex-col items-center justify-center z-10">
+            <div class="w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mb-2"></div>
+            <p class="text-sm text-gray-500 font-medium">Conectando con SQL Server...</p>
+        </div>
+
         <table class="w-full text-left">
             <thead class="bg-gray-50 text-xs uppercase text-gray-500 border-b border-gray-200">
                 <tr>
@@ -129,9 +211,18 @@ const obtenerEstiloRol = (rol) => {
                 </tr>
             </thead>
             <tbody class="divide-y divide-gray-100 text-sm">
-                <tr v-for="user in usuariosFiltrados" :key="user.id" class="hover:bg-slate-50 transition">
+                <tr v-if="!cargando && usuariosFiltrados.length === 0">
+                    <td colspan="4" class="px-6 py-8 text-center text-gray-400">
+                        No se han encontrado usuarios.
+                    </td>
+                </tr>
+
+                <tr v-for="user in usuariosFiltrados" :key="user.id" class="hover:bg-slate-50 transition" :class="{'opacity-50': user.activo === 0 || user.activo === false}">
                     <td class="px-6 py-4">
-                        <p class="font-bold text-dark">{{ user.nombre }}</p>
+                        <div class="flex items-center gap-2">
+                            <p class="font-bold text-dark">{{ user.nombre }}</p>
+                            <span v-if="user.activo === 0 || user.activo === false" class="bg-red-100 text-red-600 text-[10px] px-2 py-0.5 rounded-full font-bold">Inactivo</span>
+                        </div>
                         <p class="text-xs text-gray-400">{{ user.email }}</p>
                     </td>
                     <td class="px-6 py-4">
@@ -147,7 +238,7 @@ const obtenerEstiloRol = (rol) => {
                             <button @click="abrirEditar(user)" class="btn-ghost text-blue-500 hover:text-blue-600">
                                 <Pencil class="w-4 h-4"/>
                             </button>
-                            <button @click="solicitarEliminacion(user.id)" class="btn-ghost text-red-400 hover:text-red-600">
+                            <button v-if="user.activo !== 0 && user.activo !== false" @click="solicitarEliminacion(user.id)" class="btn-ghost text-red-400 hover:text-red-600">
                                 <Trash2 class="w-4 h-4"/>
                             </button>
                         </div>
@@ -175,16 +266,16 @@ const obtenerEstiloRol = (rol) => {
                     <input v-model="formulario.nombre" class="input-std">
                 </div>
                 <div>
-                    <label class="label-std">Email Corporativo</label>
+                    <label class="label-std">Email Corporativo / Azure ID</label>
                     <input v-model="formulario.email" class="input-std">
                 </div>
                 <div class="grid grid-cols-2 gap-4">
                     <div>
                         <label class="label-std">Rol</label>
                         <select v-model="formulario.rol" class="input-std">
-                            <option>Técnico</option>
-                            <option>Jefe de Proyecto</option>
-                            <option>Administrador</option>
+                            <option>Tecnico</option>
+                            <option>JP</option>
+                            <option>Admin</option>
                         </select>
                     </div>
                     <div>
