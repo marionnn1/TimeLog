@@ -1,4 +1,5 @@
 from flask import Blueprint, request, jsonify
+from services.usuarios_service import toggle_estado_usuario
 from services.usuarios_service import (
     obtener_usuarios, 
     crear_usuario, 
@@ -46,3 +47,11 @@ def delete_permanent(id_usuario):
         "status": "error", 
         "message": "No se puede eliminar de la BD: el usuario tiene datos vinculados (imputaciones o proyectos)"
     }), 500
+
+@usuarios_bp.route('/api/usuarios/<int:id_usuario>/toggle', methods=['PUT'])
+def toggle_usuario(id_usuario):
+    from services.usuarios_service import toggle_estado_usuario # Importar arriba
+    exito = toggle_estado_usuario(id_usuario)
+    if exito:
+        return jsonify({"status": "success", "message": "Estado del usuario actualizado"}), 200
+    return jsonify({"status": "error", "message": "No se pudo cambiar el estado"}), 500

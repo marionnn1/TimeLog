@@ -1,4 +1,5 @@
 from flask import Blueprint, request, jsonify
+from services.proyectos_service import toggle_estado_proyecto
 from services.proyectos_service import (
     obtener_proyectos, 
     crear_proyecto, 
@@ -43,3 +44,11 @@ def delete_permanent(id_proyecto):
         "status": "error", 
         "message": "No se puede eliminar de la BD: tiene datos vinculados"
     }), 500
+
+@proyectos_bp.route('/api/proyectos/<int:id_proyecto>/toggle', methods=['PUT'])
+def toggle_proyecto(id_proyecto):
+    from services.proyectos_service import toggle_estado_proyecto # Importar arriba
+    exito = toggle_estado_proyecto(id_proyecto)
+    if exito:
+        return jsonify({"status": "success", "message": "Estado del proyecto actualizado"}), 200
+    return jsonify({"status": "error", "message": "No se pudo cambiar el estado"}), 500

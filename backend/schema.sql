@@ -97,3 +97,13 @@ CREATE TABLE Logs (
     Detalle NVARCHAR(255),
     Gravedad NVARCHAR(20) DEFAULT 'info'
 );
+
+CREATE TABLE Auditoria (
+    Id INT PRIMARY KEY IDENTITY(1,1),
+    Fecha DATETIME DEFAULT GETDATE(),
+    ActorId INT NULL, 
+    ActorNombre NVARCHAR(100) NOT NULL,
+    Accion NVARCHAR(50) NOT NULL,
+    Gravedad NVARCHAR(20) DEFAULT 'info',
+    Detalle NVARCHAR(MAX) NOT NULL
+);

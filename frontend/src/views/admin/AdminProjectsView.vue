@@ -2,7 +2,7 @@
 import { ref, computed, onMounted, reactive } from 'vue'
 import { 
     FolderPlus, Pencil, Tag, X, Briefcase, Users, Check, 
-    CheckCircle2, AlertCircle, Trash2, AlertTriangle 
+    CheckCircle2, AlertCircle, Trash2, AlertTriangle
 } from 'lucide-vue-next'
 import { useDataStore } from '../../stores/dataStore'
 
@@ -42,7 +42,6 @@ const confirmacion = reactive({
 const cargarDatos = async () => {
     try {
         cargando.value = true
-        // 1. Cargamos Proyectos y sus equipos asignados desde SQL Server
         const resProj = await fetch('http://localhost:5000/api/proyectos')
         const jsonProj = await resProj.json()
         
@@ -52,7 +51,6 @@ const cargarDatos = async () => {
                 nombre: p.Nombre,
                 cliente: p.Cliente,
                 estado: p.Estado,
-                // MAPEO CORREGIDO: El servicio devuelve 'id' y 'nombre' en minúsculas dentro de Equipo
                 equipo: p.Equipo ? p.Equipo.map(u => ({
                     id: u.id,
                     nombre: u.nombre,
@@ -62,7 +60,6 @@ const cargarDatos = async () => {
             }))
         }
 
-        // 2. Cargamos Usuarios para el selector del modal
         const resUser = await fetch('http://localhost:5000/api/usuarios')
         const jsonUser = await resUser.json()
         if (jsonUser.status === 'success') {
@@ -116,7 +113,6 @@ const guardar = async () => {
             nombre: formulario.value.nombre,
             cliente: formulario.value.cliente,
             estado: formulario.value.estado,
-            // ENVIAMOS LA LISTA DE IDs AL BACKEND
             usuarios_ids: formulario.value.equipo.map(u => u.id) 
         }
 
@@ -138,16 +134,25 @@ const guardar = async () => {
     }
 }
 
+// --- LÓGICA DE CONFIRMACIÓN (ELIMINAR Y TOGGLE) ---
 const solicitarAccion = (id, modo) => {
     confirmacion.proyectoId = id
     confirmacion.modo = modo
-    if (modo === 'cerrar') {
-        confirmacion.title = 'Cerrar Proyecto'
-        confirmacion.message = '¿Deseas marcar este proyecto como Cerrado?'
-        confirmacion.type = 'neutral'
+    
+    if (modo === 'toggle') {
+        const proj = proyectos.value.find(p => p.id === id) || formulario.value
+        if (proj.estado === 'Activo') {
+            confirmacion.title = 'Cerrar Proyecto'
+            confirmacion.message = '¿Deseas marcar este proyecto como Cerrado? Ya no admitirá imputaciones.'
+            confirmacion.type = 'neutral'
+        } else {
+            confirmacion.title = 'Reabrir Proyecto'
+            confirmacion.message = '¿Deseas volver a activar este proyecto? Estará disponible de nuevo.'
+            confirmacion.type = 'success'
+        }
     } else {
         confirmacion.title = 'Eliminar de la BD'
-        confirmacion.message = '¿Estás seguro? Esta acción borrará el registro de SQL Server.'
+        confirmacion.message = '¿Estás seguro? Esta acción borrará el registro físicamente de SQL Server.'
         confirmacion.type = 'danger'
     }
     confirmacion.show = true
@@ -155,15 +160,18 @@ const solicitarAccion = (id, modo) => {
 
 const ejecutarAccionConfirmada = async () => {
     try {
-        const url = confirmacion.modo === 'eliminar' 
-            ? `http://localhost:5000/api/proyectos/${confirmacion.proyectoId}/force`
-            : `http://localhost:5000/api/proyectos/${confirmacion.proyectoId}`;
+        let res;
+        if (confirmacion.modo === 'eliminar') {
+            res = await fetch(`http://localhost:5000/api/proyectos/${confirmacion.proyectoId}/force`, { method: 'DELETE' });
+        } else if (confirmacion.modo === 'toggle') {
+            res = await fetch(`http://localhost:5000/api/proyectos/${confirmacion.proyectoId}/toggle`, { method: 'PUT' });
+        }
 
-        const res = await fetch(url, { method: 'DELETE' });
         const data = await res.json();
         
         if (res.ok) {
             await cargarDatos();
+            mostrarModal.value = false; // Cierra el modal de edición si estaba abierto
             mostrarNotificacion(data.message || 'Operación realizada');
         } else {
             mostrarNotificacion(data.message || 'Error en la operación', 'error');
@@ -205,7 +213,8 @@ const obtenerEquipoVisual = (proyecto) => proyecto.equipo || []
 
             <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 <div v-for="proyecto in proyectos" :key="proyecto.id"
-                    class="bg-white border border-gray-100 rounded-xl p-5 group hover:border-blue-400 hover:shadow-lg transition relative flex flex-col min-h-[220px] shadow-sm">
+                    class="bg-white border border-gray-100 rounded-xl p-5 group hover:border-blue-400 hover:shadow-lg transition relative flex flex-col min-h-[220px] shadow-sm"
+                    :class="{'opacity-75': proyecto.estado === 'Cerrado'}"> 
 
                     <div class="flex-shrink-0">
                         <div class="flex justify-between items-start mb-3">
@@ -221,13 +230,14 @@ const obtenerEquipoVisual = (proyecto) => proyecto.equipo || []
 
                                 <div class="flex items-center opacity-0 group-hover:opacity-100 transition">
                                     <button @click.stop="abrirEditar(proyecto)" class="p-1 text-gray-400 hover:text-blue-500" title="Editar"><Pencil class="w-4 h-4" /></button>
-                                    <button v-if="proyecto.estado === 'Activo'" @click.stop="solicitarAccion(proyecto.id, 'cerrar')" class="p-1 text-gray-400 hover:text-emerald-500" title="Cerrar"><Check class="w-4 h-4" /></button>
                                     <button @click.stop="solicitarAccion(proyecto.id, 'eliminar')" class="p-1 text-gray-400 hover:text-red-500" title="Eliminar"><Trash2 class="w-4 h-4" /></button>
                                 </div>
                             </div>
                         </div>
 
-                        <h3 class="font-bold text-lg text-slate-800 mb-1 leading-tight">{{ proyecto.nombre }}</h3>
+                        <h3 class="font-bold text-lg text-slate-800 mb-1 leading-tight" :class="{'line-through text-gray-400': proyecto.estado === 'Cerrado'}">
+                            {{ proyecto.nombre }}
+                        </h3>
                         <p class="text-sm text-gray-500 mb-4 flex items-center gap-1">
                             <Tag class="w-3 h-3" /> {{ proyecto.cliente }}
                         </p>
@@ -274,6 +284,18 @@ const obtenerEquipoVisual = (proyecto) => proyecto.equipo || []
                         <input v-model="formulario.cliente" class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 outline-none" placeholder="Ej: Banco Santander">
                     </div>
 
+                    <div v-if="esEdicion" class="p-4 bg-gray-50 rounded-lg border border-gray-200 mt-4 flex items-center justify-between">
+                        <div>
+                            <p class="text-sm font-bold text-slate-700">Estado del Proyecto</p>
+                            <p class="text-xs text-gray-500">Actualmente: <span class="font-bold" :class="formulario.estado === 'Activo' ? 'text-emerald-600' : 'text-gray-500'">{{ formulario.estado }}</span></p>
+                        </div>
+                        <button @click.prevent="solicitarAccion(formulario.id, 'toggle')"
+                                class="px-3 py-1.5 rounded text-xs font-bold transition border"
+                                :class="formulario.estado === 'Activo' ? 'bg-white border-amber-200 text-amber-600 hover:bg-amber-50' : 'bg-white border-emerald-200 text-emerald-600 hover:bg-emerald-50'">
+                            {{ formulario.estado === 'Activo' ? 'Cerrar Proyecto' : 'Reabrir Proyecto' }}
+                        </button>
+                    </div>
+
                     <div>
                         <label class="block text-sm font-bold text-slate-700 mb-2">Asignar Equipo</label>
                         <div class="grid grid-cols-2 gap-2">
@@ -305,15 +327,15 @@ const obtenerEquipoVisual = (proyecto) => proyecto.equipo || []
         <div v-if="confirmacion.show" class="fixed inset-0 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center z-[60] p-4">
             <div class="bg-white w-full max-w-sm rounded-xl shadow-2xl p-6 text-center animate-in zoom-in-95">
                 <div class="w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-4"
-                     :class="confirmacion.type === 'danger' ? 'bg-red-100 text-red-600' : 'bg-emerald-100 text-emerald-600'">
-                    <component :is="confirmacion.type === 'danger' ? Trash2 : Check" class="w-6 h-6" />
+                     :class="confirmacion.type === 'danger' ? 'bg-red-100 text-red-600' : (confirmacion.type === 'success' ? 'bg-emerald-100 text-emerald-600' : 'bg-amber-100 text-amber-600')">
+                    <component :is="confirmacion.type === 'danger' ? Trash2 : (confirmacion.type === 'success' ? Check : AlertTriangle)" class="w-6 h-6" />
                 </div>
                 <h3 class="text-lg font-bold text-slate-900">{{ confirmacion.title }}</h3>
                 <p class="text-sm text-slate-500 mt-2">{{ confirmacion.message }}</p>
                 <div class="flex gap-3 mt-6">
                     <button @click="confirmacion.show = false" class="flex-1 py-2 border border-gray-300 text-slate-600 rounded-lg font-bold hover:bg-gray-50 transition">Cancelar</button>
                     <button @click="ejecutarAccionConfirmada" class="flex-1 py-2 text-white rounded-lg font-bold transition shadow-md"
-                            :class="confirmacion.type === 'danger' ? 'bg-red-600 hover:bg-red-700' : 'bg-emerald-600 hover:bg-emerald-700'">
+                            :class="confirmacion.type === 'danger' ? 'bg-red-600 hover:bg-red-700' : (confirmacion.type === 'success' ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-amber-600 hover:bg-amber-700')">
                         Confirmar
                     </button>
                 </div>

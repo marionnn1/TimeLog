@@ -5,7 +5,7 @@ import { useAuth } from '../../composables/useAuth'
 import { useDataStore } from '../../stores/dataStore'
 import {
   LayoutDashboard, Clock, FolderKanban, FileBarChart, LogOut, ShieldCheck, Calendar,
-  CheckCircle, Users, Briefcase, Megaphone, History, Activity
+  CheckCircle, Users, Briefcase, History, Activity, AlertOctagon
 } from 'lucide-vue-next'
 
 const router = useRouter()
@@ -98,6 +98,12 @@ const handleLogout = async () => {
           <Briefcase :class="claseIcono" />
           <span class="text-sm font-medium truncate">Gestión Proyectos</span>
         </router-link>
+        
+        <router-link to="/admin/tickets" :class="claseLink">
+          <AlertOctagon :class="claseIcono" />
+          <span class="text-sm font-medium truncate">Tickets Soporte</span>
+        </router-link>
+        
         <router-link to="/admin/audit" :class="claseLink">
           <History :class="claseIcono" />
           <span class="text-sm font-medium truncate">Historial / Logs</span>

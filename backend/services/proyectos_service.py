@@ -1,4 +1,5 @@
 from database.connection import get_db_connection
+from services.auditoria_service import registrar_log
 
 def obtener_proyectos():
     conn = get_db_connection()
@@ -59,6 +60,10 @@ def crear_proyecto(datos):
         """
         cursor.execute(query, (cliente_id, datos['nombre'], datos['estado']))
         conn.commit()
+        
+        # REGISTRO EN AUDITORÍA
+        registrar_log(1, 'Admin', 'CREAR_PROYECTO', 'info', f"Se creó el proyecto: {datos['nombre']}.")
+        
         return True
     except Exception as e:
         print("Error al crear proyecto:", e)
@@ -86,6 +91,10 @@ def actualizar_proyecto(id_proyecto, datos):
             """, (id_proyecto, u_id))
             
         conn.commit()
+        
+        # REGISTRO EN AUDITORÍA
+        registrar_log(1, 'Admin', 'ACTUALIZAR_PROYECTO', 'info', f"Se actualizó el proyecto: {datos['nombre']} y su equipo de trabajo.")
+        
         return True
     except Exception as e:
         print("Error al actualizar proyecto:", e)
@@ -102,6 +111,10 @@ def cerrar_proyecto(id_proyecto):
         query = "UPDATE Proyectos SET Estado = 'Cerrado', FechaDesactivacion = GETDATE() WHERE Id = ?"
         cursor.execute(query, (id_proyecto,))
         conn.commit()
+        
+        # REGISTRO EN AUDITORÍA
+        registrar_log(1, 'Admin', 'CERRAR_PROYECTO', 'warning', f"Se ha cerrado el proyecto con ID: {id_proyecto}.")
+        
         return True
     except Exception as e:
         print("Error al cerrar proyecto:", e)
@@ -120,9 +133,42 @@ def eliminar_proyecto_fisico(id_proyecto):
         query = "DELETE FROM Proyectos WHERE Id = ?"
         cursor.execute(query, (id_proyecto,))
         conn.commit()
+        
+        # REGISTRO EN AUDITORÍA
+        registrar_log(1, 'Admin', 'BORRADO_FISICO', 'danger', f"El proyecto con ID {id_proyecto} y todas sus asignaciones fueron eliminados permanentemente de la base de datos.")
+        
         return True
     except Exception as e:
         print("Error al eliminar físicamente el proyecto:", e)
+        conn.rollback()
+        return False
+    finally:
+        conn.close()
+
+def toggle_estado_proyecto(id_proyecto):
+    conn = get_db_connection()
+    if not conn: return False
+    try:
+        cursor = conn.cursor()
+        # 1. Miramos cómo está ahora
+        cursor.execute("SELECT Estado, Nombre FROM Proyectos WHERE Id = ?", (id_proyecto,))
+        row = cursor.fetchone()
+        if not row: return False
+        
+        estado_actual = row[0]
+        nombre_proyecto = row[1]
+        nuevo_estado = 'Cerrado' if estado_actual == 'Activo' else 'Activo'
+        
+        # 2. Lo cambiamos
+        cursor.execute("UPDATE Proyectos SET Estado = ? WHERE Id = ?", (nuevo_estado, id_proyecto))
+        conn.commit()
+        
+        # 3. Dejamos rastro en auditoría
+        registrar_log(1, 'Admin', 'CAMBIO_ESTADO', 'warning' if nuevo_estado == 'Cerrado' else 'info', f"El proyecto '{nombre_proyecto}' ha pasado a estado: {nuevo_estado}.")
+        
+        return True
+    except Exception as e:
+        print("Error al cambiar estado del proyecto:", e)
         conn.rollback()
         return False
     finally:

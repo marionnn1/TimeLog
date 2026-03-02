@@ -11,6 +11,7 @@ import AdminUsersView from '../views/admin/AdminUsersView.vue'
 import AdminProjectsView from '@/views/admin/AdminProjectsView.vue'
 import AdminAuditView from '../views/admin/AdminAuditView.vue'
 import AdminDashboardView from '../views/admin/AdminDashboardView.vue'
+import AdminTicketsView from '../views/admin/AdminTicketsView.vue' // <--- NUEVA VISTA
 
 // Vistas de Manager
 import ManagerValidationView from '../views/manager/ManagerValidationView.vue'
@@ -78,6 +79,12 @@ const router = createRouter({
       path: '/admin/audit',
       name: 'admin-audit',
       component: AdminAuditView,
+      meta: { requiresAuth: true, role: 'admin' }
+    },
+    {
+      path: '/admin/tickets', // <--- NUEVA RUTA DE TICKETS
+      name: 'admin-tickets',
+      component: AdminTicketsView,
       meta: { requiresAuth: true, role: 'admin' }
     },
 
