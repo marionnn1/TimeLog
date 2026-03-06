@@ -149,3 +149,18 @@ def eliminar_usuario(id_usuario):
         return False
     finally:
         conn.close()
+
+def obtener_usuarios():
+    conn = get_db_connection()
+    if not conn: return None
+    try:
+        cursor = conn.cursor()
+        # IMPORTANTE: Seleccionar el Id
+        cursor.execute("SELECT Id, Nombre, Rol, Sede, Activo, OidAzure FROM Usuarios") 
+        columnas = [column[0] for column in cursor.description]
+        return [dict(zip(columnas, row)) for row in cursor.fetchall()]
+    except Exception as e:
+        print(f"Error: {e}")
+        return None
+    finally:
+        conn.close()
