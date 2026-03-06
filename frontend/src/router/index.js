@@ -5,6 +5,7 @@ import LoginView from '../views/LoginView.vue'
 import DashboardView from '../views/DashboardView.vue'
 import ImputacionesView from '../views/ImputacionesView.vue'
 import GlobalCalendarView from '../views/GlobalCalendarView.vue'
+import MyProjectsView from '../views/MyProjectsView.vue'
 
 // Vistas de Admin
 import AdminUsersView from '../views/admin/AdminUsersView.vue'
@@ -53,6 +54,12 @@ const router = createRouter({
       path: '/calendario-global',
       name: 'calendario-global',
       component: GlobalCalendarView,
+      meta: { requiresAuth: true }
+    },
+    {
+      path: '/my-projects',
+      name: 'my-projects',
+      component: MyProjectsView,
       meta: { requiresAuth: true }
     },
 
@@ -127,6 +134,16 @@ router.beforeEach((to, from, next) => {
     next('/')
   } 
   else {
+    next()
+  }
+})
+
+router.beforeEach((to, from, next) => {
+  const isAuthenticated = localStorage.getItem('isAuthenticated') === 'true'
+  
+  if (to.path !== '/login' && !isAuthenticated) {
+    next('/login')
+  } else {
     next()
   }
 })

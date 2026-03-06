@@ -5,27 +5,16 @@ const STORAGE_KEY = 'timeLog_state'
 
 // --- CARGA INICIAL (Persistencia + Datos por defecto) ---
 const loadState = () => {
-    // 1. Intentamos recuperar del navegador
     const saved = localStorage.getItem(STORAGE_KEY)
     
-    // 2. Si existe, lo parseamos y lo usamos
     if (saved) {
         try {
             const parsedState = JSON.parse(saved)
-            
-            // Fusión de seguridad: asegura que si añadimos campos nuevos al código (como 'maestros'),
-            // no se rompa la app al cargar un localStorage antiguo.
             return {
-                ...initialData, // Estructura base
-                ...parsedState, // Datos guardados
-                // Aseguramos que existan estos arrays aunque el localStorage sea viejo
+                ...initialData,
+                ...parsedState,
                 imputaciones: parsedState.imputaciones || [],
-                ausencias: parsedState.ausencias || [
-                    { date: '2026-02-16', userId: 2, nombre: 'Ana', iniciales: 'AR', type: 'vacaciones' },
-                    { date: '2026-02-16', userId: 3, nombre: 'Pedro', iniciales: 'PS', type: 'vacaciones' },
-                    { date: '2026-02-16', userId: 4, nombre: 'Laura', iniciales: 'LP', type: 'vacaciones' },
-                    { date: '2026-02-28', userId: 2, nombre: 'Ana', iniciales: 'AR', type: 'festivo' },
-                ],
+                ausencias: parsedState.ausencias || [],
                 maestros: parsedState.maestros || {
                     clientes: ['Banco Santander', 'Mapfre', 'Inditex', 'BBVA', 'Naturgy'],
                     proyectos: ['Auditoría Backend', 'Migración Cloud', 'Desarrollo Frontend', 'Mantenimiento Legacy', 'Consultoría de Seguridad']
@@ -36,14 +25,10 @@ const loadState = () => {
         }
     }
     
-    // 3. Si no hay nada guardado, usamos los datos iniciales por defecto
     return {
         ...initialData,
         imputaciones: [],
-        ausencias: [
-            { date: '2026-02-16', userId: 2, nombre: 'Ana', iniciales: 'AR', type: 'vacaciones' },
-            { date: '2026-02-28', userId: 2, nombre: 'Ana', iniciales: 'AR', type: 'festivo' },
-        ],
+        ausencias: [],
         maestros: {
             clientes: ['Banco Santander', 'Mapfre', 'Inditex', 'BBVA', 'Naturgy'],
             proyectos: ['Auditoría Backend', 'Migración Cloud', 'Desarrollo Frontend', 'Mantenimiento Legacy', 'Consultoría de Seguridad']
@@ -51,11 +36,8 @@ const loadState = () => {
     }
 }
 
-// Creamos el estado reactivo global
 const state = reactive(loadState())
 
-// --- VIGILANTE (WATCHER) ---
-// Cada vez que 'state' cambie, lo guardamos en el navegador automáticamente
 watch(state, (nuevoEstado) => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(nuevoEstado))
 }, { deep: true })
@@ -63,7 +45,6 @@ watch(state, (nuevoEstado) => {
 
 export const useDataStore = () => {
 
-    // --- HELPER INTERNO PARA LOGS ---
     const _addLog = (accion, detalle, gravedad = 'info', actor = null) => {
         state.logs.unshift({
             id: Date.now(),
@@ -85,40 +66,20 @@ export const useDataStore = () => {
     const getCurrentUser = () => state.currentUser
     const getAusencias = () => state.ausencias
     
-    // Getters de Maestros (NUEVO)
     const getClientes = () => state.maestros.clientes
     const getTiposProyecto = () => state.maestros.proyectos
 
     // --- ACTIONS: USUARIOS ---
+    
+    // Esta función es la que llama el LoginView.vue al seleccionar un usuario
+    const setCurrentUser = (userData) => {
+        state.currentUser = userData
+        _addLog('LOGIN_DEV', `Acceso manual como ${userData.nombre} (${userData.rol})`, 'info', 'Sistema')
+    }
+
     const addUser = (user) => {
         state.usuarios.push({ ...user, id: Date.now() })
         _addLog('CREATE_USER', `Creó al usuario ${user.nombre}`)
-    }
-
-    // --- ACCIÓN PARA LOGIN EXTERNO (MSAL) ---
-    // Esta es la función clave que usará useAuth.js
-    const setCurrentUser = (userData) => {
-        state.currentUser = userData
-        
-        // Comprobamos si este usuario ya existe en nuestra "Base de Datos" local
-        const existe = state.usuarios.find(u => u.email === userData.email)
-        
-        if (!existe) {
-            // Si es la primera vez que entra, lo registramos automáticamente
-            const nuevoUsuario = {
-                ...userData,
-                id: Date.now(),
-                rol: 'user', // Rol por defecto
-                sede: 'Madrid', // Sede por defecto
-                activo: true
-            }
-            state.usuarios.push(nuevoUsuario)
-            _addLog('AUTO_REGISTER', `Usuario registrado vía Microsoft: ${userData.nombre}`, 'success', 'Sistema')
-        } else {
-            // Si ya existe, actualizamos su info básica por si cambió en Azure
-            existe.nombre = userData.nombre
-            existe.oid_azure = userData.oid_azure
-        }
     }
 
     const updateUser = (user) => {
@@ -220,7 +181,6 @@ export const useDataStore = () => {
         return state.ausencias.filter(a => a.date === dateString)
     }
 
-    // --- ESTADÍSTICAS ---
     const getStats = () => ({
         totalUsuarios: state.usuarios.length,
         usuariosMadrid: state.usuarios.filter(u => u.sede === 'Madrid').length,

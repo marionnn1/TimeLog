@@ -2,8 +2,7 @@ from flask import Blueprint, request, jsonify
 from services.myprojects_service import (
     obtener_imputaciones_semana, 
     guardar_imputaciones_lote, 
-    obtener_analitica_mensual,
-    obtener_analitica_equipo
+    obtener_analitica_mensual
 )
 from datetime import datetime
 
@@ -18,6 +17,7 @@ def get_semana():
 @myprojects_bp.route('/api/myprojects/analitica-mensual', methods=['GET'])
 def get_analitica():
     u_id = request.args.get('usuario_id')
+    # Validamos y convertimos parámetros
     try:
         mes = int(request.args.get('mes', datetime.now().month))
         anio = int(request.args.get('anio', datetime.now().year))
@@ -25,18 +25,6 @@ def get_analitica():
         mes, anio = datetime.now().month, datetime.now().year
 
     data = obtener_analitica_mensual(u_id, mes, anio)
-    return jsonify({"status": "success", "data": data})
-
-# --- NUEVO ENDPOINT PARA EL EQUIPO ---
-@myprojects_bp.route('/api/myprojects/analitica-equipo', methods=['GET'])
-def get_analitica_equipo():
-    try:
-        mes = int(request.args.get('mes', datetime.now().month))
-        anio = int(request.args.get('anio', datetime.now().year))
-    except (ValueError, TypeError):
-        mes, anio = datetime.now().month, datetime.now().year
-
-    data = obtener_analitica_equipo(mes, anio)
     return jsonify({"status": "success", "data": data})
 
 @myprojects_bp.route('/api/myprojects/guardar', methods=['POST'])

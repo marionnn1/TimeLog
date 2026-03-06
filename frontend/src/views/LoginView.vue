@@ -1,75 +1,90 @@
 <script setup>
+import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
-import { ShieldCheck, LogIn } from 'lucide-vue-next'
+import { ShieldCheck, LogIn, Users, Loader2, UserPlus } from 'lucide-vue-next'
 import { useDataStore } from '../stores/dataStore'
 
 const router = useRouter()
 const store = useDataStore()
 
-// --- BYPASS DE LOGIN (SIN AZURE) ---
-const iniciarSesion = () => {
-  // 1. Creamos un usuario ficticio
-  const usuarioSimulado = {
-    id: 1,
-    nombre: 'Mario León',
-    email: 'mario.leon@inetum.com',
-    rol: 'admin',
-    iniciales: 'ML',
-    oid_azure: 'local-dev-id'
-  }
+const usuariosValidos = ref([])
+const cargando = ref(true)
 
-  // 2. Guardamos en el Store
-  store.setCurrentUser(usuarioSimulado)
-  
-  // 3. Guardamos la "cookie" falsa
-  localStorage.setItem('isAuthenticated', 'true')
+// Cargamos los usuarios reales de la base de datos
+const cargarUsuarios = async () => {
+    try {
+        cargando.value = true
+        const res = await fetch('http://localhost:5000/api/usuarios')
+        const json = await res.json()
+        if (json.status === 'success') {
+            usuariosValidos.value = json.data
+        }
+    } catch (error) {
+        console.error("Error al conectar con el backend:", error)
+    } finally {
+        cargando.value = false
+    }
+}
 
-  // 4. Redirigimos
-  router.push('/')
+onMounted(cargarUsuarios)
+
+const entrarComo = (user) => {
+    // Mapeamos los campos de la BD al objeto que espera la app
+    const usuarioParaStore = {
+        id: user.Id,
+        nombre: user.Nombre,
+        email: user.OidAzure || 'test@inetum.com',
+        rol: user.Rol.toLowerCase(), // 'admin', 'jp' o 'tecnico'
+        iniciales: user.Nombre.split(' ').map(n => n[0]).join('').toUpperCase().substring(0, 2),
+        sede: user.Sede
+    }
+
+    store.setCurrentUser(usuarioParaStore)
+    localStorage.setItem('isAuthenticated', 'true')
+    router.push('/')
 }
 </script>
 
 <template>
-  <div class="min-h-screen w-full flex items-center justify-center bg-slate-50 relative overflow-hidden">
-    
-    <div class="absolute -top-24 -right-24 w-96 h-96 bg-[#002B49]/10 rounded-full blur-3xl pointer-events-none"></div>
-    <div class="absolute -bottom-24 -left-24 w-96 h-96 bg-blue-900/10 rounded-full blur-3xl pointer-events-none"></div>
-
-    <div class="bg-white p-10 rounded-2xl shadow-xl shadow-slate-200/50 w-full max-w-sm border border-slate-100 relative z-10 text-center">
+  <div class="min-h-screen w-full flex items-center justify-center bg-slate-50 font-sans">
+    <div class="bg-white p-8 rounded-2xl shadow-xl w-full max-w-md border border-slate-100">
       
-      <div class="flex flex-col items-center justify-center mb-8">
-        <div class="p-3 bg-[#002B49] rounded-xl mb-3 shadow-lg shadow-slate-300">
-            <ShieldCheck class="w-10 h-10 text-white" />
+      <div class="text-center mb-8">
+        <div class="inline-flex p-3 bg-[#002B49] rounded-xl mb-4 shadow-lg">
+            <ShieldCheck class="w-8 h-8 text-white" />
         </div>
-        
-        <h1 class="text-3xl font-bold text-[#002B49] tracking-tight">TimeLog</h1>
-        
-        <div class="mt-2 px-3 py-1 bg-slate-100 rounded-full border border-slate-200">
-            <p class="text-slate-500 text-[10px] font-bold uppercase tracking-widest">
-                Modo Desarrollo
-            </p>
-        </div>
+        <h1 class="text-2xl font-bold text-[#002B49]">TimeLog Login</h1>
+        <p class="text-slate-500 text-sm mt-1">Selecciona un usuario para entrar</p>
       </div>
 
-      <div class="my-8">
-        <button @click="iniciarSesion" 
-                class="w-full flex items-center justify-center gap-3 bg-[#002B49] hover:bg-[#001a2c] text-white font-bold py-3.5 px-4 rounded-xl transition-all duration-300 shadow-md hover:shadow-lg hover:shadow-blue-900/20 transform hover:-translate-y-0.5 group">
+      <div v-if="cargando" class="flex flex-col items-center py-10">
+        <Loader2 class="w-8 h-8 text-blue-600 animate-spin mb-2" />
+        <p class="text-xs text-slate-400 font-bold uppercase">Consultando base de datos...</p>
+      </div>
+
+      <div v-else-if="usuariosValidos.length > 0" class="space-y-3 max-h-80 overflow-y-auto pr-1">
+        <button v-for="user in usuariosValidos" :key="user.Id"
+                @click="entrarComo(user)"
+                class="w-full flex items-center gap-4 p-4 rounded-xl border border-slate-100 bg-slate-50 hover:bg-white hover:border-blue-400 hover:shadow-md transition-all group text-left">
           
-          <LogIn class="w-5 h-5 group-hover:scale-110 transition-transform duration-300" />
+          <div class="w-10 h-10 rounded-full bg-[#002B49] text-white flex items-center justify-center font-bold text-sm">
+            {{ user.Nombre.substring(0,2).toUpperCase() }}
+          </div>
           
-          <span>Entrar al Sistema</span>
+          <div class="flex-1">
+            <p class="font-bold text-slate-800">{{ user.Nombre }}</p>
+            <span class="text-[10px] font-black uppercase px-1.5 py-0.5 rounded border"
+                  :class="user.Rol === 'Admin' ? 'bg-red-50 text-red-600' : 'bg-blue-50 text-blue-600'">
+                {{ user.Rol }}
+            </span>
+          </div>
+          <LogIn class="w-4 h-4 text-slate-300 group-hover:text-blue-500" />
         </button>
       </div>
 
-      <div class="border-t border-slate-100 my-6"></div>
-
-      <div class="flex justify-center hover:opacity-80 transition duration-300">
-         <img src="/INETUM_LOGO.png" alt="Inetum" class="h-8 w-auto object-contain" />
+      <div v-else class="text-center py-6">
+        <p class="text-sm text-slate-500">No hay usuarios. Créalos en la vista de Admin.</p>
       </div>
-
-      <p class="mt-6 text-center text-[10px] text-slate-400">
-        &copy; {{ new Date().getFullYear() }} Inetum. Entorno Local.
-      </p>
 
     </div>
   </div>
