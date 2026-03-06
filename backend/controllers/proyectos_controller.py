@@ -1,47 +1,44 @@
 from flask import Blueprint, request, jsonify
-from services.myprojects_service import (
-    obtener_imputaciones_semana, 
-    guardar_imputaciones_lote, 
-    obtener_analitica_mensual,
-    obtener_analitica_equipo
+from services.proyectos_service import (
+    obtener_proyectos, 
+    crear_proyecto, 
+    actualizar_proyecto, 
+    eliminar_proyecto_fisico, 
+    toggle_estado_proyecto
 )
-from datetime import datetime
 
-myprojects_bp = Blueprint('myprojects', __name__)
+proyectos_bp = Blueprint('proyectos', __name__)
 
-@myprojects_bp.route('/api/myprojects/semana', methods=['GET'])
-def get_semana():
-    u_id = request.args.get('usuario_id')
-    lunes = request.args.get('fecha_lunes')
-    return jsonify({"status": "success", "data": obtener_imputaciones_semana(u_id, lunes)})
+@proyectos_bp.route('/api/proyectos', methods=['GET'])
+def get_all():
+    proyectos = obtener_proyectos()
+    if proyectos is not None:
+        return jsonify({"status": "success", "data": proyectos}), 200
+    return jsonify({"status": "error", "message": "Error al conectar con la BD"}), 500
 
-@myprojects_bp.route('/api/myprojects/analitica-mensual', methods=['GET'])
-def get_analitica():
-    u_id = request.args.get('usuario_id')
-    try:
-        mes = int(request.args.get('mes', datetime.now().month))
-        anio = int(request.args.get('anio', datetime.now().year))
-    except (ValueError, TypeError):
-        mes, anio = datetime.now().month, datetime.now().year
+@proyectos_bp.route('/api/proyectos', methods=['POST'])
+def create():
+    if crear_proyecto(request.json):
+        return jsonify({"status": "success", "message": "Proyecto creado"}), 201
+    return jsonify({"status": "error", "message": "Fallo al crear el proyecto"}), 500
 
-    data = obtener_analitica_mensual(u_id, mes, anio)
-    return jsonify({"status": "success", "data": data})
+@proyectos_bp.route('/api/proyectos/<int:id_proyecto>', methods=['PUT'])
+def update(id_proyecto):
+    if actualizar_proyecto(id_proyecto, request.json):
+        return jsonify({"status": "success", "message": "Proyecto actualizado"}), 200
+    return jsonify({"status": "error", "message": "Fallo al actualizar el proyecto"}), 500
 
-# --- NUEVO ENDPOINT PARA EL EQUIPO ---
-@myprojects_bp.route('/api/myprojects/analitica-equipo', methods=['GET'])
-def get_analitica_equipo():
-    try:
-        mes = int(request.args.get('mes', datetime.now().month))
-        anio = int(request.args.get('anio', datetime.now().year))
-    except (ValueError, TypeError):
-        mes, anio = datetime.now().month, datetime.now().year
+@proyectos_bp.route('/api/proyectos/<int:id_proyecto>/force', methods=['DELETE'])
+def delete_permanent(id_proyecto):
+    if eliminar_proyecto_fisico(id_proyecto):
+        return jsonify({"status": "success", "message": "Proyecto eliminado permanentemente de la BD"}), 200
+    return jsonify({
+        "status": "error", 
+        "message": "No se puede eliminar de la BD: el proyecto tiene datos vinculados"
+    }), 500
 
-    data = obtener_analitica_equipo(mes, anio)
-    return jsonify({"status": "success", "data": data})
-
-@myprojects_bp.route('/api/myprojects/guardar', methods=['POST'])
-def save():
-    d = request.json
-    if not d: return jsonify({"status": "error"}), 400
-    exito = guardar_imputaciones_lote(d.get('usuario_id'), d.get('filas'), d.get('fechas'))
-    return jsonify({"status": "success" if exito else "error"}), 200 if exito else 500
+@proyectos_bp.route('/api/proyectos/<int:id_proyecto>/toggle', methods=['PUT'])
+def toggle_proyecto(id_proyecto):
+    if toggle_estado_proyecto(id_proyecto):
+        return jsonify({"status": "success", "message": "Estado del proyecto actualizado"}), 200
+    return jsonify({"status": "error", "message": "No se pudo cambiar el estado"}), 500

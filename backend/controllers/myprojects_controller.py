@@ -33,3 +33,17 @@ def save():
     if not d: return jsonify({"status": "error"}), 400
     exito = guardar_imputaciones_lote(d.get('usuario_id'), d.get('filas'), d.get('fechas'))
     return jsonify({"status": "success" if exito else "error"}), 200 if exito else 500
+
+
+@myprojects_bp.route('/api/myprojects/analitica-equipo', methods=['GET'])
+def get_analitica_equipo():
+    from services.myprojects_service import obtener_analitica_equipo
+    from datetime import datetime
+    try:
+        mes = int(request.args.get('mes', datetime.now().month))
+        anio = int(request.args.get('anio', datetime.now().year))
+    except (ValueError, TypeError):
+        mes, anio = datetime.now().month, datetime.now().year
+
+    data = obtener_analitica_equipo(mes, anio)
+    return jsonify({"status": "success", "data": data})
