@@ -9,6 +9,11 @@ from controllers.dashboard_controller import dashboard_bp
 from controllers.imputaciones_user_controller import imputaciones_user_bp
 from controllers.myprojects_controller import myprojects_bp
 
+from controllers.manager.analytics_controller import manager_analytics_bp
+from controllers.manager.closing_controller import closing_bp
+from controllers.manager.validation_controller import validation_bp
+from controllers.manager.projects_controller import manager_projects_bp
+
 app = Flask(__name__)
 CORS(app)
 
@@ -19,6 +24,11 @@ app.register_blueprint(auditoria_bp)
 app.register_blueprint(dashboard_bp)
 app.register_blueprint(imputaciones_user_bp)
 app.register_blueprint(myprojects_bp)
+
+app.register_blueprint(manager_analytics_bp)
+app.register_blueprint(closing_bp)
+app.register_blueprint(validation_bp)
+app.register_blueprint(manager_projects_bp)
 
 if __name__ == '__main__':
     app.run(debug=True, host='0.0.0.0', port=5000)

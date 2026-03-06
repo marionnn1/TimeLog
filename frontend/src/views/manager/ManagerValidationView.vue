@@ -1,34 +1,13 @@
 <script setup>
-import { ref } from 'vue'
+import { ref, onMounted } from 'vue'
+import ManagerAPI from '../../services/ManagerAPI'
 import { 
     AlertOctagon, Check, X, FileEdit, MessageSquare, Calendar, Clock, Save,
     CheckCircle2, AlertCircle, Trash2, AlertTriangle
 } from 'lucide-vue-next'
 
-const solicitudes = ref([
-    { 
-        id: 1, 
-        usuario: 'Mario León', 
-        avatar: 'ML', 
-        fecha: '2026-02-02', 
-        proyecto: 'Migración Cloud', 
-        cliente: 'Banco Santander',
-        horasActuales: 8, 
-        motivo: 'Me equivoqué al imputar. Puse 8 horas pero estuve 4 en el médico. Deberían ser 4h.',
-        estado: 'pendiente'
-    },
-    { 
-        id: 2, 
-        usuario: 'Ana Ruiz', 
-        avatar: 'AR', 
-        fecha: '2026-01-28', 
-        proyecto: 'Inditex TPV', 
-        cliente: 'Inditex',
-        horasActuales: 0, 
-        motivo: 'Se me olvidó imputar este día y el mes ya está cerrado. ¿Podéis ponerme 8h?',
-        estado: 'pendiente'
-    }
-])
+const solicitudes = ref([])
+const isLoading = ref(false)
 
 const toast = ref({ show: false, message: '', type: 'success' })
 let toastTimeout = null
@@ -52,6 +31,24 @@ const ejecutarConfirmacion = () => {
     confirmState.value.show = false
 }
 
+// --- LLAMADAS AL BACKEND ---
+const fetchValidations = async () => {
+    isLoading.value = true
+    try {
+        const response = await ManagerAPI.getValidations()
+        solicitudes.value = response.data || []
+    } catch (error) {
+        console.error("Error obteniendo validaciones:", error)
+        showToast("Error al cargar las solicitudes", "error")
+    } finally {
+        isLoading.value = false
+    }
+}
+
+onMounted(() => {
+    fetchValidations()
+})
+
 const solicitudSeleccionada = ref(null)
 const horasEditadas = ref(0)
 const mostrarModal = ref(false)
@@ -67,10 +64,15 @@ const cerrarModal = () => {
     solicitudSeleccionada.value = null
 }
 
-const guardarCorreccion = () => {
-    solicitudes.value = solicitudes.value.filter(s => s.id !== solicitudSeleccionada.value.id)
-    cerrarModal()
-    showToast(`Corrección aplicada correctamente`, 'success')
+const guardarCorreccion = async () => {
+    try {
+        await ManagerAPI.approveValidation(solicitudSeleccionada.value.id, horasEditadas.value)
+        showToast(`Corrección aplicada correctamente`, 'success')
+        cerrarModal()
+        fetchValidations() // Recargar la lista
+    } catch (error) {
+        showToast(`Error al guardar la corrección`, 'error')
+    }
 }
 
 const rechazarSolicitud = (id) => {
@@ -78,10 +80,15 @@ const rechazarSolicitud = (id) => {
         'Rechazar Solicitud',
         'Por favor, indica el motivo del rechazo para notificar al usuario:',
         'danger',
-        (motivo) => {
+        async (motivo) => {
             if (motivo) {
-                solicitudes.value = solicitudes.value.filter(s => s.id !== id)
-                showToast("Solicitud rechazada y notificada.", "success")
+                try {
+                    await ManagerAPI.rejectValidation(id, motivo)
+                    showToast("Solicitud rechazada y notificada.", "success")
+                    fetchValidations() // Recargar la lista
+                } catch (error) {
+                    showToast("Error al rechazar la solicitud.", "error")
+                }
             } else {
                 showToast("Debes indicar un motivo", "error")
             }
@@ -101,7 +108,12 @@ const rechazarSolicitud = (id) => {
         <p class="subtitle">Peticiones de usuarios para modificar horas en días cerrados o erróneos.</p>
     </div>
 
-    <div v-if="solicitudes.length > 0" class="grid gap-4">
+    <div v-if="isLoading" class="flex-1 flex flex-col items-center justify-center">
+        <div class="animate-spin rounded-full h-10 w-10 border-b-2 border-primary mb-4"></div>
+        <p class="text-gray-500">Cargando solicitudes...</p>
+    </div>
+
+    <div v-else-if="solicitudes.length > 0" class="grid gap-4">
         <div v-for="solicitud in solicitudes" :key="solicitud.id" 
              class="card p-0 overflow-hidden flex flex-col md:flex-row shadow-md border-l-4 border-l-amber-400 group hover:shadow-lg transition">
             

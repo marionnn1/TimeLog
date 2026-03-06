@@ -1,5 +1,6 @@
 <script setup>
-import { ref, computed, watch } from 'vue'
+import { ref, computed, watch, onMounted } from 'vue'
+import ManagerAPI from '../../services/ManagerAPI'
 import {
     Lock, Unlock, Search, Calendar, AlertCircle, CheckCircle2,
     FileDown, XCircle, Ban, Trash2, AlertTriangle, X
@@ -8,6 +9,8 @@ import {
 const fechaCierre = ref('2026-01')
 const busqueda = ref('')
 const mesCerrado = ref(false)
+const auditoriaUsuarios = ref([])
+const isLoading = ref(false)
 
 const toast = ref({ show: false, message: '', type: 'success' })
 let toastTimeout = null
@@ -31,29 +34,28 @@ const ejecutarConfirmacion = () => {
     confirmState.value.show = false
 }
 
-const getDatosPorMes = (fecha) => {
-    if (fecha === '2026-01') {
-        return [
-            { id: 1, nombre: 'Mario León', rol: 'Dev', horasReales: 160, horasTeoricas: 160, diasFaltantes: [], estado: 'completo' },
-            { id: 2, nombre: 'Ana Ruiz', rol: 'QA', horasReales: 152, horasTeoricas: 160, diasFaltantes: ['12-Ene', '24-Ene'], estado: 'incompleto' },
-            { id: 3, nombre: 'Pedro Sola', rol: 'Junior', horasReales: 80, horasTeoricas: 160, diasFaltantes: ['02-Ene', '03-Ene', '04-Ene', '... (+10)'], estado: 'incompleto' },
-            { id: 4, nombre: 'Laura G.', rol: 'Manager', horasReales: 168, horasTeoricas: 160, diasFaltantes: [], estado: 'completo' }
-        ]
-    } else {
-        return [
-            { id: 1, nombre: 'Mario León', rol: 'Dev', horasReales: 0, horasTeoricas: 160, diasFaltantes: [], estado: 'vacio' },
-            { id: 2, nombre: 'Ana Ruiz', rol: 'QA', horasReales: 0, horasTeoricas: 160, diasFaltantes: [], estado: 'vacio' },
-            { id: 3, nombre: 'Pedro Sola', rol: 'Junior', horasReales: 0, horasTeoricas: 160, diasFaltantes: [], estado: 'vacio' },
-            { id: 4, nombre: 'Laura G.', rol: 'Manager', horasReales: 0, horasTeoricas: 160, diasFaltantes: [], estado: 'vacio' }
-        ]
+// --- LLAMADAS AL BACKEND ---
+const fetchClosingData = async () => {
+    isLoading.value = true
+    try {
+        const response = await ManagerAPI.getClosingData(fechaCierre.value)
+        mesCerrado.value = response.data.mesCerrado
+        auditoriaUsuarios.value = response.data.usuarios || []
+    } catch (error) {
+        console.error("Error obteniendo datos de cierre:", error)
+        showToast("Error al conectar con el servidor", "error")
+        auditoriaUsuarios.value = []
+    } finally {
+        isLoading.value = false
     }
 }
 
-const auditoriaUsuarios = ref(getDatosPorMes(fechaCierre.value))
+onMounted(() => {
+    fetchClosingData()
+})
 
-watch(fechaCierre, (nuevoMes) => {
-    mesCerrado.value = false
-    auditoriaUsuarios.value = getDatosPorMes(nuevoMes)
+watch(fechaCierre, () => {
+    fetchClosingData()
 })
 
 const usuariosFiltrados = computed(() => {
@@ -74,9 +76,14 @@ const resumenEstado = computed(() => {
     return { total, incompletos, vacios, completos: total - incompletos - vacios }
 })
 
-const procesarCierre = () => {
-    mesCerrado.value = true
-    showToast(`Mes de ${fechaCierre.value} cerrado correctamente`, 'success')
+const procesarCierreToggle = async (accion) => {
+    try {
+        await ManagerAPI.toggleCierreMes(fechaCierre.value, accion)
+        mesCerrado.value = (accion === 'cerrar')
+        showToast(`Mes de ${fechaCierre.value} ${accion === 'cerrar' ? 'cerrado' : 'reabierto'} correctamente`, 'success')
+    } catch (error) {
+        showToast(`Error al ${accion} el mes`, 'error')
+    }
 }
 
 const ejecutarCierre = () => {
@@ -85,7 +92,7 @@ const ejecutarCierre = () => {
             'Cierre Forzoso',
             'Hay usuarios con días incompletos. ¿Estás seguro de que quieres forzar el cierre del mes? Esto bloqueará futuras imputaciones.',
             'warning',
-            procesarCierre
+            () => procesarCierreToggle('cerrar')
         )
         return
     }
@@ -95,12 +102,12 @@ const ejecutarCierre = () => {
             'Mes Vacío',
             'El mes parece no tener actividad registrada. ¿Cerrar igualmente?',
             'neutral',
-            procesarCierre
+            () => procesarCierreToggle('cerrar')
         )
         return
     }
     
-    procesarCierre()
+    procesarCierreToggle('cerrar')
 }
 
 const reabrirMes = () => {
@@ -108,10 +115,7 @@ const reabrirMes = () => {
         'Reabrir Mes',
         '¿Estás seguro de que quieres reabrir este periodo? Los usuarios podrán volver a editar sus imputaciones.',
         'neutral',
-        () => {
-            mesCerrado.value = false
-            showToast('Mes reabierto correctamente', 'success')
-        }
+        () => procesarCierreToggle('reabrir')
     )
 }
 
