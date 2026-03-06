@@ -1,18 +1,20 @@
 <script setup>
-import { ref, computed } from 'vue'
-import { useDataStore } from '../../stores/dataStore'
+import { ref, computed, onMounted, watch } from 'vue'
+import ManagerAPI from '../../services/ManagerAPI'
 import {
     PieChart, BarChart3, AlertCircle, Users, Activity, Download,
     Calendar, Battery, ArrowUpRight, ArrowDownRight, Clock,
     AlertTriangle, CheckCircle2, X
 } from 'lucide-vue-next'
 
-const store = useDataStore()
-
 const mesAnalisis = ref('2026-02')
+const isLoading = ref(false)
 
-const totalHorasImputadas = 1450
-const totalCapacidadTeorica = 1600
+const totalHorasImputadas = ref(0)
+const totalCapacidadTeorica = ref(0)
+const proyectosStats = ref([])
+const cargaEmpleados = ref([])
+const ausencias = ref([]) 
 
 const toast = ref({ show: false, message: '', type: 'success' })
 let toastTimeout = null
@@ -25,9 +27,36 @@ const showToast = (message, type = 'success') => {
     }, 3000)
 }
 
+const fetchAnalyticsData = async () => {
+    isLoading.value = true
+    try {
+        const response = await ManagerAPI.getAnalytics(mesAnalisis.value)
+        const data = response.data
+
+        totalHorasImputadas.value = data.totalHorasImputadas || 0
+        totalCapacidadTeorica.value = data.totalCapacidadTeorica || 0
+        proyectosStats.value = data.proyectosStats || []
+        cargaEmpleados.value = data.cargaEmpleados || []
+        ausencias.value = data.ausencias || []
+        
+    } catch (error) {
+        console.error("Error obteniendo analíticas:", error)
+        showToast("Error al conectar con el servidor", "error")
+    } finally {
+        isLoading.value = false
+    }
+}
+
+onMounted(() => {
+    fetchAnalyticsData()
+})
+
+watch(mesAnalisis, () => {
+    fetchAnalyticsData()
+})
+
 const diasCriticos = computed(() => {
-    const todasAusencias = store.getAusencias()
-    const ausenciasDelMes = todasAusencias.filter(a => a.date.startsWith(mesAnalisis.value))
+    const ausenciasDelMes = ausencias.value
 
     const conteoPorDia = {}
     ausenciasDelMes.forEach(a => {
@@ -45,24 +74,13 @@ const diasCriticos = computed(() => {
         .sort((a, b) => new Date(a.fecha) - new Date(b.fecha))
 })
 
-const proyectosStats = ref([
-    { nombre: 'Santander', horas: 600, color: 'bg-red-600', contributors: ['ML', 'AR', 'PS'] },
-    { nombre: 'Mapfre', horas: 300, color: 'bg-red-500', contributors: ['LG'] },
-    { nombre: 'Inditex', horas: 400, color: 'bg-zinc-800', contributors: ['CM', 'ML'] },
-    { nombre: 'Interno', horas: 150, color: 'bg-blue-500', contributors: ['Todos'] },
-])
-
-const cargaEmpleados = ref([
-    { nombre: 'Mario León', horas: 175, capacidad: 160, rol: 'Dev', avatar: 'ML', trend: 'up' },
-    { nombre: 'Ana Ruiz', horas: 160, capacidad: 160, rol: 'QA', avatar: 'AR', trend: 'equal' },
-    { nombre: 'Pedro Sola', horas: 150, capacidad: 160, rol: 'Junior', avatar: 'PS', trend: 'down' },
-    { nombre: 'Laura G.', horas: 120, capacidad: 160, rol: 'Manager', avatar: 'LG', trend: 'equal' },
-    { nombre: 'Carlos M.', horas: 40, capacidad: 160, rol: 'Dev', avatar: 'CM', trend: 'down' },
-])
-
-const getPorcentaje = (horas) => Math.round((horas / totalHorasImputadas) * 100)
+const getPorcentaje = (horas) => {
+    if (totalHorasImputadas.value === 0) return 0
+    return Math.round((horas / totalHorasImputadas.value) * 100)
+}
 const getWidth = (horas) => `${Math.min((horas / 180) * 100, 100)}%`
 const getBarColor = (horas, capacidad) => {
+    if (capacidad === 0) return 'bg-gray-400'
     const ratio = horas / capacidad
     if (ratio > 1.0) return 'bg-rose-500'
     if (ratio < 0.5) return 'bg-amber-400'
@@ -70,8 +88,11 @@ const getBarColor = (horas, capacidad) => {
 }
 
 const empleadosExcedidos = computed(() => cargaEmpleados.value.filter(e => e.horas > e.capacidad).length)
-const horasLibres = computed(() => totalCapacidadTeorica - totalHorasImputadas)
-const porcentajeOcupacionGlobal = computed(() => Math.round((totalHorasImputadas / totalCapacidadTeorica) * 100))
+const horasLibres = computed(() => totalCapacidadTeorica.value - totalHorasImputadas.value)
+const porcentajeOcupacionGlobal = computed(() => {
+    if (totalCapacidadTeorica.value === 0) return 0
+    return Math.round((totalHorasImputadas.value / totalCapacidadTeorica.value) * 100)
+})
 
 const exportarReporte = () => {
     const headers = ['Empleado', 'Rol', 'Horas Imputadas', 'Capacidad', 'Estado']

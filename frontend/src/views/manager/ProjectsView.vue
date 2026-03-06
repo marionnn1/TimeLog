@@ -1,36 +1,15 @@
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted } from 'vue'
+import ManagerAPI from '../../services/ManagerAPI'
 import {
     LayoutGrid, Search, Plus, Pencil, Trash2, X, Check,
     Briefcase, UserPlus, Tag, Hash, Save,
     CheckCircle2, AlertCircle, AlertTriangle
 } from 'lucide-vue-next'
 
-const proyectos = ref([
-    { 
-        id: 1, nombre: 'Auditoría Backend', cliente: 'Banco Santander', idCliente: 'SAN-001', codigo: 'PRJ-SAN-001', tipo: 'Proyecto', estado: true, jp: 'Ana García',
-        equipo: [] 
-    },
-    { 
-        id: 2, nombre: 'Migración Cloud', cliente: 'Mapfre', idCliente: 'MAP-99', codigo: 'SRV-MAP-023', tipo: 'Servicio', estado: true, jp: 'Carlos Ruiz',
-        equipo: [
-            { nombre: 'Ana García', rol: 'Dev', iniciales: 'AG', color: 'bg-pink-100 text-pink-600' },
-            { nombre: 'Carlos Ruiz', rol: 'QA', iniciales: 'CR', color: 'bg-blue-100 text-blue-600' },
-        ]
-    },
-    { 
-        id: 4, nombre: 'Auditoría Seguridad', cliente: 'BBVA', idCliente: 'BBVA-ES', codigo: 'PRJ-BBV-009', tipo: 'Proyecto', estado: false, jp: 'Elena Nito',
-        equipo: [
-            { nombre: 'Mario León', rol: 'Dev', iniciales: 'ML', color: 'bg-indigo-100 text-indigo-600' }
-        ]
-    },
-])
-
-const usuariosDisponibles = [
-    { id: 1, nombre: 'Mario León', rol: 'Dev', iniciales: 'ML', color: 'bg-indigo-100 text-indigo-600' },
-    { id: 2, nombre: 'Ana Ruiz', rol: 'QA', iniciales: 'AR', color: 'bg-rose-100 text-rose-600' },
-    { id: 3, nombre: 'Pedro Sola', rol: 'Junior', iniciales: 'PS', color: 'bg-cyan-100 text-cyan-600' },
-]
+const proyectos = ref([])
+const usuariosDisponibles = ref([])
+const isLoading = ref(false)
 
 const toast = ref({ show: false, message: '', type: 'success' })
 let toastTimeout = null
@@ -53,6 +32,25 @@ const ejecutarConfirmacion = () => {
     if (confirmState.value.action) confirmState.value.action()
     confirmState.value.show = false
 }
+
+// --- LLAMADAS AL BACKEND ---
+const fetchProjects = async () => {
+    isLoading.value = true
+    try {
+        const response = await ManagerAPI.getProjectsData()
+        proyectos.value = response.data.proyectos || []
+        usuariosDisponibles.value = response.data.usuariosDisponibles || []
+    } catch (error) {
+        console.error("Error cargando proyectos:", error)
+        showToast("Error al cargar los datos", "error")
+    } finally {
+        isLoading.value = false
+    }
+}
+
+onMounted(() => {
+    fetchProjects()
+})
 
 const mostrarModalAsignar = ref(false)
 const mostrarModalProyecto = ref(false) 
@@ -91,31 +89,25 @@ const abrirEditarProyecto = (proy) => {
     mostrarModalProyecto.value = true
 }
 
-const guardarProyecto = () => {
+const guardarProyecto = async () => {
     if (!proyectoForm.value.nombre || !proyectoForm.value.cliente) {
         showToast("Nombre y Cliente son obligatorios", "error")
         return
     }
 
-    if (esEdicion.value) {
-        const index = proyectos.value.findIndex(p => p.id === proyectoForm.value.id)
-        if (index !== -1) {
-            proyectos.value[index] = { 
-                ...proyectos.value[index], 
-                ...proyectoForm.value      
-            }
+    try {
+        if (esEdicion.value) {
+            await ManagerAPI.updateProject(proyectoForm.value.id, proyectoForm.value)
+            showToast("Proyecto actualizado", "success")
+        } else {
+            await ManagerAPI.createProject(proyectoForm.value)
+            showToast("Proyecto creado", "success")
         }
-    } else {
-        const nuevoId = Date.now()
-        proyectos.value.push({
-            ...proyectoForm.value,
-            id: nuevoId,
-            codigo: `PRJ-${Math.floor(Math.random()*1000)}`, 
-            equipo: [] 
-        })
+        mostrarModalProyecto.value = false
+        fetchProjects() // Recargar datos
+    } catch (error) {
+        showToast("Error al guardar el proyecto", "error")
     }
-    mostrarModalProyecto.value = false
-    showToast(esEdicion.value ? "Proyecto actualizado" : "Proyecto creado", "success")
 }
 
 const eliminarProyecto = (id) => {
@@ -123,9 +115,14 @@ const eliminarProyecto = (id) => {
         'Eliminar Proyecto',
         '¿Estás seguro de que deseas eliminar este proyecto de forma permanente?',
         'danger',
-        () => {
-            proyectos.value = proyectos.value.filter(p => p.id !== id)
-            showToast("Proyecto eliminado correctamente", "success")
+        async () => {
+            try {
+                await ManagerAPI.deleteProject(id)
+                showToast("Proyecto eliminado correctamente", "success")
+                fetchProjects() // Recargar
+            } catch (error) {
+                showToast("Error al eliminar", "error")
+            }
         }
     )
 }
@@ -135,23 +132,32 @@ const abrirModalAsignacion = (proyecto) => {
     mostrarModalAsignar.value = true
 }
 
-const confirmarAsignacion = () => {
+const confirmarAsignacion = async () => {
     if (!asignacionData.value.usuarioId) {
         showToast("Selecciona un empleado", "error")
         return
     }
-    const usuarioObj = usuariosDisponibles.find(u => u.id === asignacionData.value.usuarioId)
-    const proyectoTarget = proyectos.value.find(p => p.id === asignacionData.value.proyectoId)
     
-    if(proyectoTarget && usuarioObj) {
-        if(!proyectoTarget.equipo.find(u => u.nombre === usuarioObj.nombre)){
-             proyectoTarget.equipo.push({ ...usuarioObj })
-             showToast("Usuario asignado correctamente", "success")
-        } else {
-            showToast("El usuario ya está en el equipo", "error")
-        }
+    try {
+        await ManagerAPI.assignUserToProject(asignacionData.value.proyectoId, asignacionData.value.usuarioId)
+        showToast("Usuario asignado correctamente", "success")
+        mostrarModalAsignar.value = false
+        fetchProjects() // Recargar para ver al nuevo integrante
+    } catch (error) {
+        showToast(error.response?.data?.error || "Error al asignar usuario", "error")
     }
-    mostrarModalAsignar.value = false
+}
+
+// Función auxiliar para generar colores fijos basados en el nombre
+const getColorClass = (nombre) => {
+    const colors = [
+        'bg-indigo-100 text-indigo-600', 'bg-rose-100 text-rose-600', 
+        'bg-cyan-100 text-cyan-600', 'bg-emerald-100 text-emerald-600',
+        'bg-amber-100 text-amber-600', 'bg-purple-100 text-purple-600'
+    ];
+    let hash = 0;
+    for (let i = 0; i < nombre.length; i++) hash = nombre.charCodeAt(i) + ((hash << 5) - hash);
+    return colors[Math.abs(hash) % colors.length];
 }
 </script>
 
@@ -194,7 +200,11 @@ const confirmarAsignacion = () => {
             </div>
         </div>
 
-        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 pb-10">
+        <div v-if="isLoading" class="flex justify-center py-10">
+            <div class="animate-spin rounded-full h-10 w-10 border-b-2 border-emerald-500"></div>
+        </div>
+
+        <div v-else class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 pb-10">
             
             <div v-for="proy in proyectosFiltrados" :key="proy.id"
                 class="bg-white rounded-2xl border border-slate-200 shadow-sm hover:shadow-md transition-all duration-300 group relative flex flex-col p-5 min-h-[320px]">
@@ -257,7 +267,7 @@ const confirmarAsignacion = () => {
                         <template v-if="proy.equipo.length > 0">
                             <div v-for="(user, index) in proy.equipo" :key="index" class="flex items-center gap-3 group/user">
                                 <div class="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold shrink-0"
-                                     :class="user.color || 'bg-slate-100 text-slate-500'">
+                                     :class="getColorClass(user.nombre)">
                                     {{ user.iniciales }}
                                 </div>
                                 <span class="text-sm text-slate-600 font-medium group-hover/user:text-slate-900 transition-colors">
