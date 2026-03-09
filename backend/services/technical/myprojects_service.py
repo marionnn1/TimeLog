@@ -30,12 +30,27 @@ def guardar_imputaciones_lote(usuario_id, filas, fechas_semana):
         for fila in filas:
             p_id = fila.get('id_proyecto')
             if not p_id: continue
+            
             for i in range(7):
                 fecha = fechas_semana[i]
                 h = float(fila.get('horas')[i] or 0)
-                cursor.execute("DELETE FROM Imputaciones WHERE UsuarioId = ? AND ProyectoId = ? AND Fecha = ?", (usuario_id, p_id, fecha))
-                if h > 0:
-                    cursor.execute("INSERT INTO Imputaciones (UsuarioId, ProyectoId, Fecha, Horas, Estado) VALUES (?, ?, ?, ?, 'Borrador')", (usuario_id, p_id, fecha, h))
+                
+                # Verificamos estado antes de tocar nada
+                cursor.execute("SELECT Estado FROM Imputaciones WHERE UsuarioId = ? AND ProyectoId = ? AND Fecha = ?", 
+                               (usuario_id, p_id, fecha))
+                row = cursor.fetchone()
+                
+                if row and row.Estado == 'Aprobado':
+                    cursor.execute("""
+                        UPDATE Imputaciones SET Estado = 'Pendiente', Horas = ? 
+                        WHERE UsuarioId = ? AND ProyectoId = ? AND Fecha = ?
+                    """, (h, usuario_id, p_id, fecha))
+                else:
+                    cursor.execute("DELETE FROM Imputaciones WHERE UsuarioId = ? AND ProyectoId = ? AND Fecha = ?", 
+                                   (usuario_id, p_id, fecha))
+                    if h > 0:
+                        cursor.execute("INSERT INTO Imputaciones (UsuarioId, ProyectoId, Fecha, Horas, Estado) VALUES (?, ?, ?, ?, 'Borrador')", 
+                                       (usuario_id, p_id, fecha, h))
         conn.commit()
         return True
     except Exception:

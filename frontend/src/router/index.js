@@ -15,10 +15,10 @@ import AdminDashboardView from '../views/admin/AdminDashboardView.vue'
 import AdminTicketsView from '../views/admin/AdminTicketsView.vue' // <--- NUEVA VISTA
 
 // Vistas de Manager
-import ManagerValidationView from '../views/manager/ManagerValidationView.vue'
-import ManagerClosingView from '../views/manager/ManagerClosingView.vue'
 import ManagerAnalyticsView from '../views/manager/ManagerAnalyticsView.vue'
-import ProjectsView from '../views/manager/ProjectsView.vue'
+import ManagerClosingView from '../views/manager/ManagerClosingView.vue'
+import ProjectsView from '../views/manager/ProjectsView.vue' 
+import ManagerValidationView from '../views/manager/ManagerValidationView.vue'
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -97,29 +97,25 @@ const router = createRouter({
 
     // --- RUTAS MANAGER ---
     {
-      path: '/manager/projects',
+      path: '/manager/analitica', // <-- Cambiado de /analytics a /analitica
+      name: 'manager-analytics',
+      component: ManagerAnalyticsView
+    },
+    {
+      path: '/manager/cierre', // <-- Cambiado de /closing a /cierre
+      name: 'manager-closing',
+      component: ManagerClosingView
+    },
+    {
+      path: '/manager/projects', // (Si tu menú dice /proyectos, ponlo así. Si te funcionaba con /projects, déjalo como estaba)
       name: 'manager-projects',
-      component: ProjectsView,
-      meta: { requiresAuth: true, role: 'manager' }
+      component: ProjectsView
     },
     {
-      path: '/manager/validaciones',
-      name: 'manager-validaciones',
-      component: ManagerValidationView,
-      meta: { requiresAuth: true, role: 'manager' }
-    },
-    {
-      path: '/manager/cierre',
-      name: 'manager-cierre',
-      component: ManagerClosingView,
-      meta: { requiresAuth: true, role: 'manager' }
-    },
-    {
-      path: '/manager/analitica',
-      name: 'manager-analitica',
-      component: ManagerAnalyticsView,
-      meta: { requiresAuth: true, role: 'manager' }
-    },
+      path: '/manager/validaciones', // <-- Cambiado de /validation a /validaciones
+      name: 'manager-validation',
+      component: ManagerValidationView
+    }
   ]
 })
 

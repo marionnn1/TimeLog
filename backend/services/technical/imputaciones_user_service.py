@@ -25,34 +25,45 @@ def obtener_imputaciones_semana(usuario_id, lunes):
         conn.close()
 
 def guardar_imputaciones_lote(usuario_id, filas, fechas_semana):
-    """Guarda o actualiza las horas de la semana en lote para evitar múltiples peticiones."""
     conn = get_db_connection()
     if not conn: return False
     try:
         cursor = conn.cursor()
         for fila in filas:
             proyecto_id = fila.get('id_proyecto')
-            horas = fila.get('horas') # Lista de 7 valores (Lunes a Domingo)
+            horas = fila.get('horas')
             
             for i in range(7):
                 fecha = fechas_semana[i]
                 h = float(horas[i]) if horas[i] else 0
                 
-                # Borrado previo para sobrescribir el registro (Estrategia de Sincronización)
-                cursor.execute("DELETE FROM Imputaciones WHERE UsuarioId = ? AND ProyectoId = ? AND Fecha = ?", 
+                # Buscamos el registro actual
+                cursor.execute("SELECT Estado FROM Imputaciones WHERE UsuarioId = ? AND ProyectoId = ? AND Fecha = ?", 
                                (usuario_id, proyecto_id, fecha))
+                row = cursor.fetchone()
                 
-                if h > 0:
+                if row and row.Estado == 'Aprobado':
+                    # SI ESTÁ VALIDADO: No borramos, actualizamos a PENDIENTE para que el admin lo vea
                     cursor.execute("""
-                        INSERT INTO Imputaciones (UsuarioId, ProyectoId, Fecha, Horas, Estado)
-                        VALUES (?, ?, ?, ?, 'Borrador')
-                    """, (usuario_id, proyecto_id, fecha, h))
+                        UPDATE Imputaciones 
+                        SET Estado = 'Pendiente', Horas = ? 
+                        WHERE UsuarioId = ? AND ProyectoId = ? AND Fecha = ?
+                    """, (h, usuario_id, proyecto_id, fecha))
+                else:
+                    # SI ES BORRADOR O NUEVO: Funcionamiento normal (Sync)
+                    cursor.execute("DELETE FROM Imputaciones WHERE UsuarioId = ? AND ProyectoId = ? AND Fecha = ?", 
+                                   (usuario_id, proyecto_id, fecha))
+                    if h > 0:
+                        cursor.execute("""
+                            INSERT INTO Imputaciones (UsuarioId, ProyectoId, Fecha, Horas, Estado)
+                            VALUES (?, ?, ?, ?, 'Borrador')
+                        """, (usuario_id, proyecto_id, fecha, h))
         
         conn.commit()
-        registrar_log(usuario_id, 'Usuario', 'SYNC_IMPUTACIONES', 'info', "Sincronización semanal de horas realizada.")
+        registrar_log(usuario_id, 'Usuario', 'SYNC_IMPUTACIONES', 'info', "Sincronización semanal realizada.")
         return True
     except Exception as e:
-        print(f"Error al guardar lote de imputaciones: {e}")
+        print(f"Error: {e}")
         conn.rollback()
         return False
     finally:
