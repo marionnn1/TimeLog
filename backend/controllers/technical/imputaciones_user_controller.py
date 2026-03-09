@@ -1,7 +1,6 @@
 from flask import Blueprint, request, jsonify
 # Añadimos _service para que coincida con el nombre de tu archivo
-from services.imputaciones_user_service import obtener_imputaciones_semana, guardar_imputaciones_lote
-
+from services.technical.imputaciones_user_service import obtener_imputaciones_semana, guardar_imputaciones_lote
 imputaciones_user_bp = Blueprint('imputaciones_user', __name__)
 
 @imputaciones_user_bp.route('/api/imputaciones/semana', methods=['GET'])

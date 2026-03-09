@@ -1,5 +1,5 @@
 from flask import Blueprint, jsonify
-from services.auditoria_service import obtener_logs
+from services.admin.auditoria_service import obtener_logs
 
 auditoria_bp = Blueprint('auditoria', __name__)
 

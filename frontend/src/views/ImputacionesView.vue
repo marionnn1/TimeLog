@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useDataStore } from '../stores/dataStore'
 import { 
@@ -12,8 +12,8 @@ import {
   CheckCircle2,
   AlertCircle,
   X,
-  MessageSquare, // Icono para la solicitud
-  Send, // Icono para enviar
+  MessageSquare, 
+  Send, 
   Clock,
   ArrowRight
 } from 'lucide-vue-next'
@@ -40,7 +40,6 @@ const getInfoDia = (date) => {
   const isoDate = new Date(date.getTime() - offset).toISOString().split('T')[0]
   
   const ausencia = store.getAusenciaPorFecha(isoDate, currentUser.id)
-  
   if (!ausencia) return null
   
   const mapLabels = {
@@ -48,11 +47,7 @@ const getInfoDia = (date) => {
       'festivo': 'Festivo',
       'asuntos': 'Asuntos P.'
   }
-  
-  return {
-      tipo: ausencia.type, 
-      label: mapLabels[ausencia.type] || 'Ausencia'
-  }
+  return { tipo: ausencia.type, label: mapLabels[ausencia.type] || 'Ausencia' }
 }
 
 const getTipoDia = (date) => getInfoDia(date)?.tipo
@@ -86,13 +81,57 @@ const mesAnterior = () => fechaActual.value = new Date(anioActual.value, mesActu
 const mesSiguiente = () => fechaActual.value = new Date(anioActual.value, mesActualIndex.value + 1, 1)
 const irAHoy = () => fechaActual.value = new Date()
 
-const imputaciones = ref([
-  { dia: 5, cliente: 'Banco Santander', codigo: 'SAN-001', proyecto: 'Auditoría Backend', horas: 8, color: 'bg-blue-50 text-blue-700 border-blue-100 hover:bg-blue-100' },
-  { dia: 6, cliente: 'Mapfre', codigo: 'MAP-220', proyecto: 'Migración Cloud', horas: 4, color: 'bg-cyan-50 text-cyan-800 border-cyan-100 hover:bg-cyan-100' },
-  { dia: 6, cliente: 'Interno', codigo: 'INT-999', proyecto: 'Formación Vue 3', horas: 4, color: 'bg-gray-50 text-gray-700 border-gray-200 hover:bg-gray-100' },
-  { dia: 12, cliente: 'Inditex', codigo: 'ITX-554', proyecto: 'API TPV', horas: 8.5, color: 'bg-fuchsia-50 text-fuchsia-800 border-fuchsia-100 hover:bg-fuchsia-100' },
-  { dia: 20, cliente: 'Banco Santander', codigo: 'SAN-001', proyecto: 'Auditoría Backend', horas: 4, color: 'bg-blue-50 text-blue-700 border-blue-100 hover:bg-blue-100' },
-])
+// ==========================================
+// NUEVA LÓGICA DE CARGA DESDE LA API
+// ==========================================
+const imputaciones = ref([])
+
+// Paleta de colores para asignar a los proyectos
+const coloresProyectos = [
+    'bg-blue-50 text-blue-700 border-blue-100 hover:bg-blue-100',
+    'bg-cyan-50 text-cyan-800 border-cyan-100 hover:bg-cyan-100',
+    'bg-emerald-50 text-emerald-800 border-emerald-100 hover:bg-emerald-100',
+    'bg-fuchsia-50 text-fuchsia-800 border-fuchsia-100 hover:bg-fuchsia-100',
+    'bg-amber-50 text-amber-800 border-amber-100 hover:bg-amber-100',
+    'bg-indigo-50 text-indigo-700 border-indigo-100 hover:bg-indigo-100'
+]
+
+const cargarCalendario = async () => {
+    const user = store.getCurrentUser()
+    if (!user) return
+    
+    try {
+        // Obtenemos mes en formato 1-12
+        const mesReal = mesActualIndex.value + 1
+        const res = await fetch(`http://localhost:5000/api/myprojects/calendario?usuario_id=${user.id}&mes=${mesReal}&anio=${anioActual.value}`)
+        const json = await res.json()
+        
+        if (json.status === 'success') {
+            imputaciones.value = json.data.map(imp => {
+                // Asignar un color fijo según el ID del proyecto
+                const colorAsignado = coloresProyectos[imp.proyecto_id % coloresProyectos.length]
+                return {
+                    dia: imp.dia,
+                    cliente: imp.cliente,
+                    codigo: `PRJ-${String(imp.proyecto_id).padStart(3, '0')}`,
+                    proyecto: imp.proyecto,
+                    horas: imp.horas,
+                    color: colorAsignado
+                }
+            })
+        }
+    } catch (e) {
+        console.error("Error cargando calendario:", e)
+        showToast("Error al cargar los datos del calendario", "error")
+    }
+}
+
+// Recargar cuando cambiamos de mes o año
+watch([mesActualIndex, anioActual], cargarCalendario)
+
+// Cargar al montar el componente
+onMounted(cargarCalendario)
+// ==========================================
 
 const getImputacionesPorDia = (dia) => imputaciones.value.filter(imp => imp.dia === dia)
 const getTotalHoras = (dia) => getImputacionesPorDia(dia).reduce((acc, curr) => acc + curr.horas, 0)
@@ -118,18 +157,11 @@ const totalHorasMes = computed(() => {
   return imputaciones.value.reduce((acc, curr) => acc + curr.horas, 0)
 })
 
-const irAlDashboard = (dia) => {
-  const fechaDestino = new Date(anioActual.value, mesActualIndex.value, dia)
-  const offset = fechaDestino.getTimezoneOffset()
-  const fechaLocal = new Date(fechaDestino.getTime() - (offset*60*1000))
-  router.push({ name: 'dashboard', query: { fecha: fechaLocal.toISOString().split('T')[0] } })
-}
-
 const exportarDatos = () => {
     const headers = ['Fecha', 'Cliente', 'Código Proyecto', 'Proyecto', 'Horas']
     const rows = imputaciones.value.map(imp => {
         const fechaStr = `${imp.dia}/${mesActualIndex.value + 1}/${anioActual.value}`
-        return [fechaStr, imp.cliente, imp.codigo, imp.proyecto, imp.horas]
+        return [fechaStr, `"${imp.cliente}"`, imp.codigo, `"${imp.proyecto}"`, imp.horas]
     })
 
     const csvContent = [

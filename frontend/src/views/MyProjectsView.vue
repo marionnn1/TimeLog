@@ -2,7 +2,7 @@
 import { ref, onMounted, watch, computed } from 'vue'
 import { useDataStore } from '../stores/dataStore'
 import { 
-    Calendar, Clock, LayoutGrid, Loader2, FolderKanban, BarChart
+    Calendar, Clock, LayoutGrid, Loader2, FolderKanban, BarChart, Download
 } from 'lucide-vue-next'
 
 const store = useDataStore()
@@ -44,6 +44,42 @@ onMounted(cargarData)
 // Cálculos para la tabla
 const totalMes = computed(() => datos.value?.totales?.mes_real || 1)
 const getPorcentaje = (horas) => Math.round((horas / totalMes.value) * 100)
+
+// Función para exportar a CSV
+const exportarCSV = () => {
+    if (!datos.value || !datos.value.proyectos.length) return
+
+    // Definir cabeceras
+    const headers = ['Proyecto', 'Cliente', 'Horas Invertidas', 'Impacto (%)']
+    
+    // Mapear los datos de los proyectos asegurando que los textos van entre comillas (por si llevan comas)
+    const rows = datos.value.proyectos.map(p => {
+        return [
+            `"${p.proyecto}"`,
+            `"${p.cliente}"`,
+            p.real,
+            getPorcentaje(p.real)
+        ].join(';')
+    })
+
+    // Fila de totales
+    rows.push(`"TOTAL MENSUAL","",${datos.value.totales.mes_real},100`)
+
+    // Generar el archivo
+    const csvContent = [headers.join(';'), ...rows].join('\n')
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
+    const url = URL.createObjectURL(blob)
+    
+    // Crear enlace oculto y forzar descarga
+    const link = document.createElement('a')
+    link.setAttribute('href', url)
+    const mesNombre = meses.find(m => m.v === mesSeleccionado.value).n
+    link.setAttribute('download', `Dedicacion_${mesNombre}_${anioSeleccionado.value}.csv`)
+    document.body.appendChild(link)
+    
+    link.click()
+    document.body.removeChild(link)
+}
 </script>
 
 <template>
@@ -55,21 +91,31 @@ const getPorcentaje = (horas) => Math.round((horas / totalMes.value) * 100)
                 <LayoutGrid class="w-5 h-5 text-primary" />
             </div>
             <div>
-                <h1 class="text-xl font-bold leading-none">Mi Dedicación</h1>
+                <h1 class="text-xl font-bold leading-none">Mis Proyectos</h1>
                 <p class="text-slate-500 text-xs mt-1">Análisis de tiempo invertido por proyecto</p>
             </div>
         </div>
 
-        <div class="flex items-center gap-2 bg-white px-2 py-1.5 rounded-lg border border-slate-200 shadow-sm">
-            <Calendar class="w-4 h-4 text-slate-400 ml-2" />
-            <select v-model="mesSeleccionado" class="bg-transparent font-semibold text-sm text-slate-700 outline-none px-2 cursor-pointer">
-                <option v-for="m in meses" :key="m.v" :value="m.v">{{ m.n }}</option>
-            </select>
-            <div class="w-px h-4 bg-slate-200"></div>
-            <select v-model="anioSeleccionado" class="bg-transparent font-semibold text-sm text-slate-700 outline-none px-2 cursor-pointer">
-                <option :value="2026">2026</option>
-                <option :value="2025">2025</option>
-            </select>
+        <div class="flex flex-wrap items-center gap-3">
+            <div class="flex items-center gap-2 bg-white px-2 py-1.5 rounded-lg border border-slate-200 shadow-sm">
+                <Calendar class="w-4 h-4 text-slate-400 ml-2" />
+                <select v-model="mesSeleccionado" class="bg-transparent font-semibold text-sm text-slate-700 outline-none px-2 cursor-pointer">
+                    <option v-for="m in meses" :key="m.v" :value="m.v">{{ m.n }}</option>
+                </select>
+                <div class="w-px h-4 bg-slate-200"></div>
+                <select v-model="anioSeleccionado" class="bg-transparent font-semibold text-sm text-slate-700 outline-none px-2 cursor-pointer">
+                    <option :value="2026">2026</option>
+                    <option :value="2025">2025</option>
+                </select>
+            </div>
+
+            <button 
+                @click="exportarCSV" 
+                :disabled="!datos || datos.proyectos.length === 0"
+                class="flex items-center gap-2 bg-white px-4 py-2 rounded-lg border border-slate-200 shadow-sm text-sm font-bold text-slate-600 hover:text-primary hover:border-primary transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+                <Download class="w-4 h-4" /> Exportar CSV
+            </button>
         </div>
     </div>
 
