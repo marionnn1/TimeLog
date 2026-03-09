@@ -1,5 +1,5 @@
 from database.connection import get_db_connection
-from services.auditoria_service import registrar_log
+from services.admin.auditoria_service import registrar_log
 
 def obtener_imputaciones_semana(usuario_id, lunes):
     """Obtiene las horas registradas por un usuario para los 7 días de una semana."""

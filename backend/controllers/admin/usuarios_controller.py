@@ -1,6 +1,6 @@
 from flask import Blueprint, request, jsonify
-from services.usuarios_service import toggle_estado_usuario
-from services.usuarios_service import (
+from services.admin.usuarios_service import toggle_estado_usuario
+from services.admin.usuarios_service import (
     obtener_usuarios, 
     crear_usuario, 
     actualizar_usuario, 

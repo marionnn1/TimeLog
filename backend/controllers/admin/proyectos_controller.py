@@ -1,5 +1,5 @@
 from flask import Blueprint, request, jsonify
-from services.proyectos_service import (
+from services.admin.proyectos_service import (
     obtener_proyectos, 
     crear_proyecto, 
     actualizar_proyecto, 

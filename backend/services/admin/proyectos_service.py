@@ -1,6 +1,5 @@
 from database.connection import get_db_connection
-from services.auditoria_service import registrar_log
-
+from services.admin.auditoria_service import registrar_log
 def obtener_proyectos():
     conn = get_db_connection()
     if not conn: return None

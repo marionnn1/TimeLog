@@ -148,3 +148,42 @@ def obtener_analitica_equipo(mes, anio):
         return []
     finally:
         conn.close()
+
+def obtener_calendario_mensual(usuario_id, mes, anio):
+    from database.connection import get_db_connection
+    conn = get_db_connection()
+    if not conn: return []
+    
+    try:
+        cursor = conn.cursor()
+        query = """
+            SELECT 
+                DAY(i.Fecha) as dia,
+                c.Nombre as cliente,
+                p.Id as proyecto_id,
+                p.Nombre as proyecto,
+                SUM(i.Horas) as horas
+            FROM Imputaciones i
+            INNER JOIN Proyectos p ON i.ProyectoId = p.Id
+            INNER JOIN Clientes c ON p.ClienteId = c.Id
+            WHERE i.UsuarioId = ? AND MONTH(i.Fecha) = ? AND YEAR(i.Fecha) = ?
+            GROUP BY DAY(i.Fecha), c.Nombre, p.Id, p.Nombre
+        """
+        cursor.execute(query, (usuario_id, mes, anio))
+        rows = cursor.fetchall()
+        
+        data = []
+        for r in rows:
+            data.append({
+                "dia": r[0],
+                "cliente": r[1],
+                "proyecto_id": r[2],
+                "proyecto": r[3],
+                "horas": float(r[4])
+            })
+        return data
+    except Exception as e:
+        print("Error en obtener_calendario_mensual:", e)
+        return []
+    finally:
+        conn.close()
