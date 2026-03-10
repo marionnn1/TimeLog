@@ -14,9 +14,15 @@ def obtener_estadisticas():
         cursor.execute("SELECT COUNT(*) FROM Proyectos WHERE Estado = 'Activo'")
         proyectos_activos = cursor.fetchone()[0]
         
-        # 3. Tickets (A 0 hasta que hagamos la tabla)
-        tickets_pendientes = 0
-        tickets_totales = 0
+        # 3. Tickets Pendientes (Solicitudes de corrección en estado 'Pendiente')
+        cursor.execute("SELECT COUNT(*) FROM Imputaciones WHERE Estado = 'Pendiente'")
+        row_pendientes = cursor.fetchone()
+        tickets_pendientes = row_pendientes[0] if row_pendientes else 0
+        
+        # 4. Tickets Totales (Contamos todas las imputaciones que han pasado por algún estado de revisión: Pendientes, Aprobados o Rechazados)
+        cursor.execute("SELECT COUNT(*) FROM Imputaciones WHERE Estado != 'Borrador'")
+        row_totales = cursor.fetchone()
+        tickets_totales = row_totales[0] if row_totales else 0
         
         return {
             "totalUsuarios": total_usuarios,

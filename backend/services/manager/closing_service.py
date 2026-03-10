@@ -1,3 +1,5 @@
+import calendar
+from datetime import date
 from database.connection import get_db_connection
 
 def get_closing_audit(mes):
@@ -7,7 +9,7 @@ def get_closing_audit(mes):
 
     try:
         cursor = conn.cursor()
-        anio, mes_num = mes.split('-')
+        anio, mes_num = map(int, mes.split('-'))
 
         # 1. Comprobar si el mes está cerrado en la tabla CierreMes
         cursor.execute("""
@@ -18,36 +20,63 @@ def get_closing_audit(mes):
         row = cursor.fetchone()
         mes_cerrado = bool(row.EstaCerrado) if row else False
 
-        # 2. Obtener horas imputadas por usuario para ese mes
-        cursor.execute("""
-            SELECT u.Id, u.Nombre, u.Rol, ISNULL(SUM(i.Horas), 0) as HorasReales
-            FROM Usuarios u
-            LEFT JOIN Imputaciones i ON u.Id = i.UsuarioId 
-                AND YEAR(i.Fecha) = ? AND MONTH(i.Fecha) = ?
-            WHERE u.Activo = 1
-            GROUP BY u.Id, u.Nombre, u.Rol
-        """, (anio, mes_num))
-        
+        # Total de días del mes seleccionado
+        _, num_days = calendar.monthrange(anio, mes_num)
+
+        # 2. Obtener usuarios activos
+        cursor.execute("SELECT Id, Nombre, Rol FROM Usuarios WHERE Activo = 1")
+        usuarios = cursor.fetchall()
+
         usuarios_auditoria = []
-        for row in cursor.fetchall():
-            horas_reales = float(row.HorasReales)
-            horas_teoricas = 160  # Esto se podría calcular en el futuro según festivos
+        
+        for u in usuarios:
+            u_id = u.Id
             
-            # Lógica simple de estado
-            estado = 'vacio'
+            # Horas reales totales imputadas en el mes
+            cursor.execute("""
+                SELECT ISNULL(SUM(Horas), 0) FROM Imputaciones 
+                WHERE UsuarioId = ? AND YEAR(Fecha) = ? AND MONTH(Fecha) = ?
+            """, (u_id, anio, mes_num))
+            horas_reales = float(cursor.fetchone()[0] or 0)
+            
+            # Días laborables con imputaciones (Horas > 0)
+            cursor.execute("""
+                SELECT DISTINCT DAY(Fecha) FROM Imputaciones
+                WHERE UsuarioId = ? AND YEAR(Fecha) = ? AND MONTH(Fecha) = ? AND Horas > 0
+            """, (u_id, anio, mes_num))
+            dias_imputados = {r[0] for r in cursor.fetchall()}
+            
+            # Días con ausencias registradas (vacaciones, festivos, asuntos propios)
+            cursor.execute("""
+                SELECT DISTINCT DAY(Fecha) FROM Ausencias
+                WHERE UsuarioId = ? AND YEAR(Fecha) = ? AND MONTH(Fecha) = ?
+            """, (u_id, anio, mes_num))
+            dias_ausencias = {r[0] for r in cursor.fetchall()}
+            
+            # Calcular días faltantes (Lunes a Viernes sin imputaciones ni ausencias)
             dias_faltantes = []
-            if horas_reales >= horas_teoricas:
+            dias_laborables_totales = 0
+            
+            for day in range(1, num_days + 1):
+                current_date = date(anio, mes_num, day)
+                if current_date.weekday() < 5: # 0-4 representan Lunes a Viernes
+                    dias_laborables_totales += 1
+                    if day not in dias_imputados and day not in dias_ausencias:
+                        dias_faltantes.append(str(day))
+            
+            # Determinar el estado del usuario
+            if len(dias_faltantes) == 0:
                 estado = 'completo'
-            elif horas_reales > 0:
+            elif len(dias_faltantes) == dias_laborables_totales and horas_reales == 0:
+                estado = 'vacio'
+            else:
                 estado = 'incompleto'
-                dias_faltantes = ['Días pendientes'] # Lógica simplificada de momento
-                
+                     
             usuarios_auditoria.append({
-                "id": row.Id,
-                "nombre": row.Nombre,
-                "rol": row.Rol,
+                "id": u_id,
+                "nombre": u.Nombre,
+                "rol": u.Rol,
                 "horasReales": horas_reales,
-                "horasTeoricas": horas_teoricas,
                 "estado": estado,
                 "diasFaltantes": dias_faltantes
             })
@@ -70,7 +99,6 @@ def toggle_closing_month(mes, accion):
         anio, mes_num = mes.split('-')
         esta_cerrado = 1 if accion == 'cerrar' else 0
 
-        # Buscamos si ya existe un registro para este mes/año
         cursor.execute("SELECT Id FROM CierreMes WHERE Anio = ? AND Mes = ?", (anio, mes_num))
         existe = cursor.fetchone()
 

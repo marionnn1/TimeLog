@@ -202,3 +202,33 @@ def obtener_calendario_mensual(usuario_id, mes, anio):
         return []
     finally:
         conn.close()
+
+def solicitar_correccion_imputacion(usuario_id, proyecto_id, fecha, nuevas_horas, motivo):
+    from database.connection import get_db_connection
+    conn = get_db_connection()
+    if not conn: return False
+    try:
+        cursor = conn.cursor()
+        # Buscamos la imputación exacta y la pasamos a Pendiente
+        cursor.execute("""
+            UPDATE Imputaciones
+            SET Estado = 'Pendiente', Horas = ?, Comentario = ?
+            WHERE UsuarioId = ? AND ProyectoId = ? AND Fecha = ?
+        """, (nuevas_horas, motivo, usuario_id, proyecto_id, fecha))
+        
+        conn.commit()
+        
+        # Dejamos registro en auditoría (opcional pero recomendado)
+        cursor.execute("""
+            INSERT INTO Auditoria (ActorNombre, Accion, Gravedad, Detalle)
+            VALUES ('Sistema', 'Solicitud Corrección', 'warning', ?)
+        """, (f"Usuario {usuario_id} solicita cambiar a {nuevas_horas}h el proyecto {proyecto_id} en {fecha}",))
+        conn.commit()
+        
+        return True
+    except Exception as e:
+        print("Error en solicitar_correccion:", e)
+        conn.rollback()
+        return False
+    finally:
+        conn.close()

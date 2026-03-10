@@ -11,6 +11,7 @@ from controllers.admin.usuarios_controller import usuarios_bp
 from controllers.admin.proyectos_controller import proyectos_bp
 from controllers.admin.auditoria_controller import auditoria_bp
 from controllers.admin.dashboard_controller import dashboard_bp
+from controllers.admin.tickets_controller import tickets_bp
 
 # --- MANAGER ---
 from controllers.manager.analytics_controller import manager_analytics_bp
@@ -29,6 +30,7 @@ app.register_blueprint(dashboard_bp)
 app.register_blueprint(imputaciones_user_bp)
 app.register_blueprint(myprojects_bp)
 app.register_blueprint(ausencias_bp)
+app.register_blueprint(tickets_bp)
 
 # REGISTRAMOS LOS NUEVOS DE MANAGER
 app.register_blueprint(manager_analytics_bp)
