@@ -3,44 +3,44 @@ from models.absences import Absences
 from sqlalchemy import extract
 
 
-def obtener_ausencias_mes(mes, anio):
+def get_monthly_absences(month, year):
     try:
-        ausencias = Absences.query.filter(
-            extract("month", Absences.fecha) == mes,
-            extract("year", Absences.fecha) == anio,
+        absences = Absences.query.filter(
+            extract("month", Absences.fecha) == month,
+            extract("year", Absences.fecha) == year,
         ).all()
 
         return [
             {
-                "fecha": a.fecha.strftime("%Y-%m-%d") if a.fecha else None,
-                "tipo": a.tipo,
-                "comentario": a.comentario or "",
+                "date": a.fecha.strftime("%Y-%m-%d") if a.fecha else None,
+                "type": a.tipo,
+                "comment": a.comentario or "",
                 "userId": a.usuario_id,
-                "nombre": a.usuario.nombre if a.usuario else "Desconocido",
-                "iniciales": (
+                "name": a.usuario.nombre if a.usuario else "Desconocido",
+                "initials": (
                     "".join([n[0] for n in a.usuario.nombre.split()[:2]]).upper()
                     if a.usuario
                     else "XX"
                 ),
             }
-            for a in ausencias
+            for a in absences
         ]
     except Exception as e:
         print(f"Error al obtener ausencias: {e}")
         return []
 
 
-def guardar_ausencias(usuario_id, fechas, tipo, comentario=""):
+def save_absences(user_id, dates, type, comment=""):
     try:
-        for fecha in fechas:
-            existe = Absences.query.filter_by(
-                usuario_id=usuario_id, fecha=fecha
+        for date in dates:
+            exists = Absences.query.filter_by(
+                usuario_id=user_id, fecha=date
             ).first()
-            if not existe:
-                nueva_ausencia = Absences(
-                    usuario_id=usuario_id, fecha=fecha, tipo=tipo, comentario=comentario
+            if not exists:
+                new_absence = Absences(
+                    usuario_id=user_id, fecha=date, tipo=type, comentario=comment
                 )
-                db.session.add(nueva_ausencia)
+                db.session.add(new_absence)
 
         db.session.commit()
         return True
@@ -50,11 +50,11 @@ def guardar_ausencias(usuario_id, fechas, tipo, comentario=""):
         return False
 
 
-def eliminar_ausencia(usuario_id, fecha):
+def delete_absence(user_id, date):
     try:
-        ausencia = Absences.query.filter_by(usuario_id=usuario_id, fecha=fecha).first()
-        if ausencia:
-            db.session.delete(ausencia)
+        absence = Absences.query.filter_by(usuario_id=user_id, fecha=date).first()
+        if absence:
+            db.session.delete(absence)
             db.session.commit()
         return True
     except Exception as e:

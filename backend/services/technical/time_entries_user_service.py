@@ -1,75 +1,74 @@
 from database.db import db
 from models.time_entries import TimeEntries
-from services.admin.auditoria_service import registrar_log
+from services.admin.audit_service import register_log
 from datetime import datetime, timedelta
 
 
-def obtener_imputaciones_semana(usuario_id, lunes):
+def get_weekly_time_entries(user_id, monday_date):
     try:
-        if isinstance(lunes, str):
-            lunes = datetime.strptime(lunes, "%Y-%m-%d").date()
-        domingo = lunes + timedelta(days=6)
+        if isinstance(monday_date, str):
+            monday_date = datetime.strptime(monday_date, "%Y-%m-%d").date()
+        sunday_date = monday_date + timedelta(days=6)
 
-        # Filtramos por rango de fechas
-        imputaciones = TimeEntries.query.filter(
-            TimeEntries.usuario_id == usuario_id,
-            TimeEntries.fecha >= lunes,
-            TimeEntries.fecha <= domingo,
+        time_entries = TimeEntries.query.filter(
+            TimeEntries.usuario_id == user_id,
+            TimeEntries.fecha >= monday_date,
+            TimeEntries.fecha <= sunday_date,
         ).all()
 
         return [
             {
-                "ProyectoId": i.proyecto_id,
-                "Proyecto": i.proyecto.nombre if i.proyecto else "Sin Proyecto",
-                "Cliente": (
+                "projectId": i.proyecto_id,
+                "project": i.proyecto.nombre if i.proyecto else "Sin Proyecto",
+                "client": (
                     i.proyecto.cliente.nombre
                     if i.proyecto and i.proyecto.cliente
                     else "Sin Cliente"
                 ),
-                "Fecha": i.fecha.strftime("%Y-%m-%d"),
-                "Horas": float(i.horas),
+                "date": i.fecha.strftime("%Y-%m-%d"),
+                "hours": float(i.horas),
             }
-            for i in imputaciones
+            for i in time_entries
         ]
     except Exception as e:
         print(f"Error al obtener imputaciones: {e}")
         return None
 
 
-def guardar_imputaciones_lote(usuario_id, filas, fechas_semana):
+def save_time_entries_batch(user_id, rows, week_dates):
     try:
-        for fila in filas:
-            proyecto_id = fila.get("id_proyecto")
-            horas = fila.get("horas", [])
+        for row in rows:
+            project_id = row.get("projectId")
+            hours = row.get("hours", [])
 
             for i in range(7):
-                fecha = fechas_semana[i]
-                h = float(horas[i]) if i < len(horas) and horas[i] else 0
+                date = week_dates[i]
+                h = float(hours[i]) if i < len(hours) and hours[i] else 0
 
-                registro = TimeEntries.query.filter_by(
-                    usuario_id=usuario_id, proyecto_id=proyecto_id, fecha=fecha
+                record = TimeEntries.query.filter_by(
+                    usuario_id=user_id, proyecto_id=project_id, fecha=date
                 ).first()
 
-                if registro and registro.estado == "Aprobado":
-                    registro.estado = "Pendiente"
-                    registro.horas = h
+                if record and record.estado == "Aprobado":
+                    record.estado = "Pendiente"
+                    record.horas = h
                 else:
-                    if registro:
-                        db.session.delete(registro)
+                    if record:
+                        db.session.delete(record)
                     if h > 0:
-                        nuevo = TimeEntries(
-                            usuario_id=usuario_id,
-                            proyecto_id=proyecto_id,
-                            fecha=fecha,
+                        new_entry = TimeEntries(
+                            usuario_id=user_id,
+                            proyecto_id=project_id,
+                            fecha=date,
                             horas=h,
                             estado="Borrador",
                         )
-                        db.session.add(nuevo)
+                        db.session.add(new_entry)
 
         db.session.commit()
-        registrar_log(
-            usuario_id,
-            "Usuario",
+        register_log(
+            user_id,
+            "User",
             "SYNC_IMPUTACIONES",
             "info",
             "Sincronización semanal realizada.",

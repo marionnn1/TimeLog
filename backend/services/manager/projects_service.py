@@ -1,4 +1,3 @@
-# backend/services/manager/projects_service.py
 from database.db import db
 from models.projects import Projects
 from models.clients import Clients
@@ -10,62 +9,59 @@ import random
 
 def get_all_projects_data():
     try:
-        # 1. Obtener proyectos activos (aquellos sin fecha de desactivación)
-        proyectos_db = Projects.query.filter(
+        projects_db = Projects.query.filter(
             Projects.fecha_desactivacion.is_(None)
         ).all()
 
-        proyectos = []
-        for p in proyectos_db:
-            equipo = []
+        projects = []
+        for p in projects_db:
+            team = []
 
-            # 2. Aprovechamos la relación para extraer el equipo asignado y activo
             for a in p.asignaciones:
                 if a.activo and a.fecha_desactivacion is None and a.usuario:
-                    nombres = a.usuario.nombre.split() if a.usuario.nombre else []
-                    iniciales = (
-                        "".join([n[0] for n in nombres[:2]]).upper()
-                        if nombres
+                    names = a.usuario.nombre.split() if a.usuario.nombre else []
+                    initials = (
+                        "".join([n[0] for n in names[:2]]).upper()
+                        if names
                         else "XX"
                     )
 
-                    equipo.append(
+                    team.append(
                         {
                             "id": a.usuario.id,
-                            "nombre": a.usuario.nombre,
-                            "rol": a.usuario.rol,
-                            "iniciales": iniciales,
+                            "name": a.usuario.nombre,
+                            "role": a.usuario.rol,
+                            "initials": initials,
                         }
                     )
 
-            proyectos.append(
+            projects.append(
                 {
                     "id": p.id,
-                    "nombre": p.nombre,
-                    "cliente": p.cliente.nombre if p.cliente else "Sin Cliente",
-                    "idCliente": (
+                    "name": p.nombre,
+                    "client": p.cliente.nombre if p.cliente else "Sin Cliente",
+                    "clientId": (
                         p.cliente.codigo if p.cliente and p.cliente.codigo else ""
                     ),
-                    "codigo": p.codigo,
-                    "estado": True if p.estado == "Activo" else False,
-                    "equipo": equipo,
+                    "code": p.codigo,
+                    "status": True if p.estado == "Activo" else False,
+                    "team": team,
                 }
             )
 
-        # 3. Obtener usuarios disponibles para el desplegable de asignar
-        usuarios_db = Users.query.filter_by(activo=True).all()
-        usuarios = []
-        for u in usuarios_db:
-            nombres = u.nombre.split() if u.nombre else []
-            iniciales = (
-                "".join([n[0] for n in nombres[:2]]).upper() if nombres else "XX"
+        users_db = Users.query.filter_by(activo=True).all()
+        available_users = []
+        for u in users_db:
+            names = u.nombre.split() if u.nombre else []
+            initials = (
+                "".join([n[0] for n in names[:2]]).upper() if names else "XX"
             )
 
-            usuarios.append(
-                {"id": u.id, "nombre": u.nombre, "rol": u.rol, "iniciales": iniciales}
+            available_users.append(
+                {"id": u.id, "name": u.nombre, "role": u.rol, "initials": initials}
             )
 
-        return {"proyectos": proyectos, "usuariosDisponibles": usuarios}, 200
+        return {"projects": projects, "availableUsers": available_users}, 200
 
     except Exception as e:
         print(f"Error en get_all_projects_data: {e}")
@@ -74,42 +70,42 @@ def get_all_projects_data():
 
 def save_project(data, project_id=None):
     try:
-        nombre = data.get("nombre")
-        cliente_nombre = data.get("cliente")
-        cliente_codigo = data.get("idCliente")
-        estado_str = "Activo" if data.get("estado") else "Cerrado"
-        codigo = data.get("codigo")
+        name = data.get("name")
+        client_name = data.get("client")
+        client_code = data.get("clientId")
+        status_str = "Activo" if data.get("status") else "Cerrado"
+        code = data.get("code")
 
-        cliente = Clients.query.filter_by(nombre=cliente_nombre).first()
+        client = Clients.query.filter_by(nombre=client_name).first()
 
-        if cliente:
-            if cliente_codigo:
-                cliente.codigo = cliente_codigo
+        if client:
+            if client_code:
+                client.codigo = client_code
         else:
-            cliente = Clients(nombre=cliente_nombre, codigo=cliente_codigo)
-            db.session.add(cliente)
+            client = Clients(nombre=client_name, codigo=client_code)
+            db.session.add(client)
             db.session.flush()
 
         if project_id:
-            proyecto = Projects.query.get(project_id)
-            if not proyecto:
-                return {"error": "Proyecto no encontrado"}, 404
+            project = Projects.query.get(project_id)
+            if not project:
+                return {"error": "Project not found"}, 404
 
-            proyecto.nombre = nombre
-            proyecto.cliente_id = cliente.id
-            proyecto.estado = estado_str
-            proyecto.codigo = codigo
+            project.nombre = name
+            project.cliente_id = client.id
+            project.estado = status_str
+            project.codigo = code
         else:
-            if not codigo:
-                codigo = f"PRJ-{random.randint(100, 999)}"
+            if not code:
+                code = f"PRJ-{random.randint(100, 999)}"
 
-            nuevo_proyecto = Projects(
-                nombre=nombre, cliente_id=cliente.id, estado=estado_str, codigo=codigo
+            new_project = Projects(
+                nombre=name, cliente_id=client.id, estado=status_str, codigo=code
             )
-            db.session.add(nuevo_proyecto)
+            db.session.add(new_project)
 
         db.session.commit()
-        return {"message": "Proyecto guardado correctamente"}, 200
+        return {"message": "Project saved successfully"}, 200
 
     except Exception as e:
         db.session.rollback()
@@ -119,40 +115,40 @@ def save_project(data, project_id=None):
 
 def soft_delete_project(project_id):
     try:
-        proyecto = Projects.query.get(project_id)
-        if not proyecto:
-            return {"error": "Proyecto no encontrado"}, 404
+        project = Projects.query.get(project_id)
+        if not project:
+            return {"error": "Project not found"}, 404
 
-        proyecto.estado = "Cerrado"
-        proyecto.fecha_desactivacion = datetime.utcnow()
+        project.estado = "Cerrado"
+        project.fecha_desactivacion = datetime.utcnow()
         db.session.commit()
 
-        return {"message": "Proyecto eliminado"}, 200
+        return {"message": "Project deleted"}, 200
     except Exception as e:
         db.session.rollback()
         print(f"Error en soft_delete_project: {e}")
         return {"error": str(e)}, 500
 
 
-def assign_user(proyecto_id, usuario_id):
+def assign_user(project_id, user_id):
     try:
-        asignacion_existente = Assignments.query.filter_by(
-            proyecto_id=proyecto_id, usuario_id=usuario_id, activo=True
+        existing_assignment = Assignments.query.filter_by(
+            proyecto_id=project_id, usuario_id=user_id, activo=True
         ).first()
 
-        if asignacion_existente:
-            return {"error": "El usuario ya está en este proyecto"}, 400
+        if existing_assignment:
+            return {"error": "The user is already assigned to this project"}, 400
 
-        nueva_asignacion = Assignments(
-            proyecto_id=proyecto_id,
-            usuario_id=usuario_id,
+        new_assignment = Assignments(
+            proyecto_id=project_id,
+            usuario_id=user_id,
             activo=True,
             fecha_asignacion=datetime.utcnow(),
         )
-        db.session.add(nueva_asignacion)
+        db.session.add(new_assignment)
         db.session.commit()
 
-        return {"message": "Usuario asignado"}, 200
+        return {"message": "User assigned"}, 200
     except Exception as e:
         db.session.rollback()
         print(f"Error en assign_user: {e}")

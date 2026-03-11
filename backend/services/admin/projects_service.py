@@ -3,11 +3,11 @@ from models.projects import Projects
 from models.clients import Clients
 from models.assignments import Assignments
 from models.users import Users
-from services.admin.auditoria_service import registrar_log
+from TimeLog.backend.services.admin.audit_service import register_log
 from sqlalchemy import text
 from datetime import datetime
 
-def obtener_proyectos():
+def get_projects():
     try:
         proyectos = Projects.query.all()
         
@@ -16,24 +16,24 @@ def obtener_proyectos():
             equipo = []
             for a in p.asignaciones:
                 if a.activo and a.usuario:
-                    equipo.append({"id": a.usuario.id, "nombre": a.usuario.nombre})
+                    equipo.append({"id": a.usuario.id, "name": a.usuario.nombre})
             
             resultado.append({
-                "Id": p.id,
-                "Nombre": p.nombre,
-                "Cliente": p.cliente.nombre if p.cliente else "Sin Cliente",
-                "Estado": p.estado,
-                "Tipo": p.tipo,
-                "Equipo": equipo
+                "id": p.id,
+                "name": p.nombre,
+                "client": p.cliente.nombre if p.cliente else "Sin Cliente",
+                "status": p.estado,
+                "type": p.tipo,
+                "team": equipo
             })
         return resultado
     except Exception as e:
         print(f"Error al obtener proyectos: {e}")
         return None
 
-def crear_proyecto(datos):
+def create_project(data):
     try:
-        nombre_cliente = datos.get('cliente', 'Cliente Genérico')
+        nombre_cliente = data.get('client', 'Cliente Genérico')
         cliente = Clients.query.filter_by(nombre=nombre_cliente).first()
         
         if not cliente:
@@ -41,18 +41,17 @@ def crear_proyecto(datos):
             db.session.add(cliente)
             db.session.flush()
 
-        # 2. Insertar el proyecto
         nuevo_proyecto = Projects(
             cliente_id=cliente.id,
-            nombre=datos.get('nombre'),
-            estado=datos.get('estado', 'Activo'),
+            nombre=data.get('name'),
+            estado=data.get('status', 'Activo'),
             tipo='Proyecto',
             fecha_creacion=datetime.utcnow()
         )
         db.session.add(nuevo_proyecto)
         db.session.flush() 
 
-        usuarios_ids = datos.get('usuarios_ids', [])
+        usuarios_ids = data.get('user_ids', [])
         for u_id in usuarios_ids:
             nueva_asignacion = Assignments(
                 proyecto_id=nuevo_proyecto.id,
@@ -63,19 +62,19 @@ def crear_proyecto(datos):
             db.session.add(nueva_asignacion)
 
         db.session.commit()
-        registrar_log(1, 'Admin', 'CREAR_PROYECTO', 'info', f"Se creó el proyecto: {datos.get('nombre')}.")
+        register_log(1, 'Admin', 'CREAR_PROYECTO', 'info', f"Se creó el proyecto: {data.get('name')}.")
         return True
     except Exception as e:
         print(f"Error al crear proyecto: {e}")
         db.session.rollback()
         return False
 
-def actualizar_proyecto(id_proyecto, datos):
+def update_project(project_id, data):
     try:
-        proyecto = Projects.query.get(id_proyecto)
+        proyecto = Projects.query.get(project_id)
         if not proyecto: return False
 
-        nombre_cliente = datos.get('cliente', 'Cliente Genérico')
+        nombre_cliente = data.get('client', 'Cliente Genérico')
         cliente = Clients.query.filter_by(nombre=nombre_cliente).first()
         
         if not cliente:
@@ -83,16 +82,16 @@ def actualizar_proyecto(id_proyecto, datos):
             db.session.add(cliente)
             db.session.flush()
 
-        proyecto.nombre = datos.get('nombre')
-        proyecto.estado = datos.get('estado')
+        proyecto.nombre = data.get('name')
+        proyecto.estado = data.get('status')
         proyecto.cliente_id = cliente.id
 
-        Assignments.query.filter_by(proyecto_id=id_proyecto).delete()
+        Assignments.query.filter_by(proyecto_id=project_id).delete()
         
-        usuarios_ids = datos.get('usuarios_ids', [])
+        usuarios_ids = data.get('user_ids', [])
         for u_id in usuarios_ids:
             nueva_asignacion = Assignments(
-                proyecto_id=id_proyecto,
+                proyecto_id=project_id,
                 usuario_id=u_id,
                 activo=True,
                 fecha_asignacion=datetime.utcnow()
@@ -100,51 +99,51 @@ def actualizar_proyecto(id_proyecto, datos):
             db.session.add(nueva_asignacion)
             
         db.session.commit()
-        registrar_log(1, 'Admin', 'ACTUALIZAR_PROYECTO', 'info', f"Se actualizó el proyecto: {datos.get('nombre')} y su equipo.")
+        register_log(1, 'Admin', 'ACTUALIZAR_PROYECTO', 'info', f"Se actualizó el proyecto: {data.get('name')} y su equipo.")
         return True
     except Exception as e:
         print(f"Error al actualizar proyecto: {e}")
         db.session.rollback()
         return False
 
-def cerrar_proyecto(id_proyecto):
+def close_project(project_id):
     try:
-        proyecto = Projects.query.get(id_proyecto)
+        proyecto = Projects.query.get(project_id)
         if not proyecto: return False
         
         proyecto.estado = 'Cerrado'
         proyecto.fecha_desactivacion = datetime.utcnow()
         db.session.commit()
         
-        registrar_log(1, 'Admin', 'CERRAR_PROYECTO', 'warning', f"Se ha cerrado el proyecto con ID: {id_proyecto}.")
+        register_log(1, 'Admin', 'CERRAR_PROYECTO', 'warning', f"Se ha cerrado el proyecto con ID: {project_id}.")
         return True
     except Exception as e:
         print(f"Error al cerrar proyecto: {e}")
         db.session.rollback()
         return False
 
-def eliminar_proyecto_fisico(id_proyecto):
+def hard_delete_project(project_id):
     try:
-        proyecto = Projects.query.get(id_proyecto)
+        proyecto = Projects.query.get(project_id)
         if not proyecto: return False
         
-        db.session.execute(text("DELETE FROM Imputaciones WHERE ProyectoId = :id"), {"id": id_proyecto})
+        db.session.execute(text("DELETE FROM Imputaciones WHERE ProyectoId = :id"), {"id": project_id})
         
-        Assignments.query.filter_by(proyecto_id=id_proyecto).delete()
+        Assignments.query.filter_by(proyecto_id=project_id).delete()
         
         db.session.delete(proyecto)
         db.session.commit()
         
-        registrar_log(1, 'Admin', 'BORRADO_FISICO', 'danger', f"El proyecto con ID {id_proyecto} fue eliminado de la base de datos.")
+        register_log(1, 'Admin', 'BORRADO_FISICO', 'danger', f"El proyecto con ID {project_id} fue eliminado de la base de datos.")
         return True
     except Exception as e:
         print(f"Error al eliminar físicamente el proyecto: {e}")
         db.session.rollback()
         return False
 
-def toggle_estado_proyecto(id_proyecto):
+def toggle_project_status(project_id):
     try:
-        proyecto = Projects.query.get(id_proyecto)
+        proyecto = Projects.query.get(project_id)
         if not proyecto: return False
         
         nuevo_estado = 'Cerrado' if proyecto.estado == 'Activo' else 'Activo'
@@ -157,7 +156,7 @@ def toggle_estado_proyecto(id_proyecto):
             
         db.session.commit()
         
-        registrar_log(1, 'Admin', 'CAMBIO_ESTADO', 'warning' if nuevo_estado == 'Cerrado' else 'info', f"El proyecto '{proyecto.nombre}' ha pasado a estado: {nuevo_estado}.")
+        register_log(1, 'Admin', 'CAMBIO_ESTADO', 'warning' if nuevo_estado == 'Cerrado' else 'info', f"El proyecto '{proyecto.nombre}' ha pasado a estado: {nuevo_estado}.")
         return True
     except Exception as e:
         print(f"Error al cambiar estado del proyecto: {e}")
