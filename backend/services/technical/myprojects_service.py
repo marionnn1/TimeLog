@@ -30,12 +30,27 @@ def guardar_imputaciones_lote(usuario_id, filas, fechas_semana):
         for fila in filas:
             p_id = fila.get('id_proyecto')
             if not p_id: continue
+            
             for i in range(7):
                 fecha = fechas_semana[i]
                 h = float(fila.get('horas')[i] or 0)
-                cursor.execute("DELETE FROM Imputaciones WHERE UsuarioId = ? AND ProyectoId = ? AND Fecha = ?", (usuario_id, p_id, fecha))
-                if h > 0:
-                    cursor.execute("INSERT INTO Imputaciones (UsuarioId, ProyectoId, Fecha, Horas, Estado) VALUES (?, ?, ?, ?, 'Borrador')", (usuario_id, p_id, fecha, h))
+                
+                # Verificamos estado antes de tocar nada
+                cursor.execute("SELECT Estado FROM Imputaciones WHERE UsuarioId = ? AND ProyectoId = ? AND Fecha = ?", 
+                               (usuario_id, p_id, fecha))
+                row = cursor.fetchone()
+                
+                if row and row.Estado == 'Aprobado':
+                    cursor.execute("""
+                        UPDATE Imputaciones SET Estado = 'Pendiente', Horas = ? 
+                        WHERE UsuarioId = ? AND ProyectoId = ? AND Fecha = ?
+                    """, (h, usuario_id, p_id, fecha))
+                else:
+                    cursor.execute("DELETE FROM Imputaciones WHERE UsuarioId = ? AND ProyectoId = ? AND Fecha = ?", 
+                                   (usuario_id, p_id, fecha))
+                    if h > 0:
+                        cursor.execute("INSERT INTO Imputaciones (UsuarioId, ProyectoId, Fecha, Horas, Estado) VALUES (?, ?, ?, ?, 'Borrador')", 
+                                       (usuario_id, p_id, fecha, h))
         conn.commit()
         return True
     except Exception:
@@ -185,5 +200,35 @@ def obtener_calendario_mensual(usuario_id, mes, anio):
     except Exception as e:
         print("Error en obtener_calendario_mensual:", e)
         return []
+    finally:
+        conn.close()
+
+def solicitar_correccion_imputacion(usuario_id, proyecto_id, fecha, nuevas_horas, motivo):
+    from database.connection import get_db_connection
+    conn = get_db_connection()
+    if not conn: return False
+    try:
+        cursor = conn.cursor()
+        # Buscamos la imputación exacta y la pasamos a Pendiente
+        cursor.execute("""
+            UPDATE Imputaciones
+            SET Estado = 'Pendiente', Horas = ?, Comentario = ?
+            WHERE UsuarioId = ? AND ProyectoId = ? AND Fecha = ?
+        """, (nuevas_horas, motivo, usuario_id, proyecto_id, fecha))
+        
+        conn.commit()
+        
+        # Dejamos registro en auditoría (opcional pero recomendado)
+        cursor.execute("""
+            INSERT INTO Auditoria (ActorNombre, Accion, Gravedad, Detalle)
+            VALUES ('Sistema', 'Solicitud Corrección', 'warning', ?)
+        """, (f"Usuario {usuario_id} solicita cambiar a {nuevas_horas}h el proyecto {proyecto_id} en {fecha}",))
+        conn.commit()
+        
+        return True
+    except Exception as e:
+        print("Error en solicitar_correccion:", e)
+        conn.rollback()
+        return False
     finally:
         conn.close()

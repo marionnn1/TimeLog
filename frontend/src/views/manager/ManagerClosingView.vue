@@ -1,13 +1,20 @@
 <script setup>
-import { ref, computed, watch } from 'vue'
+import { ref, computed, watch, onMounted } from 'vue'
+import ManagerAPI from '../../services/ManagerAPI'
 import {
     Lock, Unlock, Search, Calendar, AlertCircle, CheckCircle2,
     FileDown, XCircle, Ban, Trash2, AlertTriangle, X
 } from 'lucide-vue-next'
 
-const fechaCierre = ref('2026-01')
+// Calculamos el mes actual dinámicamente en formato YYYY-MM
+const hoy = new Date()
+const mesActual = `${hoy.getFullYear()}-${String(hoy.getMonth() + 1).padStart(2, '0')}`
+
+const fechaCierre = ref(mesActual)
 const busqueda = ref('')
 const mesCerrado = ref(false)
+const auditoriaUsuarios = ref([])
+const isLoading = ref(false)
 
 const toast = ref({ show: false, message: '', type: 'success' })
 let toastTimeout = null
@@ -31,29 +38,28 @@ const ejecutarConfirmacion = () => {
     confirmState.value.show = false
 }
 
-const getDatosPorMes = (fecha) => {
-    if (fecha === '2026-01') {
-        return [
-            { id: 1, nombre: 'Mario León', rol: 'Dev', horasReales: 160, horasTeoricas: 160, diasFaltantes: [], estado: 'completo' },
-            { id: 2, nombre: 'Ana Ruiz', rol: 'QA', horasReales: 152, horasTeoricas: 160, diasFaltantes: ['12-Ene', '24-Ene'], estado: 'incompleto' },
-            { id: 3, nombre: 'Pedro Sola', rol: 'Junior', horasReales: 80, horasTeoricas: 160, diasFaltantes: ['02-Ene', '03-Ene', '04-Ene', '... (+10)'], estado: 'incompleto' },
-            { id: 4, nombre: 'Laura G.', rol: 'Manager', horasReales: 168, horasTeoricas: 160, diasFaltantes: [], estado: 'completo' }
-        ]
-    } else {
-        return [
-            { id: 1, nombre: 'Mario León', rol: 'Dev', horasReales: 0, horasTeoricas: 160, diasFaltantes: [], estado: 'vacio' },
-            { id: 2, nombre: 'Ana Ruiz', rol: 'QA', horasReales: 0, horasTeoricas: 160, diasFaltantes: [], estado: 'vacio' },
-            { id: 3, nombre: 'Pedro Sola', rol: 'Junior', horasReales: 0, horasTeoricas: 160, diasFaltantes: [], estado: 'vacio' },
-            { id: 4, nombre: 'Laura G.', rol: 'Manager', horasReales: 0, horasTeoricas: 160, diasFaltantes: [], estado: 'vacio' }
-        ]
+// --- LLAMADAS AL BACKEND ---
+const fetchClosingData = async () => {
+    isLoading.value = true
+    try {
+        const response = await ManagerAPI.getClosingData(fechaCierre.value)
+        mesCerrado.value = response.data.mesCerrado
+        auditoriaUsuarios.value = response.data.usuarios || []
+    } catch (error) {
+        console.error("Error obteniendo datos de cierre:", error)
+        showToast("Error al conectar con el servidor", "error")
+        auditoriaUsuarios.value = []
+    } finally {
+        isLoading.value = false
     }
 }
 
-const auditoriaUsuarios = ref(getDatosPorMes(fechaCierre.value))
+onMounted(() => {
+    fetchClosingData()
+})
 
-watch(fechaCierre, (nuevoMes) => {
-    mesCerrado.value = false
-    auditoriaUsuarios.value = getDatosPorMes(nuevoMes)
+watch(fechaCierre, () => {
+    fetchClosingData()
 })
 
 const usuariosFiltrados = computed(() => {
@@ -74,18 +80,23 @@ const resumenEstado = computed(() => {
     return { total, incompletos, vacios, completos: total - incompletos - vacios }
 })
 
-const procesarCierre = () => {
-    mesCerrado.value = true
-    showToast(`Mes de ${fechaCierre.value} cerrado correctamente`, 'success')
+const procesarCierreToggle = async (accion) => {
+    try {
+        await ManagerAPI.toggleCierreMes(fechaCierre.value, accion)
+        mesCerrado.value = (accion === 'cerrar')
+        showToast(`Mes de ${fechaCierre.value} ${accion === 'cerrar' ? 'cerrado' : 'reabierto'} correctamente`, 'success')
+    } catch (error) {
+        showToast(`Error al ${accion} el mes`, 'error')
+    }
 }
 
 const ejecutarCierre = () => {
     if (!puedeCerrarMes.value) {
         solicitarConfirmacion(
             'Cierre Forzoso',
-            'Hay usuarios con días incompletos. ¿Estás seguro de que quieres forzar el cierre del mes? Esto bloqueará futuras imputaciones.',
+            'Hay usuarios con días pendientes de imputar. ¿Estás seguro de que quieres forzar el cierre del mes? Esto bloqueará futuras imputaciones.',
             'warning',
-            procesarCierre
+            () => procesarCierreToggle('cerrar')
         )
         return
     }
@@ -95,12 +106,12 @@ const ejecutarCierre = () => {
             'Mes Vacío',
             'El mes parece no tener actividad registrada. ¿Cerrar igualmente?',
             'neutral',
-            procesarCierre
+            () => procesarCierreToggle('cerrar')
         )
         return
     }
     
-    procesarCierre()
+    procesarCierreToggle('cerrar')
 }
 
 const reabrirMes = () => {
@@ -108,23 +119,19 @@ const reabrirMes = () => {
         'Reabrir Mes',
         '¿Estás seguro de que quieres reabrir este periodo? Los usuarios podrán volver a editar sus imputaciones.',
         'neutral',
-        () => {
-            mesCerrado.value = false
-            showToast('Mes reabierto correctamente', 'success')
-        }
+        () => procesarCierreToggle('reabrir')
     )
 }
 
 const exportarExcel = () => {   
-    const headers = ['ID', 'Nombre', 'Rol', 'Horas Reales', 'Horas Teoricas', 'Estado', 'Dias Faltantes']
+    const headers = ['ID', 'Nombre', 'Rol', 'Horas Reales', 'Estado', 'Dias Faltantes']
     const rows = auditoriaUsuarios.value.map(u => [
         u.id,
         u.nombre,
         u.rol,
         u.horasReales,
-        u.horasTeoricas,
         u.estado,
-        u.diasFaltantes.join(' | ') 
+        u.diasFaltantes.join(', ') 
     ])
 
     const csvContent = [
@@ -144,8 +151,9 @@ const exportarExcel = () => {
     showToast('Archivo CSV descargado', 'success')
 }
 
-const notificarUsuario = (nombre) => {
-    showToast(`Recordatorio enviado a ${nombre}`, 'success')
+const notificarUsuario = (user) => {
+    // Vuelve a ser solo un mock visual
+    showToast(`Recordatorio enviado a ${user.nombre}`, 'success')
 }
 </script>
 
@@ -232,8 +240,8 @@ const notificarUsuario = (nombre) => {
                     <thead class="bg-white sticky top-0 z-10 shadow-sm">
                         <tr class="text-xs uppercase tracking-wider text-gray-400 border-b border-gray-100">
                             <th class="px-6 py-4 font-bold">Empleado</th>
-                            <th class="px-6 py-4 font-bold text-center">Progreso (Horas)</th>
-                            <th class="px-6 py-4 font-bold w-1/3">Auditoría Días</th>
+                            <th class="px-6 py-4 font-bold text-center">Horas Reales</th>
+                            <th class="px-6 py-4 font-bold w-1/3">Días Pendientes</th>
                             <th class="px-6 py-4 font-bold text-center">Estado</th>
                             <th class="px-6 py-4 font-bold text-right" v-if="!mesCerrado">Acción</th>
                         </tr>
@@ -254,36 +262,24 @@ const notificarUsuario = (nombre) => {
                                 </div>
                             </td>
 
-                            <td class="px-6 py-4">
-                                <div class="flex flex-col items-center gap-1">
-                                    <span class="font-mono font-bold"
-                                        :class="user.horasReales === 0 ? 'text-gray-300' : 'text-dark'">
-                                        {{ user.horasReales }} <span class="text-gray-300">/ {{ user.horasTeoricas
-                                            }}</span>
-                                    </span>
-                                    <div class="w-24 h-1.5 bg-gray-100 rounded-full overflow-hidden">
-                                        <div class="h-full rounded-full transition-all" :class="{
-                                                'bg-emerald-500': user.estado === 'completo',
-                                                'bg-amber-500': user.estado === 'incompleto',
-                                                'bg-transparent': user.estado === 'vacio'
-                                            }"
-                                            :style="`width: ${Math.min((user.horasReales / user.horasTeoricas) * 100, 100)}%`">
-                                        </div>
-                                    </div>
-                                </div>
+                            <td class="px-6 py-4 text-center">
+                                <span class="font-mono font-bold text-lg"
+                                    :class="user.horasReales === 0 ? 'text-gray-300' : 'text-dark'">
+                                    {{ user.horasReales }}h
+                                </span>
                             </td>
 
                             <td class="px-6 py-4">
                                 <div v-if="user.estado === 'completo'">
                                     <span class="flex items-center gap-1 text-emerald-600 text-xs font-bold w-fit">
-                                        <CheckCircle2 class="w-3.5 h-3.5" /> Completo
+                                        <CheckCircle2 class="w-3.5 h-3.5" /> Todo al día
                                     </span>
                                 </div>
                                 <div v-else-if="user.estado === 'incompleto'" class="flex flex-col gap-1">
                                     <span class="text-[10px] font-bold text-gray-400 uppercase flex items-center gap-1">
-                                        <XCircle class="w-3 h-3 text-red-400" /> Faltan registros:
+                                        <XCircle class="w-3 h-3 text-red-400" /> Días sin registrar:
                                     </span>
-                                    <div class="flex flex-wrap gap-1">
+                                    <div class="flex flex-wrap gap-1 max-w-[200px]">
                                         <span v-for="dia in user.diasFaltantes" :key="dia"
                                             class="bg-red-50 text-red-600 border border-red-100 px-1.5 py-0.5 rounded text-[10px] font-mono font-bold">
                                             {{ dia }}
@@ -312,7 +308,7 @@ const notificarUsuario = (nombre) => {
                             </td>
 
                             <td class="px-6 py-4 text-right" v-if="!mesCerrado">
-                                <button v-if="user.estado === 'incompleto'" @click="notificarUsuario(user.nombre)"
+                                <button v-if="user.estado === 'incompleto'" @click="notificarUsuario(user)"
                                     class="text-xs font-bold text-blue-600 hover:text-blue-800 hover:bg-blue-50 px-3 py-1.5 rounded transition border border-transparent hover:border-blue-100 ml-auto">
                                     Notificar
                                 </button>

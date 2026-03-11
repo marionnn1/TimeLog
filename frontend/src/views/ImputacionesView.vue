@@ -82,7 +82,7 @@ const mesSiguiente = () => fechaActual.value = new Date(anioActual.value, mesAct
 const irAHoy = () => fechaActual.value = new Date()
 
 // ==========================================
-// NUEVA LÓGICA DE CARGA DESDE LA API
+// LÓGICA DE CARGA DESDE LA API
 // ==========================================
 const imputaciones = ref([])
 
@@ -115,6 +115,7 @@ const cargarCalendario = async () => {
                     cliente: imp.cliente,
                     codigo: `PRJ-${String(imp.proyecto_id).padStart(3, '0')}`,
                     proyecto: imp.proyecto,
+                    proyecto_id: imp.proyecto_id, // <--- AÑADIDO: ID para la API de corrección
                     horas: imp.horas,
                     color: colorAsignado
                 }
@@ -185,21 +186,30 @@ const exportarDatos = () => {
 // --- SOLICITUD DE CAMBIOS ---
 const mostrarModalSolicitud = ref(false)
 const formSolicitud = ref({
-    fecha: '',
+    fechaVisible: '', // Fecha para mostrar en la interfaz
+    fechaISO: '',     // Fecha formato YYYY-MM-DD para la API
     proyecto: '',
+    proyecto_id: null, // ID del proyecto en BD
     mensaje: '',
     horasActuales: 0,
     horasNuevas: 0
 })
 
 const abrirSolicitud = (imputacion, dia) => {
-    const fecha = new Date(anioActual.value, mesActualIndex.value, dia).toLocaleDateString('es-ES', {
+    const fechaObj = new Date(anioActual.value, mesActualIndex.value, dia)
+    const fechaStr = fechaObj.toLocaleDateString('es-ES', {
         weekday: 'long', year: 'numeric', month: 'long', day: 'numeric'
     })
     
+    // Formatear para BD
+    const offset = fechaObj.getTimezoneOffset() * 60000
+    const isoDate = new Date(fechaObj.getTime() - offset).toISOString().split('T')[0]
+    
     formSolicitud.value = {
-        fecha: fecha,
+        fechaVisible: fechaStr,
+        fechaISO: isoDate,
         proyecto: imputacion.proyecto,
+        proyecto_id: imputacion.proyecto_id, // Añadido el ID
         mensaje: '',
         horasActuales: imputacion.horas,
         horasNuevas: imputacion.horas
@@ -207,13 +217,41 @@ const abrirSolicitud = (imputacion, dia) => {
     mostrarModalSolicitud.value = true
 }
 
-const enviarSolicitudJefe = () => {
+const enviarSolicitudJefe = async () => {
     if (!formSolicitud.value.mensaje) {
         showToast('Debes escribir un motivo para la solicitud', 'error')
         return;
     }
-    mostrarModalSolicitud.value = false
-    showToast('Solicitud enviada al Jefe de Proyecto', 'success')
+
+    const user = store.getCurrentUser()
+    if (!user) return;
+
+    try {
+        const response = await fetch('http://localhost:5000/api/myprojects/solicitar-correccion', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                usuario_id: user.id,
+                proyecto_id: formSolicitud.value.proyecto_id,
+                fecha: formSolicitud.value.fechaISO,
+                nuevas_horas: formSolicitud.value.horasNuevas,
+                motivo: formSolicitud.value.mensaje
+            })
+        })
+
+        const json = await response.json()
+
+        if (response.ok && json.status === 'success') {
+            mostrarModalSolicitud.value = false
+            showToast('Solicitud enviada al responsable', 'success')
+            cargarCalendario() // Refresca los datos para mostrar posibles cambios visuales
+        } else {
+            showToast(json.message || 'Error al enviar la solicitud', 'error')
+        }
+    } catch (error) {
+        console.error(error)
+        showToast('Error de conexión con el servidor', 'error')
+    }
 }
 </script>
 
@@ -370,7 +408,7 @@ const enviarSolicitudJefe = () => {
 
             <div class="space-y-5">
                 <div class="p-3 bg-gray-50 rounded-lg border border-gray-200 text-sm">
-                    <p class="text-gray-500 font-bold mb-1 flex items-center gap-2"><CalendarIcon class="w-4 h-4"/> {{ formSolicitud.fecha }}</p>
+                    <p class="text-gray-500 font-bold mb-1 flex items-center gap-2"><CalendarIcon class="w-4 h-4"/> {{ formSolicitud.fechaVisible }}</p>
                     <p class="text-primary font-bold flex items-center gap-2"><Briefcase class="w-4 h-4"/> {{ formSolicitud.proyecto }}</p>
                 </div>
 
