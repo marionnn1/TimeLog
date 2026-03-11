@@ -14,7 +14,7 @@ const cargando = ref(true)
 const cargarUsuarios = async () => {
     try {
         cargando.value = true
-        const res = await fetch('http://localhost:5000/api/usuarios')
+        const res = await fetch('http://localhost:5000/api/users')
         const json = await res.json()
         if (json.status === 'success') {
             usuariosValidos.value = json.data

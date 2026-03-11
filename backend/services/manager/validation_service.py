@@ -2,11 +2,10 @@ from database.connection import get_db_connection
 
 def get_pending_validations():
     conn = get_db_connection()
-    if not conn: return {"error": "No se pudo conectar a la base de datos"}, 500
+    if not conn: return {"error": "Could not connect to the database"}, 500
 
     try:
         cursor = conn.cursor()
-        # Buscamos imputaciones que estén en estado 'Pendiente'
         cursor.execute("""
             SELECT i.Id, u.Nombre as Usuario, p.Nombre as Proyecto, c.Nombre as Cliente,
                    i.Fecha, i.Horas as HorasActuales, i.Comentario as Motivo
@@ -17,73 +16,69 @@ def get_pending_validations():
             WHERE i.Estado = 'Pendiente'
         """)
         
-        solicitudes = []
+        requests = []
         for row in cursor.fetchall():
-            # Sacamos las iniciales para el avatar
-            nombres = row.Usuario.split()
-            avatar = (nombres[0][0] + (nombres[1][0] if len(nombres) > 1 else '')).upper()
+            names = row.Usuario.split()
+            avatar = (names[0][0] + (names[1][0] if len(names) > 1 else '')).upper()
             
-            solicitudes.append({
+            requests.append({
                 "id": row.Id,
-                "usuario": row.Usuario,
+                "user": row.Usuario,
                 "avatar": avatar,
-                "fecha": row.Fecha.strftime('%Y-%m-%d'),
-                "proyecto": row.Proyecto,
-                "cliente": row.Cliente or 'Interno',
-                "horasActuales": float(row.HorasActuales),
-                "motivo": row.Motivo or 'Sin motivo especificado',
-                "estado": 'pendiente'
+                "date": row.Fecha.strftime('%Y-%m-%d'),
+                "project": row.Proyecto,
+                "client": row.Cliente or 'Internal',
+                "currentHours": float(row.HorasActuales),
+                "reason": row.Motivo or 'No reason specified',
+                "status": 'pending'
             })
 
         conn.close()
-        return solicitudes, 200
+        return requests, 200
 
     except Exception as e:
         if conn: conn.close()
         return {"error": str(e)}, 500
 
-def approve_validation(imputacion_id, nuevas_horas):
+def approve_validation(time_entry_id, new_hours):
     conn = get_db_connection()
-    if not conn: return {"error": "No se pudo conectar a la base de datos"}, 500
+    if not conn: return {"error": "Could not connect to the database"}, 500
 
     try:
         cursor = conn.cursor()
-        # Aprobamos la imputación y le ponemos las horas corregidas
         cursor.execute("""
             UPDATE Imputaciones
             SET Horas = ?, Estado = 'Aprobado', FechaValidacion = GETDATE()
             WHERE Id = ?
-        """, (nuevas_horas, imputacion_id))
+        """, (new_hours, time_entry_id))
         
         conn.commit()
         conn.close()
-        return {"message": "Solicitud aprobada y corregida"}, 200
+        return {"message": "Request approved and corrected"}, 200
     except Exception as e:
         if conn: conn.close()
         return {"error": str(e)}, 500
 
-def reject_validation(imputacion_id, motivo_rechazo):
+def reject_validation(time_entry_id, rejection_reason):
     conn = get_db_connection()
-    if not conn: return {"error": "No se pudo conectar a la base de datos"}, 500
+    if not conn: return {"error": "Could not connect to the database"}, 500
 
     try:
         cursor = conn.cursor()
-        # Marcamos como rechazada
         cursor.execute("""
             UPDATE Imputaciones
             SET Estado = 'Rechazado'
             WHERE Id = ?
-        """, (imputacion_id,))
+        """, (time_entry_id,))
         
-        # Dejamos un log en la auditoría para que quede constancia del motivo
         cursor.execute("""
             INSERT INTO Auditoria (ActorNombre, Accion, Gravedad, Detalle)
             VALUES ('Manager', 'Rechazo Solicitud', 'warning', ?)
-        """, (f"Solicitud {imputacion_id} rechazada. Motivo: {motivo_rechazo}",))
+        """, (f"Solicitud {time_entry_id} rechazada. Motivo: {rejection_reason}",))
         
         conn.commit()
         conn.close()
-        return {"message": "Solicitud rechazada"}, 200
+        return {"message": "Request rejected"}, 200
     except Exception as e:
         if conn: conn.close()
         return {"error": str(e)}, 500

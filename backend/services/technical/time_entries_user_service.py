@@ -1,13 +1,12 @@
 from database.connection import get_db_connection
-from services.admin.auditoria_service import registrar_log
+from TimeLog.backend.services.admin.audit_service import register_log
 
-def obtener_imputaciones_semana(usuario_id, lunes):
+def get_weekly_time_entries(user_id, monday_date):
     """Obtiene las horas registradas por un usuario para los 7 días de una semana."""
     conn = get_db_connection()
     if not conn: return None
     try:
         cursor = conn.cursor()
-        # Consultamos las imputaciones cruzando con Proyectos y Clientes para tener los nombres
         query = """
             SELECT i.ProyectoId, p.Nombre as Proyecto, c.Nombre as Cliente, i.Fecha, i.Horas
             FROM Imputaciones i
@@ -15,52 +14,57 @@ def obtener_imputaciones_semana(usuario_id, lunes):
             INNER JOIN Clientes c ON p.ClienteId = c.Id
             WHERE i.UsuarioId = ? AND i.Fecha >= ? AND i.Fecha < DATEADD(day, 7, ?)
         """
-        cursor.execute(query, (usuario_id, lunes, lunes))
-        columnas = [column[0] for column in cursor.description]
-        return [dict(zip(columnas, row)) for row in cursor.fetchall()]
+        cursor.execute(query, (user_id, monday_date, monday_date))
+        
+        columns = ['projectId', 'project', 'client', 'date', 'hours']
+        
+        result = []
+        for row in cursor.fetchall():
+            row_dict = dict(zip(columns, row))
+            if row_dict['date']:
+                row_dict['date'] = row_dict['date'].strftime('%Y-%m-%d')
+            result.append(row_dict)
+        return result
     except Exception as e:
         print(f"Error al obtener imputaciones: {e}")
         return None
     finally:
         conn.close()
 
-def guardar_imputaciones_lote(usuario_id, filas, fechas_semana):
+def save_time_entries_batch(user_id, rows, week_dates):
     conn = get_db_connection()
     if not conn: return False
     try:
         cursor = conn.cursor()
-        for fila in filas:
-            proyecto_id = fila.get('id_proyecto')
-            horas = fila.get('horas')
+        for row in rows:
+            project_id = row.get('projectId')
+            hours = row.get('hours')
             
             for i in range(7):
-                fecha = fechas_semana[i]
-                h = float(horas[i]) if horas[i] else 0
+                date = week_dates[i]
+                h = float(hours[i]) if hours[i] else 0
                 
-                # Buscamos el registro actual
                 cursor.execute("SELECT Estado FROM Imputaciones WHERE UsuarioId = ? AND ProyectoId = ? AND Fecha = ?", 
-                               (usuario_id, proyecto_id, fecha))
-                row = cursor.fetchone()
+                               (user_id, project_id, date))
+                db_row = cursor.fetchone()
                 
-                if row and row.Estado == 'Aprobado':
-                    # SI ESTÁ VALIDADO: No borramos, actualizamos a PENDIENTE para que el admin lo vea
+                if db_row and db_row.Estado == 'Aprobado':
                     cursor.execute("""
                         UPDATE Imputaciones 
                         SET Estado = 'Pendiente', Horas = ? 
                         WHERE UsuarioId = ? AND ProyectoId = ? AND Fecha = ?
-                    """, (h, usuario_id, proyecto_id, fecha))
+                    """, (h, user_id, project_id, date))
                 else:
-                    # SI ES BORRADOR O NUEVO: Funcionamiento normal (Sync)
                     cursor.execute("DELETE FROM Imputaciones WHERE UsuarioId = ? AND ProyectoId = ? AND Fecha = ?", 
-                                   (usuario_id, proyecto_id, fecha))
+                                   (user_id, project_id, date))
                     if h > 0:
                         cursor.execute("""
                             INSERT INTO Imputaciones (UsuarioId, ProyectoId, Fecha, Horas, Estado)
                             VALUES (?, ?, ?, ?, 'Borrador')
-                        """, (usuario_id, proyecto_id, fecha, h))
+                        """, (user_id, project_id, date, h))
         
         conn.commit()
-        registrar_log(usuario_id, 'Usuario', 'SYNC_IMPUTACIONES', 'info', "Sincronización semanal realizada.")
+        register_log(user_id, 'User', 'SYNC_IMPUTACIONES', 'info', "Sincronización semanal realizada.")
         return True
     except Exception as e:
         print(f"Error: {e}")

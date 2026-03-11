@@ -1,6 +1,6 @@
 from database.connection import get_db_connection
 
-def obtener_logs():
+def get_logs():
     conn = get_db_connection()
     if not conn: return None
     try:
@@ -13,15 +13,15 @@ def obtener_logs():
             ORDER BY Fecha DESC, Id DESC
         """)
         
-        columnas = ['id', 'fecha', 'actor', 'accion', 'gravedad', 'detalle']
-        return [dict(zip(columnas, row)) for row in cursor.fetchall()]
+        columns = ['id', 'date', 'actor', 'action', 'severity', 'detail']
+        return [dict(zip(columns, row)) for row in cursor.fetchall()]
     except Exception as e:
         print("Error al obtener logs:", e)
         return None
     finally:
         conn.close()
 
-def registrar_log(actor_id, actor_nombre, accion, gravedad, detalle):
+def register_log(actor_id, actor_name, action, severity, detail):
     conn = get_db_connection()
     if not conn: return False
     try:
@@ -30,7 +30,7 @@ def registrar_log(actor_id, actor_nombre, accion, gravedad, detalle):
             INSERT INTO Auditoria (ActorId, ActorNombre, Accion, Gravedad, Detalle) 
             VALUES (?, ?, ?, ?, ?)
         """
-        cursor.execute(query, (actor_id, actor_nombre, accion, gravedad, detalle))
+        cursor.execute(query, (actor_id, actor_name, action, severity, detail))
         conn.commit()
         return True
     except Exception as e:

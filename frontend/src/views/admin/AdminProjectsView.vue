@@ -42,7 +42,7 @@ const confirmacion = reactive({
 const cargarDatos = async () => {
     try {
         cargando.value = true
-        const resProj = await fetch('http://localhost:5000/api/proyectos')
+        const resProj = await fetch('http://localhost:5000/api/admin/projects')
         const jsonProj = await resProj.json()
         
         if (jsonProj.status === 'success') {
@@ -60,7 +60,7 @@ const cargarDatos = async () => {
             }))
         }
 
-        const resUser = await fetch('http://localhost:5000/api/usuarios')
+        const resUser = await fetch('http://localhost:5000/api/users')
         const jsonUser = await resUser.json()
         if (jsonUser.status === 'success') {
             usuarios_db.value = jsonUser.data.map(u => ({
@@ -106,8 +106,8 @@ const guardar = async () => {
     try {
         const metodo = esEdicion.value ? 'PUT' : 'POST'
         const url = esEdicion.value 
-            ? `http://localhost:5000/api/proyectos/${formulario.value.id}`
-            : 'http://localhost:5000/api/proyectos'
+            ? `http://localhost:5000/api/admin/projects/${formulario.value.id}`
+            : 'http://localhost:5000/api/admin/projects'
         
         const payload = {
             nombre: formulario.value.nombre,
@@ -162,9 +162,9 @@ const ejecutarAccionConfirmada = async () => {
     try {
         let res;
         if (confirmacion.modo === 'eliminar') {
-            res = await fetch(`http://localhost:5000/api/proyectos/${confirmacion.proyectoId}/force`, { method: 'DELETE' });
+            res = await fetch(`http://localhost:5000/api/admin/projects/${confirmacion.proyectoId}/force`, { method: 'DELETE' });
         } else if (confirmacion.modo === 'toggle') {
-            res = await fetch(`http://localhost:5000/api/proyectos/${confirmacion.proyectoId}/toggle`, { method: 'PUT' });
+            res = await fetch(`http://localhost:5000/api/admin/projects/${confirmacion.proyectoId}/toggle`, { method: 'PUT' });
         }
 
         const data = await res.json();

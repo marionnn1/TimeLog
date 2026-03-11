@@ -1,6 +1,6 @@
 from database.connection import get_db_connection
 
-def obtener_ausencias_mes(mes, anio):
+def get_monthly_absences(month, year):
     conn = get_db_connection()
     if not conn: return []
     try:
@@ -11,16 +11,15 @@ def obtener_ausencias_mes(mes, anio):
             INNER JOIN Usuarios u ON a.UsuarioId = u.Id
             WHERE MONTH(a.Fecha) = ? AND YEAR(a.Fecha) = ?
         """
-        cursor.execute(query, (mes, anio))
+        cursor.execute(query, (month, year))
         
-        # Formateamos los datos para enviarlos al Frontend
         return [{
-            "fecha": row[0].strftime('%Y-%m-%d') if row[0] else None, 
-            "tipo": row[1], 
-            "comentario": row[2] or "",
+            "date": row[0].strftime('%Y-%m-%d') if row[0] else None, 
+            "type": row[1], 
+            "comment": row[2] or "",
             "userId": row[3], 
-            "nombre": row[4],
-            "iniciales": "".join([n[0] for n in row[4].split()[:2]]).upper() if row[4] else "XX"
+            "name": row[4],
+            "initials": "".join([n[0] for n in row[4].split()[:2]]).upper() if row[4] else "XX"
         } for row in cursor.fetchall()]
     except Exception as e:
         print("Error al obtener ausencias:", e)
@@ -28,19 +27,18 @@ def obtener_ausencias_mes(mes, anio):
     finally:
         conn.close()
 
-def guardar_ausencias(usuario_id, fechas, tipo, comentario=""):
+def save_absences(user_id, dates, type, comment=""):
     conn = get_db_connection()
     if not conn: return False
     try:
         cursor = conn.cursor()
-        for fecha in fechas:
-            # Evitamos duplicados si el usuario ya pidió ese día
-            cursor.execute("SELECT Id FROM Ausencias WHERE UsuarioId = ? AND Fecha = ?", (usuario_id, fecha))
+        for date in dates:
+            cursor.execute("SELECT Id FROM Ausencias WHERE UsuarioId = ? AND Fecha = ?", (user_id, date))
             if not cursor.fetchone():
                 cursor.execute("""
                     INSERT INTO Ausencias (UsuarioId, Fecha, Tipo, Comentario) 
                     VALUES (?, ?, ?, ?)
-                """, (usuario_id, fecha, tipo, comentario))
+                """, (user_id, date, type, comment))
         conn.commit()
         return True
     except Exception as e:
@@ -50,12 +48,12 @@ def guardar_ausencias(usuario_id, fechas, tipo, comentario=""):
     finally:
         conn.close()
 
-def eliminar_ausencia(usuario_id, fecha):
+def delete_absence(user_id, date):
     conn = get_db_connection()
     if not conn: return False
     try:
         cursor = conn.cursor()
-        cursor.execute("DELETE FROM Ausencias WHERE UsuarioId = ? AND Fecha = ?", (usuario_id, fecha))
+        cursor.execute("DELETE FROM Ausencias WHERE UsuarioId = ? AND Fecha = ?", (user_id, date))
         conn.commit()
         return True
     except Exception as e:

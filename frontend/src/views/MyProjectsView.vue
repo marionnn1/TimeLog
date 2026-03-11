@@ -28,7 +28,7 @@ const cargarData = async () => {
     if (!user) return
     
     try {
-        const res = await fetch(`http://localhost:5000/api/myprojects/analitica-mensual?usuario_id=${user.id}&mes=${mesSeleccionado.value}&anio=${anioSeleccionado.value}`)
+        const res = await fetch(`http://localhost:5000/api/myprojects/monthly-analytic?usuario_id=${user.id}&mes=${mesSeleccionado.value}&anio=${anioSeleccionado.value}`)
         const json = await res.json()
         datos.value = json.data
     } catch (e) {

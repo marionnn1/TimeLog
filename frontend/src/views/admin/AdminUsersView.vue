@@ -42,7 +42,7 @@ const confirmacion = reactive({
 const cargarUsuariosDesdeAPI = async () => {
     try {
         cargando.value = true
-        const respuesta = await fetch('http://127.0.0.1:5000/api/usuarios')
+        const respuesta = await fetch('http://127.0.0.1:5000/api/users')
         const json = await respuesta.json()
         
         if (json.status === 'success') {
@@ -101,8 +101,8 @@ const guardar = async () => {
     try {
         const metodo = esEdicion.value ? 'PUT' : 'POST'
         const url = esEdicion.value 
-            ? `http://localhost:5000/api/usuarios/${formulario.value.id}`
-            : 'http://localhost:5000/api/usuarios'
+            ? `http://localhost:5000/api/users/${formulario.value.id}`
+            : 'http://localhost:5000/api/users'
         
         const payload = {
             nombre: formulario.value.nombre,
@@ -159,11 +159,11 @@ const confirmarAccion = async () => {
         let respuesta;
         
         if (confirmacion.action === 'eliminar') {
-            respuesta = await fetch(`http://127.0.0.1:5000/api/usuarios/${confirmacion.usuarioId}`, {
+            respuesta = await fetch(`http://127.0.0.1:5000/api/users/${confirmacion.usuarioId}`, {
                 method: 'DELETE'
             });
         } else if (confirmacion.action === 'toggle') {
-            respuesta = await fetch(`http://127.0.0.1:5000/api/usuarios/${confirmacion.usuarioId}/toggle`, {
+            respuesta = await fetch(`http://127.0.0.1:5000/api/users/${confirmacion.usuarioId}/toggle`, {
                 method: 'PUT'
             });
         }

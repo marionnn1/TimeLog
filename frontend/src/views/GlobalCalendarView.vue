@@ -46,7 +46,7 @@ const cargarAusencias = async () => {
     if (!currentUser) return
     try {
         const mesApi = month.value + 1
-        const res = await fetch(`http://localhost:5000/api/ausencias?mes=${mesApi}&anio=${year.value}`)
+        const res = await fetch(`http://localhost:5000/api/absences?mes=${mesApi}&anio=${year.value}`)
         const json = await res.json()
         if (json.status === 'success') {
             ausenciasDelMes.value = json.data
@@ -61,7 +61,7 @@ const cargarResumenAnual = async () => {
     try {
         const promesas = []
         for(let m = 1; m <= 12; m++) {
-            promesas.push(fetch(`http://localhost:5000/api/ausencias?mes=${m}&anio=${year.value}`).then(r => r.json()))
+            promesas.push(fetch(`http://localhost:5000/api/absences?mes=${m}&anio=${year.value}`).then(r => r.json()))
         }
         const resultados = await Promise.all(promesas)
         
@@ -180,7 +180,7 @@ const abrirModal = (day) => {
             'danger',
             async () => {
                 try {
-                    await fetch('http://localhost:5000/api/ausencias', {
+                    await fetch('http://localhost:5000/api/absences', {
                         method: 'DELETE',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ usuario_id: currentUser.id, fecha: day.isoDate })
@@ -202,7 +202,7 @@ const abrirModal = (day) => {
 
 const procesarSolicitud = async (diasSolicitados) => {
     try {
-        const res = await fetch('http://localhost:5000/api/ausencias', {
+        const res = await fetch('http://localhost:5000/api/absences', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({

@@ -2,7 +2,7 @@ from database.connection import get_db_connection
 import traceback
 from datetime import datetime
 
-def obtener_imputaciones_semana(usuario_id, fecha_lunes):
+def get_weekly_time_entries(user_id, monday_date):
     conn = get_db_connection()
     if not conn: return []
     try:
@@ -14,43 +14,49 @@ def obtener_imputaciones_semana(usuario_id, fecha_lunes):
             INNER JOIN Clientes c ON p.ClienteId = c.Id
             WHERE i.UsuarioId = ? AND i.Fecha >= ? AND i.Fecha <= DATEADD(day, 6, ?)
         """
-        cursor.execute(query, (usuario_id, fecha_lunes, fecha_lunes))
-        columnas = [column[0] for column in cursor.description]
-        return [dict(zip(columnas, row)) for row in cursor.fetchall()]
+        cursor.execute(query, (user_id, monday_date, monday_date))
+        
+        rows = cursor.fetchall()
+        return [{
+            "projectId": row.ProyectoId,
+            "projectName": row.ProyectoNombre,
+            "clientName": row.ClienteNombre,
+            "date": row.Fecha.strftime('%Y-%m-%d') if row.Fecha else None,
+            "hours": float(row.Horas)
+        } for row in rows]
     except Exception:
         return []
     finally:
         conn.close()
 
-def guardar_imputaciones_lote(usuario_id, filas, fechas_semana):
+def save_time_entries_batch(user_id, rows, week_dates):
     conn = get_db_connection()
     if not conn: return False
     try:
         cursor = conn.cursor()
-        for fila in filas:
-            p_id = fila.get('id_proyecto')
+        for row in rows:
+            p_id = row.get('projectId')
             if not p_id: continue
             
             for i in range(7):
-                fecha = fechas_semana[i]
-                h = float(fila.get('horas')[i] or 0)
+                date = week_dates[i]
+                h = float(row.get('hours')[i] or 0)
                 
-                # Verificamos estado antes de tocar nada
                 cursor.execute("SELECT Estado FROM Imputaciones WHERE UsuarioId = ? AND ProyectoId = ? AND Fecha = ?", 
-                               (usuario_id, p_id, fecha))
-                row = cursor.fetchone()
+                               (user_id, p_id, date))
+                db_row = cursor.fetchone()
                 
-                if row and row.Estado == 'Aprobado':
+                if db_row and db_row.Estado == 'Aprobado':
                     cursor.execute("""
                         UPDATE Imputaciones SET Estado = 'Pendiente', Horas = ? 
                         WHERE UsuarioId = ? AND ProyectoId = ? AND Fecha = ?
-                    """, (h, usuario_id, p_id, fecha))
+                    """, (h, user_id, p_id, date))
                 else:
                     cursor.execute("DELETE FROM Imputaciones WHERE UsuarioId = ? AND ProyectoId = ? AND Fecha = ?", 
-                                   (usuario_id, p_id, fecha))
+                                   (user_id, p_id, date))
                     if h > 0:
                         cursor.execute("INSERT INTO Imputaciones (UsuarioId, ProyectoId, Fecha, Horas, Estado) VALUES (?, ?, ?, ?, 'Borrador')", 
-                                       (usuario_id, p_id, fecha, h))
+                                       (user_id, p_id, date, h))
         conn.commit()
         return True
     except Exception:
@@ -59,11 +65,11 @@ def guardar_imputaciones_lote(usuario_id, filas, fechas_semana):
     finally:
         conn.close()
 
-def obtener_analitica_mensual(usuario_id, mes, anio):
+def get_monthly_analytics(user_id, month, year):
     conn = get_db_connection()
     default_data = {
-        "proyectos": [], 
-        "totales": {"mes_real": 0, "ano_acumulado": 0, "mes_nombre": ""}
+        "projects": [], 
+        "totals": {"monthActual": 0, "yearAccumulated": 0, "monthName": ""}
     }
     if not conn: return default_data
     
@@ -78,36 +84,36 @@ def obtener_analitica_mensual(usuario_id, mes, anio):
             WHERE i.UsuarioId = ? AND MONTH(i.Fecha) = ? AND YEAR(i.Fecha) = ?
             GROUP BY p.Nombre, c.Nombre
         """
-        cursor.execute(query_p, (usuario_id, mes, anio))
+        cursor.execute(query_p, (user_id, month, year))
         rows = cursor.fetchall()
 
-        cursor.execute("SELECT SUM(Horas) FROM Imputaciones WHERE UsuarioId = ? AND YEAR(Fecha) = ?", (usuario_id, anio))
-        total_ano = float(cursor.fetchone()[0] or 0)
+        cursor.execute("SELECT SUM(Horas) FROM Imputaciones WHERE UsuarioId = ? AND YEAR(Fecha) = ?", (user_id, year))
+        year_total = float(cursor.fetchone()[0] or 0)
 
-        cursor.execute("SELECT SUM(Horas) FROM Imputaciones WHERE UsuarioId = ? AND MONTH(Fecha) = ? AND YEAR(Fecha) = ?", (usuario_id, mes, anio))
-        total_mes = float(cursor.fetchone()[0] or 0)
+        cursor.execute("SELECT SUM(Horas) FROM Imputaciones WHERE UsuarioId = ? AND MONTH(Fecha) = ? AND YEAR(Fecha) = ?", (user_id, month, year))
+        month_total = float(cursor.fetchone()[0] or 0)
 
-        proyectos_data = []
+        projects_data = []
         for r in rows:
-            real_val = float(r[2] or 0)
-            asignado_sem = 10.0 
-            obj_mensual = asignado_sem * 4
+            actual_val = float(r[2] or 0)
+            weekly_assigned = 10.0 
+            monthly_goal = weekly_assigned * 4
             
-            proyectos_data.append({
-                "proyecto": r[0],
-                "cliente": r[1],
-                "real": real_val,
-                "asignado_semanal": asignado_sem,
-                "objetivo_mensual": obj_mensual,
-                "porcentaje": round((real_val / obj_mensual) * 100, 1) if obj_mensual > 0 else 0
+            projects_data.append({
+                "project": r[0],
+                "client": r[1],
+                "actual": actual_val,
+                "weeklyAssigned": weekly_assigned,
+                "monthlyGoal": monthly_goal,
+                "percentage": round((actual_val / monthly_goal) * 100, 1) if monthly_goal > 0 else 0
             })
 
         return {
-            "proyectos": proyectos_data,
-            "totales": {
-                "mes_real": total_mes,
-                "ano_acumulado": total_ano,
-                "mes_nombre": f"Mes {mes} / {anio}"
+            "projects": projects_data,
+            "totals": {
+                "monthActual": month_total,
+                "yearAccumulated": year_total,
+                "monthName": f"Month {month} / {year}"
             }
         }
     except Exception:
@@ -116,8 +122,7 @@ def obtener_analitica_mensual(usuario_id, mes, anio):
     finally:
         conn.close()
 
-# --- NUEVA API PARA VER A TODOS LOS USUARIOS ---
-def obtener_analitica_equipo(mes, anio):
+def get_team_analytics(month, year):
     conn = get_db_connection()
     if not conn: return []
     try:
@@ -135,36 +140,36 @@ def obtener_analitica_equipo(mes, anio):
             GROUP BY u.Id, u.Nombre, u.Apellidos, p.Nombre, c.Nombre
             ORDER BY u.Nombre, p.Nombre
         """
-        cursor.execute(query, (mes, anio))
+        cursor.execute(query, (month, year))
         rows = cursor.fetchall()
 
-        equipo_data = {}
+        team_data = {}
         for r in rows:
             u_id = r[0]
-            if u_id not in equipo_data:
-                equipo_data[u_id] = {
+            if u_id not in team_data:
+                team_data[u_id] = {
                     "id": u_id,
-                    "nombre_completo": f"{r[1]} {r[2]}",
-                    "total_mes": 0.0,
-                    "proyectos": []
+                    "fullName": f"{r[1]} {r[2]}",
+                    "totalMonth": 0.0,
+                    "projects": []
                 }
             
-            horas = float(r[5] or 0)
-            equipo_data[u_id]["proyectos"].append({
-                "proyecto": r[3],
-                "cliente": r[4],
-                "horas": horas
+            hours = float(r[5] or 0)
+            team_data[u_id]["projects"].append({
+                "project": r[3],
+                "client": r[4],
+                "hours": hours
             })
-            equipo_data[u_id]["total_mes"] += horas
+            team_data[u_id]["totalMonth"] += hours
 
-        return list(equipo_data.values())
+        return list(team_data.values())
     except Exception:
         traceback.print_exc()
         return []
     finally:
         conn.close()
 
-def obtener_calendario_mensual(usuario_id, mes, anio):
+def get_monthly_calendar(user_id, month, year):
     from database.connection import get_db_connection
     conn = get_db_connection()
     if not conn: return []
@@ -184,17 +189,17 @@ def obtener_calendario_mensual(usuario_id, mes, anio):
             WHERE i.UsuarioId = ? AND MONTH(i.Fecha) = ? AND YEAR(i.Fecha) = ?
             GROUP BY DAY(i.Fecha), c.Nombre, p.Id, p.Nombre
         """
-        cursor.execute(query, (usuario_id, mes, anio))
+        cursor.execute(query, (user_id, month, year))
         rows = cursor.fetchall()
         
         data = []
         for r in rows:
             data.append({
-                "dia": r[0],
-                "cliente": r[1],
-                "proyecto_id": r[2],
-                "proyecto": r[3],
-                "horas": float(r[4])
+                "day": r[0],
+                "client": r[1],
+                "projectId": r[2],
+                "project": r[3],
+                "hours": float(r[4])
             })
         return data
     except Exception as e:
@@ -203,26 +208,24 @@ def obtener_calendario_mensual(usuario_id, mes, anio):
     finally:
         conn.close()
 
-def solicitar_correccion_imputacion(usuario_id, proyecto_id, fecha, nuevas_horas, motivo):
+def request_time_entry_correction(user_id, project_id, date, new_hours, reason):
     from database.connection import get_db_connection
     conn = get_db_connection()
     if not conn: return False
     try:
         cursor = conn.cursor()
-        # Buscamos la imputación exacta y la pasamos a Pendiente
         cursor.execute("""
             UPDATE Imputaciones
             SET Estado = 'Pendiente', Horas = ?, Comentario = ?
             WHERE UsuarioId = ? AND ProyectoId = ? AND Fecha = ?
-        """, (nuevas_horas, motivo, usuario_id, proyecto_id, fecha))
+        """, (new_hours, reason, user_id, project_id, date))
         
         conn.commit()
         
-        # Dejamos registro en auditoría (opcional pero recomendado)
         cursor.execute("""
             INSERT INTO Auditoria (ActorNombre, Accion, Gravedad, Detalle)
             VALUES ('Sistema', 'Solicitud Corrección', 'warning', ?)
-        """, (f"Usuario {usuario_id} solicita cambiar a {nuevas_horas}h el proyecto {proyecto_id} en {fecha}",))
+        """, (f"Usuario {user_id} solicita cambiar a {new_hours}h el proyecto {project_id} en {date}",))
         conn.commit()
         
         return True

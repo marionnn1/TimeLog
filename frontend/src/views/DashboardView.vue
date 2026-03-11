@@ -87,7 +87,7 @@ const esPasoInvalido = (valor) => {
 // --- CARGA DE PROYECTOS REALES (PARA EL MODAL) ---
 const cargarProyectosParaModal = async () => {
     try {
-        const res = await fetch('http://localhost:5000/api/proyectos')
+        const res = await fetch('http://localhost:5000/api/projects')
         const json = await res.json()
         if (json.status === 'success') {
             proyectosRealDB.value = json.data.filter(p => p.Estado === 'Activo')
@@ -104,7 +104,7 @@ const cargarHorasDesdeAPI = async () => {
     const lunesStr = lunesActual.value.toISOString().split('T')[0]
     try {
         cargando.value = true
-        const res = await fetch(`http://localhost:5000/api/myprojects/semana?usuario_id=${user.id}&fecha_lunes=${lunesStr}`)
+        const res = await fetch(`http://localhost:5000/api/myprojects/week?usuario_id=${user.id}&fecha_lunes=${lunesStr}`)
         const json = await res.json()
         if (json.status === 'success') {
             const datosBackend = json.data || []
@@ -146,7 +146,7 @@ const guardarCambios = async () => {
         filas: filas.value.map(f => ({ id_proyecto: f.id, horas: f.horas }))
     }
     try {
-        const res = await fetch('http://localhost:5000/api/myprojects/guardar', {
+        const res = await fetch('http://localhost:5000/api/myprojects/save', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(payload)

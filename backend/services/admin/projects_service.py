@@ -1,6 +1,7 @@
 from database.connection import get_db_connection
-from services.admin.auditoria_service import registrar_log
-def obtener_proyectos():
+from TimeLog.backend.services.admin.audit_service import register_log
+
+def get_projects():
     conn = get_db_connection()
     if not conn: return None
     
@@ -14,7 +15,7 @@ def obtener_proyectos():
         cursor.execute(query)
         rows = cursor.fetchall()
         
-        proyectos = []
+        projects = []
         for row in rows:
             p_id = row[0]
             cursor.execute("""
@@ -24,39 +25,40 @@ def obtener_proyectos():
                 WHERE a.ProyectoId = ? AND a.Activo = 1
             """, (p_id,))
             
-            equipo = [{"id": r[0], "nombre": r[1]} for r in cursor.fetchall()]
+            team = [{"id": r[0], "name": r[1]} for r in cursor.fetchall()]
             
-            proyectos.append({
-                "Id": row[0],
-                "Nombre": row[1],
-                "Cliente": row[2],
-                "Estado": row[3],
-                "Tipo": row[4],
-                "Equipo": equipo
+            # Diccionario estandarizado al inglés para el frontend
+            projects.append({
+                "id": row[0],
+                "name": row[1],
+                "client": row[2],
+                "status": row[3],
+                "type": row[4],
+                "team": team
             })
-        return proyectos
+        return projects
     except Exception as e:
         print("Error al obtener proyectos:", e)
         return None
     finally:
         conn.close()
 
-def crear_proyecto(datos):
+def create_project(data):
     conn = get_db_connection()
     if not conn: return False
     try:
         cursor = conn.cursor()
         
         # 1. BUSCAR O CREAR EL CLIENTE AUTOMÁTICAMENTE
-        nombre_cliente = datos.get('cliente', 'Cliente Genérico')
-        cursor.execute("SELECT Id FROM Clientes WHERE Nombre = ?", (nombre_cliente,))
-        cliente = cursor.fetchone()
+        client_name = data.get('client', 'Cliente Genérico')
+        cursor.execute("SELECT Id FROM Clientes WHERE Nombre = ?", (client_name,))
+        client = cursor.fetchone()
         
-        if cliente:
-            cliente_id = cliente[0]
+        if client:
+            client_id = client[0]
         else:
-            cursor.execute("INSERT INTO Clientes (Nombre, Estado, FechaCreacion) OUTPUT INSERTED.Id VALUES (?, 1, GETDATE())", (nombre_cliente,))
-            cliente_id = cursor.fetchone()[0]
+            cursor.execute("INSERT INTO Clientes (Nombre, Estado, FechaCreacion) OUTPUT INSERTED.Id VALUES (?, 1, GETDATE())", (client_name,))
+            client_id = cursor.fetchone()[0]
 
         # 2. INSERTAR EL PROYECTO Y OBTENER SU NUEVO ID
         query = """
@@ -64,19 +66,19 @@ def crear_proyecto(datos):
             OUTPUT INSERTED.Id
             VALUES (?, ?, ?, 'Proyecto', GETDATE())
         """
-        cursor.execute(query, (cliente_id, datos.get('nombre'), datos.get('estado', 'Activo')))
-        nuevo_proyecto_id = cursor.fetchone()[0]
+        cursor.execute(query, (client_id, data.get('name'), data.get('status', 'Activo')))
+        new_project_id = cursor.fetchone()[0]
         
         # 3. GUARDAR EL EQUIPO ASIGNADO (NUEVO)
-        usuarios_ids = datos.get('usuarios_ids', [])
-        for u_id in usuarios_ids:
+        user_ids = data.get('user_ids', [])
+        for u_id in user_ids:
             cursor.execute("""
                 INSERT INTO Asignaciones (ProyectoId, UsuarioId, Activo) 
                 VALUES (?, ?, 1)
-            """, (nuevo_proyecto_id, u_id))
+            """, (new_project_id, u_id))
 
         conn.commit()
-        registrar_log(1, 'Admin', 'CREAR_PROYECTO', 'info', f"Se creó el proyecto: {datos.get('nombre')}.")
+        register_log(1, 'Admin', 'CREAR_PROYECTO', 'info', f"Se creó el proyecto: {data.get('name')}.")
         return True
     except Exception as e:
         print("Error al crear proyecto:", e)
@@ -85,39 +87,39 @@ def crear_proyecto(datos):
     finally:
         conn.close()
 
-def actualizar_proyecto(id_proyecto, datos):
+def update_project(project_id, data):
     conn = get_db_connection()
     if not conn: return False
     try:
         cursor = conn.cursor()
         
         # 1. BUSCAR O CREAR EL CLIENTE AUTOMÁTICAMENTE
-        nombre_cliente = datos.get('cliente', 'Cliente Genérico')
-        cursor.execute("SELECT Id FROM Clientes WHERE Nombre = ?", (nombre_cliente,))
-        cliente = cursor.fetchone()
+        client_name = data.get('client', 'Cliente Genérico')
+        cursor.execute("SELECT Id FROM Clientes WHERE Nombre = ?", (client_name,))
+        client = cursor.fetchone()
         
-        if cliente:
-            cliente_id = cliente[0]
+        if client:
+            client_id = client[0]
         else:
-            cursor.execute("INSERT INTO Clientes (Nombre, Estado, FechaCreacion) OUTPUT INSERTED.Id VALUES (?, 1, GETDATE())", (nombre_cliente,))
-            cliente_id = cursor.fetchone()[0]
+            cursor.execute("INSERT INTO Clientes (Nombre, Estado, FechaCreacion) OUTPUT INSERTED.Id VALUES (?, 1, GETDATE())", (client_name,))
+            client_id = cursor.fetchone()[0]
 
         # 2. ACTUALIZAR LOS DATOS BÁSICOS
         query = "UPDATE Proyectos SET Nombre = ?, Estado = ?, ClienteId = ? WHERE Id = ?"
-        cursor.execute(query, (datos.get('nombre'), datos.get('estado'), cliente_id, id_proyecto))
+        cursor.execute(query, (data.get('name'), data.get('status'), client_id, project_id))
         
         # 3. GESTIÓN DE ASIGNACIONES (Borrar y reescribir)
-        cursor.execute("DELETE FROM Asignaciones WHERE ProyectoId = ?", (id_proyecto,))
+        cursor.execute("DELETE FROM Asignaciones WHERE ProyectoId = ?", (project_id,))
         
-        usuarios_ids = datos.get('usuarios_ids', [])
-        for u_id in usuarios_ids:
+        user_ids = data.get('user_ids', [])
+        for u_id in user_ids:
             cursor.execute("""
                 INSERT INTO Asignaciones (ProyectoId, UsuarioId, Activo) 
                 VALUES (?, ?, 1)
-            """, (id_proyecto, u_id))
+            """, (project_id, u_id))
             
         conn.commit()
-        registrar_log(1, 'Admin', 'ACTUALIZAR_PROYECTO', 'info', f"Se actualizó el proyecto: {datos.get('nombre')} y su equipo.")
+        register_log(1, 'Admin', 'ACTUALIZAR_PROYECTO', 'info', f"Se actualizó el proyecto: {data.get('name')} y su equipo.")
         return True
     except Exception as e:
         print("Error al actualizar proyecto:", e)
@@ -126,15 +128,15 @@ def actualizar_proyecto(id_proyecto, datos):
     finally:
         conn.close()
 
-def cerrar_proyecto(id_proyecto):
+def close_project(project_id):
     conn = get_db_connection()
     if not conn: return False
     try:
         cursor = conn.cursor()
         query = "UPDATE Proyectos SET Estado = 'Cerrado', FechaDesactivacion = GETDATE() WHERE Id = ?"
-        cursor.execute(query, (id_proyecto,))
+        cursor.execute(query, (project_id,))
         conn.commit()
-        registrar_log(1, 'Admin', 'CERRAR_PROYECTO', 'warning', f"Se ha cerrado el proyecto con ID: {id_proyecto}.")
+        register_log(1, 'Admin', 'CERRAR_PROYECTO', 'warning', f"Se ha cerrado el proyecto con ID: {project_id}.")
         return True
     except Exception as e:
         print("Error al cerrar proyecto:", e)
@@ -142,23 +144,23 @@ def cerrar_proyecto(id_proyecto):
     finally:
         conn.close()
 
-def eliminar_proyecto_fisico(id_proyecto):
+def hard_delete_project(project_id):
     conn = get_db_connection()
     if not conn: return False
     try:
         cursor = conn.cursor()
         # 1. Limpiamos las imputaciones (horas) para evitar error de clave foránea
-        cursor.execute("DELETE FROM Imputaciones WHERE ProyectoId = ?", (id_proyecto,))
+        cursor.execute("DELETE FROM Imputaciones WHERE ProyectoId = ?", (project_id,))
         
         # 2. Limpiamos las asignaciones de equipo
-        cursor.execute("DELETE FROM Asignaciones WHERE ProyectoId = ?", (id_proyecto,))
+        cursor.execute("DELETE FROM Asignaciones WHERE ProyectoId = ?", (project_id,))
         
         # 3. Borramos el proyecto
         query = "DELETE FROM Proyectos WHERE Id = ?"
-        cursor.execute(query, (id_proyecto,))
+        cursor.execute(query, (project_id,))
         
         conn.commit()
-        registrar_log(1, 'Admin', 'BORRADO_FISICO', 'danger', f"El proyecto con ID {id_proyecto} fue eliminado de la base de datos.")
+        register_log(1, 'Admin', 'BORRADO_FISICO', 'danger', f"El proyecto con ID {project_id} fue eliminado de la base de datos.")
         return True
     except Exception as e:
         print("Error al eliminar físicamente el proyecto:", e)
@@ -167,23 +169,23 @@ def eliminar_proyecto_fisico(id_proyecto):
     finally:
         conn.close()
 
-def toggle_estado_proyecto(id_proyecto):
+def toggle_project_status(project_id):
     conn = get_db_connection()
     if not conn: return False
     try:
         cursor = conn.cursor()
-        cursor.execute("SELECT Estado, Nombre FROM Proyectos WHERE Id = ?", (id_proyecto,))
+        cursor.execute("SELECT Estado, Nombre FROM Proyectos WHERE Id = ?", (project_id,))
         row = cursor.fetchone()
         if not row: return False
         
-        estado_actual = row[0]
-        nombre_proyecto = row[1]
-        nuevo_estado = 'Cerrado' if estado_actual == 'Activo' else 'Activo'
+        current_status = row[0]
+        project_name = row[1]
+        new_status = 'Cerrado' if current_status == 'Activo' else 'Activo'
         
-        cursor.execute("UPDATE Proyectos SET Estado = ? WHERE Id = ?", (nuevo_estado, id_proyecto))
+        cursor.execute("UPDATE Proyectos SET Estado = ? WHERE Id = ?", (new_status, project_id))
         conn.commit()
         
-        registrar_log(1, 'Admin', 'CAMBIO_ESTADO', 'warning' if nuevo_estado == 'Cerrado' else 'info', f"El proyecto '{nombre_proyecto}' ha pasado a estado: {nuevo_estado}.")
+        register_log(1, 'Admin', 'CAMBIO_ESTADO', 'warning' if new_status == 'Cerrado' else 'info', f"El proyecto '{project_name}' ha pasado a estado: {new_status}.")
         return True
     except Exception as e:
         print("Error al cambiar estado del proyecto:", e)

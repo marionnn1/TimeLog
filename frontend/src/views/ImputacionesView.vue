@@ -103,7 +103,7 @@ const cargarCalendario = async () => {
     try {
         // Obtenemos mes en formato 1-12
         const mesReal = mesActualIndex.value + 1
-        const res = await fetch(`http://localhost:5000/api/myprojects/calendario?usuario_id=${user.id}&mes=${mesReal}&anio=${anioActual.value}`)
+        const res = await fetch(`http://localhost:5000/api/myprojects/calendar?usuario_id=${user.id}&mes=${mesReal}&anio=${anioActual.value}`)
         const json = await res.json()
         
         if (json.status === 'success') {
@@ -227,7 +227,7 @@ const enviarSolicitudJefe = async () => {
     if (!user) return;
 
     try {
-        const response = await fetch('http://localhost:5000/api/myprojects/solicitar-correccion', {
+        const response = await fetch('http://localhost:5000/api/myprojects/request-correction', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({

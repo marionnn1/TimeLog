@@ -10,7 +10,7 @@ const filtroGravedad = ref('todos')
 const cargarLogs = async () => {
     try {
         cargando.value = true
-        const res = await fetch('http://localhost:5000/api/auditoria')
+        const res = await fetch('http://localhost:5000/api/audit')
         const json = await res.json()
         if (json.status === 'success') {
             logs.value = json.data

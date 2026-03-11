@@ -8,7 +8,6 @@ def get_all_projects_data():
     try:
         cursor = conn.cursor()
         
-        # 1. Obtener proyectos activos con sus clientes
         cursor.execute("""
             SELECT p.Id, p.Nombre, p.Codigo, p.Estado, c.Nombre as Cliente, c.Codigo as IdCliente
             FROM Proyectos p
@@ -16,19 +15,18 @@ def get_all_projects_data():
             WHERE p.FechaDesactivacion IS NULL
         """)
         
-        proyectos = []
+        projects = []
         for row in cursor.fetchall():
-            proyectos.append({
+            projects.append({
                 "id": row.Id,
-                "nombre": row.Nombre,
-                "cliente": row.Cliente or "Sin Cliente",
-                "idCliente": row.IdCliente or "",
-                "codigo": row.Codigo,
-                "estado": True if row.Estado == 'Activo' else False,
-                "equipo": []
+                "name": row.Nombre,
+                "client": row.Cliente or "Sin Cliente",
+                "clientId": row.IdCliente or "",
+                "code": row.Codigo,
+                "status": True if row.Estado == 'Activo' else False,
+                "team": []
             })
 
-        # 2. Obtener las asignaciones de equipo para cada proyecto
         cursor.execute("""
             SELECT a.ProyectoId, u.Id, u.Nombre, u.Rol
             FROM Asignaciones a
@@ -36,28 +34,27 @@ def get_all_projects_data():
             WHERE a.Activo = 1 AND a.FechaDesactivacion IS NULL
         """)
         
-        asignaciones = cursor.fetchall()
-        for p in proyectos:
-            p["equipo"] = [{
+        assignments = cursor.fetchall()
+        for p in projects:
+            p["team"] = [{
                 "id": a.Id,
-                "nombre": a.Nombre,
-                "rol": a.Rol,
-                "iniciales": "".join([n[0] for n in a.Nombre.split()[:2]]).upper()
-            } for a in asignaciones if a.ProyectoId == p["id"]]
+                "name": a.Nombre,
+                "role": a.Rol,
+                "initials": "".join([n[0] for n in a.Nombre.split()[:2]]).upper()
+            } for a in assignments if a.ProyectoId == p["id"]]
 
-        # 3. Obtener usuarios disponibles para el desplegable de asignar
         cursor.execute("SELECT Id, Nombre, Rol FROM Usuarios WHERE Activo = 1")
-        usuarios = []
+        users = []
         for row in cursor.fetchall():
-            usuarios.append({
+            users.append({
                 "id": row.Id,
-                "nombre": row.Nombre,
-                "rol": row.Rol,
-                "iniciales": "".join([n[0] for n in row.Nombre.split()[:2]]).upper()
+                "name": row.Nombre,
+                "role": row.Rol,
+                "initials": "".join([n[0] for n in row.Nombre.split()[:2]]).upper()
             })
 
         conn.close()
-        return {"proyectos": proyectos, "usuariosDisponibles": usuarios}, 200
+        return {"projects": projects, "availableUsers": users}, 200
 
     except Exception as e:
         if conn: conn.close()
@@ -70,49 +67,46 @@ def save_project(data, project_id=None):
 
     try:
         cursor = conn.cursor()
-        nombre = data.get('nombre')
-        cliente_nombre = data.get('cliente')
-        cliente_codigo = data.get('idCliente')
-        estado_str = 'Activo' if data.get('estado') else 'Cerrado'
-        codigo = data.get('codigo')
+        name = data.get('name')
+        client_name = data.get('client')
+        client_code = data.get('clientId')
+        status_str = 'Activo' if data.get('status') else 'Cerrado'
+        code = data.get('code')
 
-        # Gestionar el Cliente (Buscar si existe, si no, crearlo)
-        cursor.execute("SELECT Id FROM Clientes WHERE Nombre = ?", (cliente_nombre,))
-        cliente = cursor.fetchone()
+        cursor.execute("SELECT Id FROM Clientes WHERE Nombre = ?", (client_name,))
+        client = cursor.fetchone()
         
-        if cliente:
-            cliente_id = cliente.Id
-            # 👇 AQUI ESTA LA MAGIA AÑADIDA 👇
-            # Si el cliente ya existe y nos pasan un ID nuevo en el formulario, lo actualizamos
-            if cliente_codigo:
-                cursor.execute("UPDATE Clientes SET Codigo = ? WHERE Id = ?", (cliente_codigo, cliente_id))
+        if client:
+            client_id = client.Id
+
+            if client_code:
+                cursor.execute("UPDATE Clientes SET Codigo = ? WHERE Id = ?", (client_code, client_id))
         else:
             cursor.execute("INSERT INTO Clientes (Nombre, Codigo) OUTPUT INSERTED.Id VALUES (?, ?)", 
-                           (cliente_nombre, cliente_codigo))
-            cliente_id = cursor.fetchone().Id
+                           (client_name, client_code))
+            client_id = cursor.fetchone().Id
 
         if project_id:
-            # Actualizar
             cursor.execute("""
                 UPDATE Proyectos 
                 SET Nombre = ?, ClienteId = ?, Estado = ?, Codigo = ?
                 WHERE Id = ?
-            """, (nombre, cliente_id, estado_str, codigo, project_id))
+            """, (name, client_id, status_str, code, project_id))
         else:
-            # Crear nuevo (generamos un código si viene vacío)
-            if not codigo: codigo = f"PRJ-{random.randint(100, 999)}"
+            if not code: code = f"PRJ-{random.randint(100, 999)}"
             cursor.execute("""
                 INSERT INTO Proyectos (Nombre, ClienteId, Estado, Codigo)
                 VALUES (?, ?, ?, ?)
-            """, (nombre, cliente_id, estado_str, codigo))
+            """, (name, client_id, status_str, code))
 
         conn.commit()
         conn.close()
-        return {"message": "Proyecto guardado correctamente"}, 200
+        return {"message": "Project saved successfully"}, 200
 
     except Exception as e:
         if conn: conn.close()
         return {"error": str(e)}, 500
+
 
 def soft_delete_project(project_id):
     conn = get_db_connection()
@@ -122,25 +116,25 @@ def soft_delete_project(project_id):
         cursor.execute("UPDATE Proyectos SET FechaDesactivacion = GETDATE(), Estado = 'Cerrado' WHERE Id = ?", (project_id,))
         conn.commit()
         conn.close()
-        return {"message": "Proyecto eliminado"}, 200
+        return {"message": "Project deleted"}, 200
     except Exception as e:
         if conn: conn.close()
         return {"error": str(e)}, 500
 
-def assign_user(proyecto_id, usuario_id):
+
+def assign_user(project_id, user_id):
     conn = get_db_connection()
     if not conn: return {"error": "DB error"}, 500
     try:
         cursor = conn.cursor()
-        # Verificar si ya está asignado
-        cursor.execute("SELECT Id FROM Asignaciones WHERE ProyectoId = ? AND UsuarioId = ?", (proyecto_id, usuario_id))
+        cursor.execute("SELECT Id FROM Asignaciones WHERE ProyectoId = ? AND UsuarioId = ?", (project_id, user_id))
         if cursor.fetchone():
-            return {"error": "El usuario ya está en este proyecto"}, 400
+            return {"error": "The user is already assigned to this project"}, 400
             
-        cursor.execute("INSERT INTO Asignaciones (ProyectoId, UsuarioId) VALUES (?, ?)", (proyecto_id, usuario_id))
+        cursor.execute("INSERT INTO Asignaciones (ProyectoId, UsuarioId) VALUES (?, ?)", (project_id, user_id))
         conn.commit()
         conn.close()
-        return {"message": "Usuario asignado"}, 200
+        return {"message": "User assigned"}, 200
     except Exception as e:
         if conn: conn.close()
         return {"error": str(e)}, 500
