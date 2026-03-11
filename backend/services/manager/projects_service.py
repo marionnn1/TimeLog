@@ -1,140 +1,159 @@
-from database.connection import get_db_connection
+# backend/services/manager/projects_service.py
+from database.db import db
+from models.projects import Projects
+from models.clients import Clients
+from models.users import Users
+from models.assignments import Assignments
+from datetime import datetime
 import random
 
+
 def get_all_projects_data():
-    conn = get_db_connection()
-    if not conn: return {"error": "DB error"}, 500
-
     try:
-        cursor = conn.cursor()
-        
-        cursor.execute("""
-            SELECT p.Id, p.Nombre, p.Codigo, p.Estado, c.Nombre as Cliente, c.Codigo as IdCliente
-            FROM Proyectos p
-            LEFT JOIN Clientes c ON p.ClienteId = c.Id
-            WHERE p.FechaDesactivacion IS NULL
-        """)
-        
-        projects = []
-        for row in cursor.fetchall():
-            projects.append({
-                "id": row.Id,
-                "name": row.Nombre,
-                "client": row.Cliente or "Sin Cliente",
-                "clientId": row.IdCliente or "",
-                "code": row.Codigo,
-                "status": True if row.Estado == 'Activo' else False,
-                "team": []
-            })
+        # 1. Obtener proyectos activos (aquellos sin fecha de desactivación)
+        proyectos_db = Projects.query.filter(
+            Projects.fecha_desactivacion.is_(None)
+        ).all()
 
-        cursor.execute("""
-            SELECT a.ProyectoId, u.Id, u.Nombre, u.Rol
-            FROM Asignaciones a
-            JOIN Usuarios u ON a.UsuarioId = u.Id
-            WHERE a.Activo = 1 AND a.FechaDesactivacion IS NULL
-        """)
-        
-        assignments = cursor.fetchall()
-        for p in projects:
-            p["team"] = [{
-                "id": a.Id,
-                "name": a.Nombre,
-                "role": a.Rol,
-                "initials": "".join([n[0] for n in a.Nombre.split()[:2]]).upper()
-            } for a in assignments if a.ProyectoId == p["id"]]
+        proyectos = []
+        for p in proyectos_db:
+            equipo = []
 
-        cursor.execute("SELECT Id, Nombre, Rol FROM Usuarios WHERE Activo = 1")
-        users = []
-        for row in cursor.fetchall():
-            users.append({
-                "id": row.Id,
-                "name": row.Nombre,
-                "role": row.Rol,
-                "initials": "".join([n[0] for n in row.Nombre.split()[:2]]).upper()
-            })
+            # 2. Aprovechamos la relación para extraer el equipo asignado y activo
+            for a in p.asignaciones:
+                if a.activo and a.fecha_desactivacion is None and a.usuario:
+                    nombres = a.usuario.nombre.split() if a.usuario.nombre else []
+                    iniciales = (
+                        "".join([n[0] for n in nombres[:2]]).upper()
+                        if nombres
+                        else "XX"
+                    )
 
-        conn.close()
-        return {"projects": projects, "availableUsers": users}, 200
+                    equipo.append(
+                        {
+                            "id": a.usuario.id,
+                            "nombre": a.usuario.nombre,
+                            "rol": a.usuario.rol,
+                            "iniciales": iniciales,
+                        }
+                    )
+
+            proyectos.append(
+                {
+                    "id": p.id,
+                    "nombre": p.nombre,
+                    "cliente": p.cliente.nombre if p.cliente else "Sin Cliente",
+                    "idCliente": (
+                        p.cliente.codigo if p.cliente and p.cliente.codigo else ""
+                    ),
+                    "codigo": p.codigo,
+                    "estado": True if p.estado == "Activo" else False,
+                    "equipo": equipo,
+                }
+            )
+
+        # 3. Obtener usuarios disponibles para el desplegable de asignar
+        usuarios_db = Users.query.filter_by(activo=True).all()
+        usuarios = []
+        for u in usuarios_db:
+            nombres = u.nombre.split() if u.nombre else []
+            iniciales = (
+                "".join([n[0] for n in nombres[:2]]).upper() if nombres else "XX"
+            )
+
+            usuarios.append(
+                {"id": u.id, "nombre": u.nombre, "rol": u.rol, "iniciales": iniciales}
+            )
+
+        return {"proyectos": proyectos, "usuariosDisponibles": usuarios}, 200
 
     except Exception as e:
-        if conn: conn.close()
+        print(f"Error en get_all_projects_data: {e}")
         return {"error": str(e)}, 500
 
 
 def save_project(data, project_id=None):
-    conn = get_db_connection()
-    if not conn: return {"error": "DB error"}, 500
-
     try:
-        cursor = conn.cursor()
-        name = data.get('name')
-        client_name = data.get('client')
-        client_code = data.get('clientId')
-        status_str = 'Activo' if data.get('status') else 'Cerrado'
-        code = data.get('code')
+        nombre = data.get("nombre")
+        cliente_nombre = data.get("cliente")
+        cliente_codigo = data.get("idCliente")
+        estado_str = "Activo" if data.get("estado") else "Cerrado"
+        codigo = data.get("codigo")
 
-        cursor.execute("SELECT Id FROM Clientes WHERE Nombre = ?", (client_name,))
-        client = cursor.fetchone()
-        
-        if client:
-            client_id = client.Id
+        cliente = Clients.query.filter_by(nombre=cliente_nombre).first()
 
-            if client_code:
-                cursor.execute("UPDATE Clientes SET Codigo = ? WHERE Id = ?", (client_code, client_id))
+        if cliente:
+            if cliente_codigo:
+                cliente.codigo = cliente_codigo
         else:
-            cursor.execute("INSERT INTO Clientes (Nombre, Codigo) OUTPUT INSERTED.Id VALUES (?, ?)", 
-                           (client_name, client_code))
-            client_id = cursor.fetchone().Id
+            cliente = Clients(nombre=cliente_nombre, codigo=cliente_codigo)
+            db.session.add(cliente)
+            db.session.flush()
 
         if project_id:
-            cursor.execute("""
-                UPDATE Proyectos 
-                SET Nombre = ?, ClienteId = ?, Estado = ?, Codigo = ?
-                WHERE Id = ?
-            """, (name, client_id, status_str, code, project_id))
-        else:
-            if not code: code = f"PRJ-{random.randint(100, 999)}"
-            cursor.execute("""
-                INSERT INTO Proyectos (Nombre, ClienteId, Estado, Codigo)
-                VALUES (?, ?, ?, ?)
-            """, (name, client_id, status_str, code))
+            proyecto = Projects.query.get(project_id)
+            if not proyecto:
+                return {"error": "Proyecto no encontrado"}, 404
 
-        conn.commit()
-        conn.close()
-        return {"message": "Project saved successfully"}, 200
+            proyecto.nombre = nombre
+            proyecto.cliente_id = cliente.id
+            proyecto.estado = estado_str
+            proyecto.codigo = codigo
+        else:
+            if not codigo:
+                codigo = f"PRJ-{random.randint(100, 999)}"
+
+            nuevo_proyecto = Projects(
+                nombre=nombre, cliente_id=cliente.id, estado=estado_str, codigo=codigo
+            )
+            db.session.add(nuevo_proyecto)
+
+        db.session.commit()
+        return {"message": "Proyecto guardado correctamente"}, 200
 
     except Exception as e:
-        if conn: conn.close()
+        db.session.rollback()
+        print(f"Error en save_project: {e}")
         return {"error": str(e)}, 500
 
 
 def soft_delete_project(project_id):
-    conn = get_db_connection()
-    if not conn: return {"error": "DB error"}, 500
     try:
-        cursor = conn.cursor()
-        cursor.execute("UPDATE Proyectos SET FechaDesactivacion = GETDATE(), Estado = 'Cerrado' WHERE Id = ?", (project_id,))
-        conn.commit()
-        conn.close()
-        return {"message": "Project deleted"}, 200
+        proyecto = Projects.query.get(project_id)
+        if not proyecto:
+            return {"error": "Proyecto no encontrado"}, 404
+
+        proyecto.estado = "Cerrado"
+        proyecto.fecha_desactivacion = datetime.utcnow()
+        db.session.commit()
+
+        return {"message": "Proyecto eliminado"}, 200
     except Exception as e:
-        if conn: conn.close()
+        db.session.rollback()
+        print(f"Error en soft_delete_project: {e}")
         return {"error": str(e)}, 500
 
 
-def assign_user(project_id, user_id):
-    conn = get_db_connection()
-    if not conn: return {"error": "DB error"}, 500
+def assign_user(proyecto_id, usuario_id):
     try:
-        cursor = conn.cursor()
-        cursor.execute("SELECT Id FROM Asignaciones WHERE ProyectoId = ? AND UsuarioId = ?", (project_id, user_id))
-        if cursor.fetchone():
-            return {"error": "The user is already assigned to this project"}, 400
-            
-        cursor.execute("INSERT INTO Asignaciones (ProyectoId, UsuarioId) VALUES (?, ?)", (project_id, user_id))
-        conn.commit()
-        conn.close()
-        return {"message": "User assigned"}, 200
+        asignacion_existente = Assignments.query.filter_by(
+            proyecto_id=proyecto_id, usuario_id=usuario_id, activo=True
+        ).first()
+
+        if asignacion_existente:
+            return {"error": "El usuario ya está en este proyecto"}, 400
+
+        nueva_asignacion = Assignments(
+            proyecto_id=proyecto_id,
+            usuario_id=usuario_id,
+            activo=True,
+            fecha_asignacion=datetime.utcnow(),
+        )
+        db.session.add(nueva_asignacion)
+        db.session.commit()
+
+        return {"message": "Usuario asignado"}, 200
     except Exception as e:
-        if conn: conn.close()
+        db.session.rollback()
+        print(f"Error en assign_user: {e}")
         return {"error": str(e)}, 500

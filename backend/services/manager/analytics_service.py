@@ -1,92 +1,115 @@
-from database.connection import get_db_connection
+from database.db import db
+from models.time_entries import TimeEntries
+from models.projects import Projects
+from models.users import Users
+from models.absences import Absences
+from sqlalchemy import func, extract, and_
 
-def get_analytics_data(month):
-    conn = get_db_connection()
-    if not conn:
-        return {"error": "Could not connect to the database"}, 500
 
+def get_analytics_data(mes):
     try:
-        cursor = conn.cursor()
-        
-        year, month_num = month.split('-')
+        anio, mes_num = mes.split("-")
 
-        cursor.execute("""
-            SELECT p.Nombre, ISNULL(SUM(i.Horas), 0) as Horas
-            FROM Imputaciones i
-            JOIN Proyectos p ON i.ProyectoId = p.Id
-            WHERE YEAR(i.Fecha) = ? AND MONTH(i.Fecha) = ?
-            GROUP BY p.Nombre
-        """, (year, month_num))
-        
-        project_stats = []
-        total_logged_hours = 0
-        
-        for row in cursor.fetchall():
-            hours = float(row.Horas)
-            total_logged_hours += hours
-            project_stats.append({
-                "name": row.Nombre,
-                "hours": hours,
-                "color": "bg-blue-500", 
-                "contributors": [] 
-            })
+        proyectos_query = (
+            db.session.query(
+                Projects.nombre.label("nombre"),
+                func.sum(TimeEntries.horas).label("total_horas"),
+            )
+            .join(TimeEntries.proyecto)
+            .filter(
+                extract("year", TimeEntries.fecha) == anio,
+                extract("month", TimeEntries.fecha) == mes_num,
+            )
+            .group_by(Projects.nombre)
+            .all()
+        )
 
-        cursor.execute("""
-            SELECT u.Id, u.Nombre, u.Rol, ISNULL(SUM(i.Horas), 0) as HorasImputadas
-            FROM Usuarios u
-            LEFT JOIN Imputaciones i ON u.Id = i.UsuarioId 
-                AND YEAR(i.Fecha) = ? AND MONTH(i.Fecha) = ?
-            WHERE u.Activo = 1
-            GROUP BY u.Id, u.Nombre, u.Rol
-        """, (year, month_num))
-        
-        employee_workload = []
-        total_theoretical_capacity = 0
-        
-        for row in cursor.fetchall():
-            capacity = 160 
-            total_theoretical_capacity += capacity
-            
-            names = row.Nombre.split()
-            avatar = (names[0][0] + (names[1][0] if len(names) > 1 else '')).upper()
+        proyectos_stats = []
+        total_horas_imputadas = 0
 
-            employee_workload.append({
-                "name": row.Nombre,
-                "hours": float(row.HorasImputadas),
-                "capacity": capacity,
-                "role": row.Rol,
-                "avatar": avatar,
-                "trend": "equal"
-            })
+        for p in proyectos_query:
+            horas = float(p.total_horas or 0)
+            total_horas_imputadas += horas
+            proyectos_stats.append(
+                {
+                    "nombre": p.nombre,
+                    "horas": horas,
+                    "color": "bg-blue-500",
+                    "contributors": [],
+                }
+            )
 
-        cursor.execute("""
-            SELECT a.Fecha, u.Nombre, a.Tipo, u.Id as userId
-            FROM Ausencias a
-            JOIN Usuarios u ON a.UsuarioId = u.Id
-            WHERE YEAR(a.Fecha) = ? AND MONTH(a.Fecha) = ?
-        """, (year, month_num))
-        
-        absences = []
-        for row in cursor.fetchall():
-            absences.append({
-                "date": row.Fecha.strftime('%Y-%m-%d'),
-                "name": row.Nombre,
-                "type": row.Tipo,
-                "userId": row.userId
-            })
+        # 2. Carga de Empleados (LEFT JOIN con condiciones)
+        empleados_query = (
+            db.session.query(
+                Users.id,
+                Users.nombre,
+                Users.rol,
+                func.sum(TimeEntries.horas).label("horas_imputadas"),
+            )
+            .outerjoin(
+                TimeEntries,
+                and_(
+                    Users.id == TimeEntries.usuario_id,
+                    extract("year", TimeEntries.fecha) == anio,
+                    extract("month", TimeEntries.fecha) == mes_num,
+                ),
+            )
+            .filter(Users.activo == True)
+            .group_by(Users.id, Users.nombre, Users.rol)
+            .all()
+        )
 
-        conn.close()
+        carga_empleados = []
+        total_capacidad_teorica = 0
+
+        for u in empleados_query:
+            # Capacidad teórica aproximada (160h/mes)
+            capacidad = 160
+            total_capacidad_teorica += capacidad
+
+            nombres = u.nombre.split() if u.nombre else []
+            avatar = (
+                (nombres[0][0] + (nombres[1][0] if len(nombres) > 1 else "")).upper()
+                if nombres
+                else "XX"
+            )
+
+            carga_empleados.append(
+                {
+                    "nombre": u.nombre,
+                    "horas": float(u.horas_imputadas or 0),
+                    "capacidad": capacidad,
+                    "rol": u.rol,
+                    "avatar": avatar,
+                    "trend": "equal",
+                }
+            )
+
+        ausencias_db = Absences.query.filter(
+            extract("year", Absences.fecha) == anio,
+            extract("month", Absences.fecha) == mes_num,
+        ).all()
+
+        ausencias = []
+        for a in ausencias_db:
+            ausencias.append(
+                {
+                    "date": a.fecha.strftime("%Y-%m-%d") if a.fecha else "",
+                    "nombre": a.usuario.nombre if a.usuario else "Desconocido",
+                    "type": a.tipo,
+                    "userId": a.usuario_id,
+                }
+            )
 
         return {
-            "totalLoggedHours": total_logged_hours,
-            "totalTheoreticalCapacity": total_theoretical_capacity,
-            "projectStats": project_stats,
-            "employeeWorkload": employee_workload,
-            "absences": absences
+            "totalHorasImputadas": total_horas_imputadas,
+            "totalCapacidadTeorica": total_capacidad_teorica,
+            "proyectosStats": proyectos_stats,
+            "cargaEmpleados": carga_empleados,
+            "ausencias": ausencias,
         }, 200
 
     except Exception as e:
         print(f"Error en analytics_service: {e}")
-        if conn:
-            conn.close()
         return {"error": str(e)}, 500

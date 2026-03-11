@@ -1,40 +1,40 @@
-from database.connection import get_db_connection
+from database.db import db
+from models.audits import Audits
 
-def get_logs():
-    conn = get_db_connection()
-    if not conn: return None
+
+def obtener_logs():
     try:
-        cursor = conn.cursor()
-        
-        cursor.execute("""
-            SELECT Id, FORMAT(Fecha, 'dd/MM/yyyy HH:mm:ss') as Fecha, 
-                   ActorNombre, Accion, Gravedad, Detalle 
-            FROM Auditoria 
-            ORDER BY Fecha DESC, Id DESC
-        """)
-        
-        columns = ['id', 'date', 'actor', 'action', 'severity', 'detail']
-        return [dict(zip(columns, row)) for row in cursor.fetchall()]
+        logs = Audits.query.order_by(Audits.fecha.desc(), Audits.id.desc()).all()
+
+        return [
+            {
+                "id": log.id,
+                "fecha": log.fecha.strftime("%d/%m/%Y %H:%M:%S") if log.fecha else "",
+                "actor": log.actor_nombre,
+                "accion": log.accion,
+                "gravedad": log.gravedad,
+                "detalle": log.detalle,
+            }
+            for log in logs
+        ]
     except Exception as e:
-        print("Error al obtener logs:", e)
+        print(f"Error al obtener logs: {e}")
         return None
-    finally:
-        conn.close()
 
-def register_log(actor_id, actor_name, action, severity, detail):
-    conn = get_db_connection()
-    if not conn: return False
+
+def registrar_log(actor_id, actor_nombre, accion, gravedad, detalle):
     try:
-        cursor = conn.cursor()
-        query = """
-            INSERT INTO Auditoria (ActorId, ActorNombre, Accion, Gravedad, Detalle) 
-            VALUES (?, ?, ?, ?, ?)
-        """
-        cursor.execute(query, (actor_id, actor_name, action, severity, detail))
-        conn.commit()
+        nuevo_log = Audits(
+            actor_id=actor_id,
+            actor_nombre=actor_nombre,
+            accion=accion,
+            gravedad=gravedad,
+            detalle=detalle,
+        )
+        db.session.add(nuevo_log)
+        db.session.commit()
         return True
     except Exception as e:
-        print("Error al guardar log:", e)
+        print(f"Error al guardar log: {e}")
+        db.session.rollback()
         return False
-    finally:
-        conn.close()

@@ -1,6 +1,10 @@
 from flask import Flask
 from flask_cors import CORS
 
+# --- SQLALCHEMY IMPORTS ---
+from config import SQLALCHEMY_DATABASE_URI
+from database.db import db
+
 # --- TECHNICAL ---
 from TimeLog.backend.controllers.technical.time_entries_user_controller import time_entries_user_bp
 from controllers.technical.myprojects_controller import myprojects_bp
@@ -32,7 +36,6 @@ app.register_blueprint(myprojects_bp)
 app.register_blueprint(absences_bp)
 app.register_blueprint(tickets_bp)
 
-# REGISTRAMOS LOS NUEVOS DE MANAGER
 app.register_blueprint(manager_analytics_bp)
 app.register_blueprint(closing_bp)
 app.register_blueprint(manager_projects_bp)

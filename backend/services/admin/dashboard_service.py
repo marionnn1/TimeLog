@@ -1,24 +1,17 @@
-from database.connection import get_db_connection
+from database.db import db
+from models.users import Users
+from models.projects import Projects
+from models.time_entries import TimeEntries
 
-def get_statistics():
-    conn = get_db_connection()
-    if not conn: return None
+def obtener_estadisticas():
     try:
-        cursor = conn.cursor()
-
-        cursor.execute("SELECT COUNT(*) FROM Usuarios")
-        total_users = cursor.fetchone()[0]
-
-        cursor.execute("SELECT COUNT(*) FROM Proyectos WHERE Estado = 'Activo'")
-        active_projects = cursor.fetchone()[0]
+        total_usuarios = Users.query.count()
         
-        cursor.execute("SELECT COUNT(*) FROM Imputaciones WHERE Estado = 'Pendiente'")
-        row_pending = cursor.fetchone()
-        pending_tickets = row_pending[0] if row_pending else 0
+        proyectos_activos = Projects.query.filter_by(estado='Activo').count()
         
-        cursor.execute("SELECT COUNT(*) FROM Imputaciones WHERE Estado != 'Borrador'")
-        row_total = cursor.fetchone()
-        total_tickets = row_total[0] if row_total else 0
+        tickets_pendientes = TimeEntries.query.filter_by(estado='Pendiente').count()
+        
+        tickets_totales = TimeEntries.query.filter(TimeEntries.estado != 'Borrador').count()
         
         return {
             "totalUsers": total_users,
@@ -27,7 +20,5 @@ def get_statistics():
             "totalTickets": total_tickets
         }
     except Exception as e:
-        print("Error al obtener estadísticas del dashboard:", e)
+        print(f"Error al obtener estadísticas del dashboard: {e}")
         return None
-    finally:
-        conn.close()
