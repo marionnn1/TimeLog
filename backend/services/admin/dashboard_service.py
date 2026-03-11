@@ -1,28 +1,17 @@
-from database.connection import get_db_connection
+from database.db import db
+from models.users import Users
+from models.projects import Projects
+from models.time_entries import TimeEntries
 
 def obtener_estadisticas():
-    conn = get_db_connection()
-    if not conn: return None
     try:
-        cursor = conn.cursor()
+        total_usuarios = Users.query.count()
         
-        # 1. Contar Usuarios Totales
-        cursor.execute("SELECT COUNT(*) FROM Usuarios")
-        total_usuarios = cursor.fetchone()[0]
+        proyectos_activos = Projects.query.filter_by(estado='Activo').count()
         
-        # 2. Contar Proyectos Activos
-        cursor.execute("SELECT COUNT(*) FROM Proyectos WHERE Estado = 'Activo'")
-        proyectos_activos = cursor.fetchone()[0]
+        tickets_pendientes = TimeEntries.query.filter_by(estado='Pendiente').count()
         
-        # 3. Tickets Pendientes (Solicitudes de corrección en estado 'Pendiente')
-        cursor.execute("SELECT COUNT(*) FROM Imputaciones WHERE Estado = 'Pendiente'")
-        row_pendientes = cursor.fetchone()
-        tickets_pendientes = row_pendientes[0] if row_pendientes else 0
-        
-        # 4. Tickets Totales (Contamos todas las imputaciones que han pasado por algún estado de revisión: Pendientes, Aprobados o Rechazados)
-        cursor.execute("SELECT COUNT(*) FROM Imputaciones WHERE Estado != 'Borrador'")
-        row_totales = cursor.fetchone()
-        tickets_totales = row_totales[0] if row_totales else 0
+        tickets_totales = TimeEntries.query.filter(TimeEntries.estado != 'Borrador').count()
         
         return {
             "totalUsuarios": total_usuarios,
@@ -31,7 +20,5 @@ def obtener_estadisticas():
             "ticketsTotales": tickets_totales
         }
     except Exception as e:
-        print("Error al obtener estadísticas del dashboard:", e)
+        print(f"Error al obtener estadísticas del dashboard: {e}")
         return None
-    finally:
-        conn.close()

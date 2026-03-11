@@ -1,234 +1,194 @@
-from database.connection import get_db_connection
+from database.db import db
+from models.time_entries import TimeEntries
+from models.projects import Projects
+from models.clients import Clients
+from models.audits import Audits
+from sqlalchemy import func, extract
 import traceback
-from datetime import datetime
+from datetime import datetime, timedelta
 
 def obtener_imputaciones_semana(usuario_id, fecha_lunes):
-    conn = get_db_connection()
-    if not conn: return []
     try:
-        cursor = conn.cursor()
-        query = """
-            SELECT i.ProyectoId, p.Nombre as ProyectoNombre, c.Nombre as ClienteNombre, i.Fecha, i.Horas
-            FROM Imputaciones i
-            INNER JOIN Proyectos p ON i.ProyectoId = p.Id
-            INNER JOIN Clientes c ON p.ClienteId = c.Id
-            WHERE i.UsuarioId = ? AND i.Fecha >= ? AND i.Fecha <= DATEADD(day, 6, ?)
-        """
-        cursor.execute(query, (usuario_id, fecha_lunes, fecha_lunes))
-        columnas = [column[0] for column in cursor.description]
-        return [dict(zip(columnas, row)) for row in cursor.fetchall()]
+        if isinstance(fecha_lunes, str):
+            fecha_lunes = datetime.strptime(fecha_lunes, '%Y-%m-%d').date()
+        fecha_domingo = fecha_lunes + timedelta(days=6)
+        
+        imputaciones = TimeEntries.query.filter(
+            TimeEntries.usuario_id == usuario_id,
+            TimeEntries.fecha >= fecha_lunes,
+            TimeEntries.fecha <= fecha_domingo
+        ).all()
+        
+        return [{
+            "ProyectoId": i.proyecto_id,
+            "ProyectoNombre": i.proyecto.nombre if i.proyecto else "",
+            "ClienteNombre": i.proyecto.cliente.nombre if i.proyecto and i.proyecto.cliente else "",
+            "Fecha": i.fecha.strftime('%Y-%m-%d'),
+            "Horas": float(i.horas)
+        } for i in imputaciones]
     except Exception:
         return []
-    finally:
-        conn.close()
 
 def guardar_imputaciones_lote(usuario_id, filas, fechas_semana):
-    conn = get_db_connection()
-    if not conn: return False
     try:
-        cursor = conn.cursor()
         for fila in filas:
             p_id = fila.get('id_proyecto')
             if not p_id: continue
             
+            horas = fila.get('horas', [])
             for i in range(7):
                 fecha = fechas_semana[i]
-                h = float(fila.get('horas')[i] or 0)
+                h = float(horas[i]) if i < len(horas) and horas[i] else 0
                 
-                # Verificamos estado antes de tocar nada
-                cursor.execute("SELECT Estado FROM Imputaciones WHERE UsuarioId = ? AND ProyectoId = ? AND Fecha = ?", 
-                               (usuario_id, p_id, fecha))
-                row = cursor.fetchone()
+                registro = TimeEntries.query.filter_by(usuario_id=usuario_id, proyecto_id=p_id, fecha=fecha).first()
                 
-                if row and row.Estado == 'Aprobado':
-                    cursor.execute("""
-                        UPDATE Imputaciones SET Estado = 'Pendiente', Horas = ? 
-                        WHERE UsuarioId = ? AND ProyectoId = ? AND Fecha = ?
-                    """, (h, usuario_id, p_id, fecha))
+                if registro and registro.estado == 'Aprobado':
+                    registro.estado = 'Pendiente'
+                    registro.horas = h
                 else:
-                    cursor.execute("DELETE FROM Imputaciones WHERE UsuarioId = ? AND ProyectoId = ? AND Fecha = ?", 
-                                   (usuario_id, p_id, fecha))
+                    if registro:
+                        db.session.delete(registro)
                     if h > 0:
-                        cursor.execute("INSERT INTO Imputaciones (UsuarioId, ProyectoId, Fecha, Horas, Estado) VALUES (?, ?, ?, ?, 'Borrador')", 
-                                       (usuario_id, p_id, fecha, h))
-        conn.commit()
+                        nuevo = TimeEntries(usuario_id=usuario_id, proyecto_id=p_id, fecha=fecha, horas=h, estado='Borrador')
+                        db.session.add(nuevo)
+        db.session.commit()
         return True
     except Exception:
-        conn.rollback()
+        db.session.rollback()
         return False
-    finally:
-        conn.close()
 
 def obtener_analitica_mensual(usuario_id, mes, anio):
-    conn = get_db_connection()
-    default_data = {
-        "proyectos": [], 
-        "totales": {"mes_real": 0, "ano_acumulado": 0, "mes_nombre": ""}
-    }
-    if not conn: return default_data
-    
+    default_data = {"proyectos": [], "totales": {"mes_real": 0, "ano_acumulado": 0, "mes_nombre": ""}}
     try:
-        cursor = conn.cursor()
+        total_ano = db.session.query(func.sum(TimeEntries.horas)).filter(
+            TimeEntries.usuario_id == usuario_id, extract('year', TimeEntries.fecha) == anio
+        ).scalar() or 0
         
-        query_p = """
-            SELECT p.Nombre, c.Nombre, SUM(i.Horas)
-            FROM Imputaciones i
-            INNER JOIN Proyectos p ON i.ProyectoId = p.Id
-            INNER JOIN Clientes c ON p.ClienteId = c.Id
-            WHERE i.UsuarioId = ? AND MONTH(i.Fecha) = ? AND YEAR(i.Fecha) = ?
-            GROUP BY p.Nombre, c.Nombre
-        """
-        cursor.execute(query_p, (usuario_id, mes, anio))
-        rows = cursor.fetchall()
+        total_mes = db.session.query(func.sum(TimeEntries.horas)).filter(
+            TimeEntries.usuario_id == usuario_id, 
+            extract('month', TimeEntries.fecha) == mes, 
+            extract('year', TimeEntries.fecha) == anio
+        ).scalar() or 0
 
-        cursor.execute("SELECT SUM(Horas) FROM Imputaciones WHERE UsuarioId = ? AND YEAR(Fecha) = ?", (usuario_id, anio))
-        total_ano = float(cursor.fetchone()[0] or 0)
-
-        cursor.execute("SELECT SUM(Horas) FROM Imputaciones WHERE UsuarioId = ? AND MONTH(Fecha) = ? AND YEAR(Fecha) = ?", (usuario_id, mes, anio))
-        total_mes = float(cursor.fetchone()[0] or 0)
+        agrupado = db.session.query(
+            Projects.nombre.label('proyecto'),
+            Clients.nombre.label('cliente'),
+            func.sum(TimeEntries.horas).label('total_horas')
+        ).join(TimeEntries.proyecto).join(Projects.cliente).filter(
+            TimeEntries.usuario_id == usuario_id,
+            extract('month', TimeEntries.fecha) == mes,
+            extract('year', TimeEntries.fecha) == anio
+        ).group_by(Projects.nombre, Clients.nombre).all()
 
         proyectos_data = []
-        for r in rows:
-            real_val = float(r[2] or 0)
-            asignado_sem = 10.0 
-            obj_mensual = asignado_sem * 4
-            
+        for r in agrupado:
             proyectos_data.append({
-                "proyecto": r[0],
-                "cliente": r[1],
-                "real": real_val,
-                "asignado_semanal": asignado_sem,
-                "objetivo_mensual": obj_mensual,
-                "porcentaje": round((real_val / obj_mensual) * 100, 1) if obj_mensual > 0 else 0
+                "proyecto": r.proyecto,
+                "cliente": r.cliente,
+                "real": float(r.total_horas),
+                "asignado_semanal": 0,
+                "objetivo_mensual": 0,
+                "porcentaje": 0 
             })
 
         return {
             "proyectos": proyectos_data,
             "totales": {
-                "mes_real": total_mes,
-                "ano_acumulado": total_ano,
+                "mes_real": float(total_mes),
+                "ano_acumulado": float(total_ano),
                 "mes_nombre": f"Mes {mes} / {anio}"
             }
         }
     except Exception:
+        import traceback
         traceback.print_exc()
         return default_data
-    finally:
-        conn.close()
 
-# --- NUEVA API PARA VER A TODOS LOS USUARIOS ---
 def obtener_analitica_equipo(mes, anio):
-    conn = get_db_connection()
-    if not conn: return []
     try:
-        cursor = conn.cursor()
-        query = """
-            SELECT 
-                u.Id as UsuarioId, u.Nombre as UsuarioNombre, u.Apellidos as UsuarioApellidos,
-                p.Nombre as Proyecto, c.Nombre as Cliente,
-                SUM(i.Horas) as HorasReales
-            FROM Imputaciones i
-            INNER JOIN Usuarios u ON i.UsuarioId = u.Id
-            INNER JOIN Proyectos p ON i.ProyectoId = p.Id
-            INNER JOIN Clientes c ON p.ClienteId = c.Id
-            WHERE MONTH(i.Fecha) = ? AND YEAR(i.Fecha) = ?
-            GROUP BY u.Id, u.Nombre, u.Apellidos, p.Nombre, c.Nombre
-            ORDER BY u.Nombre, p.Nombre
-        """
-        cursor.execute(query, (mes, anio))
-        rows = cursor.fetchall()
+        imputaciones = TimeEntries.query.filter(
+            extract('month', TimeEntries.fecha) == mes,
+            extract('year', TimeEntries.fecha) == anio
+        ).all()
 
         equipo_data = {}
-        for r in rows:
-            u_id = r[0]
+        for i in imputaciones:
+            u_id = i.usuario_id
+            if not i.usuario or not i.proyecto: continue
+
             if u_id not in equipo_data:
                 equipo_data[u_id] = {
                     "id": u_id,
-                    "nombre_completo": f"{r[1]} {r[2]}",
+                    "nombre_completo": i.usuario.nombre,
                     "total_mes": 0.0,
-                    "proyectos": []
+                    "proyectos_dict": {}
                 }
             
-            horas = float(r[5] or 0)
-            equipo_data[u_id]["proyectos"].append({
-                "proyecto": r[3],
-                "cliente": r[4],
-                "horas": horas
-            })
+            p_nombre = i.proyecto.nombre
+            c_nombre = i.proyecto.cliente.nombre if i.proyecto.cliente else "Sin Cliente"
+            horas = float(i.horas)
+            
             equipo_data[u_id]["total_mes"] += horas
+            
+            if p_nombre not in equipo_data[u_id]["proyectos_dict"]:
+                equipo_data[u_id]["proyectos_dict"][p_nombre] = {"proyecto": p_nombre, "cliente": c_nombre, "horas": 0.0}
+            
+            equipo_data[u_id]["proyectos_dict"][p_nombre]["horas"] += horas
 
-        return list(equipo_data.values())
+        for u_id in equipo_data:
+            equipo_data[u_id]["proyectos"] = list(equipo_data[u_id].pop("proyectos_dict").values())
+
+        return sorted(list(equipo_data.values()), key=lambda x: x["nombre_completo"])
     except Exception:
         traceback.print_exc()
         return []
-    finally:
-        conn.close()
 
 def obtener_calendario_mensual(usuario_id, mes, anio):
-    from database.connection import get_db_connection
-    conn = get_db_connection()
-    if not conn: return []
-    
     try:
-        cursor = conn.cursor()
-        query = """
-            SELECT 
-                DAY(i.Fecha) as dia,
-                c.Nombre as cliente,
-                p.Id as proyecto_id,
-                p.Nombre as proyecto,
-                SUM(i.Horas) as horas
-            FROM Imputaciones i
-            INNER JOIN Proyectos p ON i.ProyectoId = p.Id
-            INNER JOIN Clientes c ON p.ClienteId = c.Id
-            WHERE i.UsuarioId = ? AND MONTH(i.Fecha) = ? AND YEAR(i.Fecha) = ?
-            GROUP BY DAY(i.Fecha), c.Nombre, p.Id, p.Nombre
-        """
-        cursor.execute(query, (usuario_id, mes, anio))
-        rows = cursor.fetchall()
+        agrupado = db.session.query(
+            extract('day', TimeEntries.fecha).label('dia'),
+            Clients.nombre.label('cliente'),
+            Projects.id.label('proyecto_id'),
+            Projects.nombre.label('proyecto'),
+            func.sum(TimeEntries.horas).label('horas')
+        ).join(TimeEntries.proyecto).join(Projects.cliente).filter(
+            TimeEntries.usuario_id == usuario_id,
+            extract('month', TimeEntries.fecha) == mes,
+            extract('year', TimeEntries.fecha) == anio
+        ).group_by(
+            extract('day', TimeEntries.fecha), Clients.nombre, Projects.id, Projects.nombre
+        ).all()
         
-        data = []
-        for r in rows:
-            data.append({
-                "dia": r[0],
-                "cliente": r[1],
-                "proyecto_id": r[2],
-                "proyecto": r[3],
-                "horas": float(r[4])
-            })
-        return data
+        return [{
+            "dia": int(r.dia),
+            "cliente": r.cliente,
+            "proyecto_id": r.proyecto_id,
+            "proyecto": r.proyecto,
+            "horas": float(r.horas)
+        } for r in agrupado]
     except Exception as e:
-        print("Error en obtener_calendario_mensual:", e)
+        print("Error en calendario:", e)
         return []
-    finally:
-        conn.close()
 
 def solicitar_correccion_imputacion(usuario_id, proyecto_id, fecha, nuevas_horas, motivo):
-    from database.connection import get_db_connection
-    conn = get_db_connection()
-    if not conn: return False
     try:
-        cursor = conn.cursor()
-        # Buscamos la imputación exacta y la pasamos a Pendiente
-        cursor.execute("""
-            UPDATE Imputaciones
-            SET Estado = 'Pendiente', Horas = ?, Comentario = ?
-            WHERE UsuarioId = ? AND ProyectoId = ? AND Fecha = ?
-        """, (nuevas_horas, motivo, usuario_id, proyecto_id, fecha))
+        registro = TimeEntries.query.filter_by(
+            usuario_id=usuario_id, proyecto_id=proyecto_id, fecha=fecha
+        ).first()
         
-        conn.commit()
-        
-        # Dejamos registro en auditoría (opcional pero recomendado)
-        cursor.execute("""
-            INSERT INTO Auditoria (ActorNombre, Accion, Gravedad, Detalle)
-            VALUES ('Sistema', 'Solicitud Corrección', 'warning', ?)
-        """, (f"Usuario {usuario_id} solicita cambiar a {nuevas_horas}h el proyecto {proyecto_id} en {fecha}",))
-        conn.commit()
-        
-        return True
+        if registro:
+            registro.estado = 'Pendiente'
+            registro.horas = nuevas_horas
+            registro.comentario = motivo
+            
+            detalle = f"Usuario {usuario_id} solicita cambiar a {nuevas_horas}h el proyecto {proyecto_id} en {fecha}"
+            nueva_auditoria = Audits(actor_nombre='Sistema', accion='Solicitud Corrección', gravedad='warning', detalle=detalle)
+            db.session.add(nueva_auditoria)
+            
+            db.session.commit()
+            return True
+        return False
     except Exception as e:
         print("Error en solicitar_correccion:", e)
-        conn.rollback()
+        db.session.rollback()
         return False
-    finally:
-        conn.close()

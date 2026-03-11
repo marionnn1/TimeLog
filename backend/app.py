@@ -1,6 +1,10 @@
 from flask import Flask
 from flask_cors import CORS
 
+# --- SQLALCHEMY IMPORTS ---
+from config import SQLALCHEMY_DATABASE_URI
+from database.db import db
+
 # --- TECHNICAL ---
 from controllers.technical.imputaciones_user_controller import imputaciones_user_bp
 from controllers.technical.myprojects_controller import myprojects_bp
@@ -22,7 +26,25 @@ from controllers.manager.validation_controller import validation_bp
 app = Flask(__name__)
 CORS(app)
 
-# REGISTRAMOS TODOS LOS BLUEPRINTS
+# --- CONFIGURACIÓN SQLALCHEMY ---
+app.config['SQLALCHEMY_DATABASE_URI'] = SQLALCHEMY_DATABASE_URI
+app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+
+db.init_app(app)
+
+# Importamos los modelos dentro del contexto de la app
+with app.app_context():
+    from models.users import Users
+    from models.clients import Clients
+    from models.projects import Projects
+    from models.assignments import Assignments
+    from models.time_entries import TimeEntries
+    from models.absences import Absences
+    from models.month_closings import MonthClosings
+    from models.audits import Audits
+    from models.logs import Logs
+
+# --- REGISTRO DE BLUEPRINTS ---
 app.register_blueprint(usuarios_bp)
 app.register_blueprint(proyectos_bp)
 app.register_blueprint(auditoria_bp)
@@ -32,7 +54,6 @@ app.register_blueprint(myprojects_bp)
 app.register_blueprint(ausencias_bp)
 app.register_blueprint(tickets_bp)
 
-# REGISTRAMOS LOS NUEVOS DE MANAGER
 app.register_blueprint(manager_analytics_bp)
 app.register_blueprint(closing_bp)
 app.register_blueprint(manager_projects_bp)
