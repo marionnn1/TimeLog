@@ -1,166 +1,109 @@
-from database.connection import get_db_connection
+# backend/services/admin/usuarios_service.py
+from database.db import db
+from models.users import Users
 from services.admin.auditoria_service import registrar_log
+from datetime import datetime
 
 def obtener_usuarios():
-    conn = get_db_connection()
-    if not conn: return None
-    
     try:
-        cursor = conn.cursor()
-        cursor.execute("SELECT Id, Nombre, OidAzure, Rol, Sede, Activo FROM Usuarios")
-        columnas = [column[0] for column in cursor.description]
-        return [dict(zip(columnas, row)) for row in cursor.fetchall()]
+        # Hacemos la consulta sobre el modelo Users
+        usuarios = Users.query.all()
+        return [user.to_dict() for user in usuarios]
     except Exception as e:
-        print("Error al obtener usuarios:", e)
+        print(f"Error al obtener usuarios: {e}")
         return None
-    finally:
-        conn.close()
 
 def crear_usuario(datos):
-    conn = get_db_connection()
-    if not conn: return False
-    
     try:
-        cursor = conn.cursor()
-        query = """
-        INSERT INTO Usuarios (Nombre, OidAzure, Rol, Sede, Activo, FechaCreacion) 
-        VALUES (?, ?, ?, ?, 1, GETDATE())
-        """
-        cursor.execute(query, (datos['nombre'], datos['email'], datos['rol'], datos['sede']))
-        conn.commit()
+        nuevo_usuario = Users(
+            nombre=datos['nombre'],
+            oid_azure=datos['email'],
+            rol=datos['rol'],
+            sede=datos['sede'],
+            activo=True,
+            fecha_creacion=datetime.utcnow()
+        )
+        db.session.add(nuevo_usuario)
+        db.session.commit()
         
-        # <--- 2. AÑADIDO: Registro en auditoría
         registrar_log(1, 'Admin', 'CREAR_USUARIO', 'info', f"Se ha dado de alta al usuario: {datos['nombre']}.")
-        
         return True
     except Exception as e:
-        print("Error al crear usuario:", e)
+        print(f"Error al crear usuario: {e}")
+        db.session.rollback()
         return False
-    finally:
-        conn.close()
 
 def actualizar_usuario(id_usuario, datos):
-    conn = get_db_connection()
-    if not conn: return False
-    
     try:
-        cursor = conn.cursor()
-        query = "UPDATE Usuarios SET Nombre = ?, OidAzure = ?, Rol = ?, Sede = ? WHERE Id = ?"
-        cursor.execute(query, (datos['nombre'], datos['email'], datos['rol'], datos['sede'], id_usuario))
-        conn.commit()
+        usuario = Users.query.get(id_usuario)
+        if not usuario:
+            return False
+            
+        usuario.nombre = datos['nombre']
+        usuario.oid_azure = datos['email']
+        usuario.rol = datos['rol']
+        usuario.sede = datos['sede']
         
-        # <--- 3. AÑADIDO: Registro en auditoría
+        db.session.commit()
         registrar_log(1, 'Admin', 'ACTUALIZAR_USUARIO', 'info', f"Se actualizaron los datos del usuario: {datos['nombre']}.")
-        
         return True
     except Exception as e:
-        print("Error al actualizar usuario:", e)
+        print(f"Error al actualizar usuario: {e}")
+        db.session.rollback()
         return False
-    finally:
-        conn.close()
 
 def eliminar_usuario(id_usuario):
-    conn = get_db_connection()
-    if not conn: return False
-    
+    # Baja Lógica
     try:
-        cursor = conn.cursor()
-        
-        # Rescatamos el nombre del usuario para que el log quede bonito
-        cursor.execute("SELECT Nombre FROM Usuarios WHERE Id = ?", (id_usuario,))
-        row = cursor.fetchone()
-        nombre = row[0] if row else f"ID {id_usuario}"
+        usuario = Users.query.get(id_usuario)
+        if not usuario:
+            return False
 
-        # BAJA LÓGICA: No lo borramos de la tabla, solo lo marcamos como inactivo y registramos la fecha.
-        query = "UPDATE Usuarios SET Activo = 0, FechaDesactivacion = GETDATE() WHERE Id = ?"
-        cursor.execute(query, (id_usuario,))
-        conn.commit()
+        nombre = usuario.nombre
+        usuario.activo = False
+        usuario.fecha_desactivacion = datetime.utcnow()
         
-        # <--- 4. AÑADIDO: Registro en auditoría
+        db.session.commit()
         registrar_log(1, 'Admin', 'BAJA_LÓGICA', 'danger', f"El usuario '{nombre}' fue dado de baja del sistema.")
-        
         return True
     except Exception as e:
-        print("Error al dar de baja al usuario:", e)
+        print(f"Error al dar de baja al usuario: {e}")
+        db.session.rollback()
         return False
-    finally:
-        conn.close()
 
 def toggle_estado_usuario(id_usuario):
-    conn = get_db_connection()
-    if not conn: return False
     try:
-        cursor = conn.cursor()
-        cursor.execute("SELECT Activo, Nombre FROM Usuarios WHERE Id = ?", (id_usuario,))
-        row = cursor.fetchone()
-        if not row: return False
+        usuario = Users.query.get(id_usuario)
+        if not usuario:
+            return False
+            
+        usuario.activo = not usuario.activo
+        db.session.commit()
         
-        estado_actual = row[0]
-        nombre_usuario = row[1]
-        nuevo_estado = 0 if estado_actual == 1 else 1 # 0 = Inactivo, 1 = Activo
-        
-        cursor.execute("UPDATE Usuarios SET Activo = ? WHERE Id = ?", (nuevo_estado, id_usuario))
-        conn.commit()
-        
-        accion = 'DESACTIVAR_USUARIO' if nuevo_estado == 0 else 'ACTIVAR_USUARIO'
-        gravedad = 'warning' if nuevo_estado == 0 else 'info'
-        registrar_log(1, 'Admin', accion, gravedad, f"Se cambió el acceso del usuario '{nombre_usuario}'.")
-        
+        accion = 'ACTIVAR_USUARIO' if usuario.activo else 'DESACTIVAR_USUARIO'
+        gravedad = 'info' if usuario.activo else 'warning'
+        registrar_log(1, 'Admin', accion, gravedad, f"Se cambió el acceso del usuario '{usuario.nombre}'.")
         return True
     except Exception as e:
-        print("Error al cambiar estado del usuario:", e)
-        conn.rollback()
+        print(f"Error al cambiar estado del usuario: {e}")
+        db.session.rollback()
         return False
-    finally:
-        conn.close()
 
-def eliminar_usuario(id_usuario):
-    conn = get_db_connection()
-    if not conn: return False
-    
+def eliminar_usuario_fisico(id_usuario):
+    # Borrado Físico Real
     try:
-        cursor = conn.cursor()
+        usuario = Users.query.get(id_usuario)
+        if not usuario:
+            return False
+            
+        nombre = usuario.nombre
         
-        # 1. Rescatamos el nombre del usuario para que el log quede bonito
-        cursor.execute("SELECT Nombre FROM Usuarios WHERE Id = ?", (id_usuario,))
-        row = cursor.fetchone()
-        nombre = row[0] if row else f"ID {id_usuario}"
-
-        # 2. LIMPIEZA PREVIA (CRÍTICO): 
-        # Borramos al usuario de los equipos de los proyectos para que SQL Server nos deje borrarlo a él
-        cursor.execute("DELETE FROM Asignaciones WHERE UsuarioId = ?", (id_usuario,))
+        db.session.delete(usuario)
+        db.session.commit()
         
-        # Nota: Si en el futuro tienes una tabla de "Imputaciones" u "Horas", 
-        # tendrías que poner otro DELETE aquí antes de borrar al usuario.
-
-        # 3. BORRADO FÍSICO 100% REAL DE LA TABLA USUARIOS
-        query = "DELETE FROM Usuarios WHERE Id = ?"
-        cursor.execute(query, (id_usuario,))
-        conn.commit()
-        
-        # 4. Registro en auditoría
-        from services.auditoria_service import registrar_log
-        registrar_log(1, 'Admin', 'BORRADO_FISICO', 'danger', f"El usuario '{nombre}' y sus asignaciones fueron borrados físicamente de la base de datos.")
-        
+        registrar_log(1, 'Admin', 'BORRADO_FISICO', 'danger', f"El usuario '{nombre}' fue borrado físicamente.")
         return True
     except Exception as e:
-        print("Error al borrar físicamente al usuario:", e)
-        conn.rollback() # Deshacemos si algo falla a medias
+        print(f"Error al borrar físicamente al usuario: {e}")
+        db.session.rollback()
         return False
-    finally:
-        conn.close()
-
-def obtener_usuarios():
-    conn = get_db_connection()
-    if not conn: return None
-    try:
-        cursor = conn.cursor()
-        # IMPORTANTE: Seleccionar el Id
-        cursor.execute("SELECT Id, Nombre, Rol, Sede, Activo, OidAzure FROM Usuarios") 
-        columnas = [column[0] for column in cursor.description]
-        return [dict(zip(columnas, row)) for row in cursor.fetchall()]
-    except Exception as e:
-        print(f"Error: {e}")
-        return None
-    finally:
-        conn.close()
