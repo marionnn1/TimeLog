@@ -1,6 +1,6 @@
 from database.db import db
 from models.time_entries import TimeEntries
-from services.admin.auditoria_service import registrar_log
+from TimeLog.backend.services.admin.audit_service import registrar_log
 from datetime import datetime, timedelta
 
 

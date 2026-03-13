@@ -1,9 +1,9 @@
 from flask import Blueprint, request, jsonify
 # Añadimos _service para que coincida con el nombre de tu archivo
-from services.technical.imputaciones_user_service import obtener_imputaciones_semana, guardar_imputaciones_lote
-imputaciones_user_bp = Blueprint('imputaciones_user', __name__)
+from services.technical.time_entries_user_service import obtener_imputaciones_semana, guardar_imputaciones_lote
+time_entries_user_bp = Blueprint('time_entries_user', __name__)
 
-@imputaciones_user_bp.route('/api/imputaciones/semana', methods=['GET'])
+@time_entries_user_bp.route('/api/imputaciones/semana', methods=['GET'])
 def get_semana():
     u_id = request.args.get('usuario_id')
     lunes = request.args.get('fecha_lunes')
@@ -16,7 +16,7 @@ def get_semana():
         return jsonify({"status": "success", "data": res}), 200
     return jsonify({"status": "error", "message": "Error al consultar la BD"}), 500
 
-@imputaciones_user_bp.route('/api/imputaciones/guardar', methods=['POST'])
+@time_entries_user_bp.route('/api/imputaciones/guardar', methods=['POST'])
 def save_lote():
     data = request.json
     exito = guardar_imputaciones_lote(data['usuario_id'], data['filas'], data['fechas'])
