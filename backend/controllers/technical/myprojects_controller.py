@@ -1,5 +1,5 @@
 from flask import Blueprint, request, jsonify
-from TimeLog.backend.services.technical.myprojects_service import (
+from services.technical.myprojects_service import (
     request_time_entry_correction,
     get_weekly_time_entries, 
     save_time_entries_batch, 
@@ -43,13 +43,25 @@ def get_team_stats():
 @myprojects_bp.route('/api/myprojects/save', methods=['POST'])
 def save():
     req_data = request.json
-    if not req_data: return jsonify({"status": "error"}), 400
-    
-    success = save_time_entries_batch(
-        req_data.get('user_id'), 
-        req_data.get('rows'), 
-        req_data.get('dates')
-    )
+    if not req_data:
+        return jsonify({"status": "error", "message": "Empty payload"}), 400
+
+    # Compatibilidad: el frontend envía 'userId' y 'weekDates' (camelCase), pero
+    # algunas partes antiguas del backend esperan 'user_id' y 'dates'. Soportamos ambos.
+    user_id = req_data.get('user_id') or req_data.get('userId')
+    week_dates = req_data.get('weekDates') or req_data.get('dates')
+    rows = req_data.get('rows')
+
+    if not user_id or not week_dates or rows is None:
+        return jsonify({"status": "error", "message": "Missing mandatory fields"}), 400
+
+    # Aseguramos que el id de usuario sea un entero si es posible
+    try:
+        user_id = int(user_id)
+    except Exception:
+        pass
+
+    success = save_time_entries_batch(user_id, rows, week_dates)
     return jsonify({"status": "success" if success else "error"}), 200 if success else 500
 
 @myprojects_bp.route('/api/myprojects/calendar', methods=['GET'])

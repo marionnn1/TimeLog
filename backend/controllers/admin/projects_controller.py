@@ -1,5 +1,5 @@
 from flask import Blueprint, request, jsonify
-from TimeLog.backend.services.admin.projects_service import (
+from services.admin.projects_service import (
     get_projects, 
     create_project, 
     update_project, 

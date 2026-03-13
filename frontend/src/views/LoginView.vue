@@ -10,17 +10,18 @@ const store = useDataStore()
 const validUsers = ref([])
 const isLoading = ref(true)
 
-// Cargamos los usuarios reales de la base de datos a través del endpoint administrativo
 const fetchUsers = async () => {
     try {
         isLoading.value = true
-        // Usamos la URL estandarizada
-        const res = await fetch('http://localhost:5000/api/admin/users')
-        const json = await res.json()
+        const res = await fetch('http://127.0.0.1:5000/api/admin/users')
+        if (!res.ok) throw new Error("Error en la respuesta del servidor")
         
-        // El backend puede devolver el array directo o dentro de .data
-        if (res.ok) {
-            validUsers.value = json.data || json
+        const json = await res.json()
+        const data = json.data || json
+        
+        // Filtramos para asegurar que mapeamos bien (aceptando tanto SQL directo como el estandarizado)
+        if (data && data.length > 0) {
+            validUsers.value = data
         }
     } catch (error) {
         console.error("Error al conectar con el backend:", error)
@@ -32,18 +33,18 @@ const fetchUsers = async () => {
 onMounted(fetchUsers)
 
 const loginAs = (user) => {
-    // Mapeamos los campos de la BD (que vienen en español/PascalCase) 
-    // al objeto estandarizado en inglés para la sesión global
+    // Mapeamos los campos tolerando tanto el formato antiguo (Español/PascalCase) como el nuevo (Inglés)
     const userDataForStore = {
         id: user.id || user.Id,
         name: user.name || user.Nombre,
         email: user.email || user.OidAzure || 'user@inetum.com',
-        role: (user.role || user.Rol).toLowerCase(), // 'admin', 'manager' o 'tecnico'
-        initials: (user.name || user.Nombre).split(' ').map(n => n[0]).join('').toUpperCase().substring(0, 2),
+        role: (user.role || user.Rol || '').toLowerCase(), 
+        initials: (user.name || user.Nombre || '').split(' ').map(n => n[0]).join('').toUpperCase().substring(0, 2),
         location: user.location || user.Sede
     }
 
     store.setCurrentUser(userDataForStore)
+    localStorage.setItem('isAuthenticated', 'true') // Necesario si tienes guardia en el router
     router.push('/')
 }
 </script>
@@ -77,7 +78,7 @@ const loginAs = (user) => {
           <div class="flex-1">
             <p class="font-bold text-slate-800">{{ user.name || user.Nombre }}</p>
             <span class="text-[10px] font-black uppercase px-1.5 py-0.5 rounded border"
-                  :class="(user.role || user.Rol).toLowerCase() === 'admin' ? 'bg-red-50 text-red-600 border-red-100' : 'bg-blue-50 text-blue-600 border-blue-100'">
+                  :class="((user.role || user.Rol) || '').toLowerCase() === 'admin' ? 'bg-red-50 text-red-600 border-red-100' : 'bg-blue-50 text-blue-600 border-blue-100'">
                 {{ user.role || user.Rol }}
             </span>
           </div>

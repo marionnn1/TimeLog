@@ -1,6 +1,6 @@
 from flask import Blueprint, request, jsonify
 # Añadimos _service para que coincida con el nombre de tu archivo
-from TimeLog.backend.services.technical.time_entries_user_service import get_weekly_time_entries, save_time_entries_batch
+from services.technical.time_entries_user_service import get_weekly_time_entries, save_time_entries_batch
 
 time_entries_user_bp = Blueprint('time_entries_user', __name__)
 

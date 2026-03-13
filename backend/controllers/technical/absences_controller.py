@@ -1,5 +1,5 @@
 from flask import Blueprint, request, jsonify
-from services.technical.absences_service import get_monthly_absences, save_absences, delete_absence
+from services.technical.absences_service import get_monthly_absences, get_annual_absences, save_absences, delete_absence
 from datetime import datetime
 
 absences_bp = Blueprint('absences', __name__)
@@ -14,6 +14,16 @@ def get_absences():
         year = datetime.now().year
         
     data = get_monthly_absences(month, year)
+    return jsonify({"status": "success", "data": data})
+
+@absences_bp.route('/api/absences/summary', methods=['GET'])
+def get_absences_summary():
+    try:
+        year = int(request.args.get('year', datetime.now().year))
+    except (ValueError, TypeError):
+        year = datetime.now().year
+
+    data = get_annual_absences(year)
     return jsonify({"status": "success", "data": data})
 
 @absences_bp.route('/api/absences', methods=['POST'])
