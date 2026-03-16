@@ -6,14 +6,14 @@ from config import SQLALCHEMY_DATABASE_URI
 from database.db import db
 
 # --- TECHNICAL ---
-from controllers.technical.imputaciones_user_controller import imputaciones_user_bp
+from controllers.technical.time_entries_user_controller import time_entries_user_bp
 from controllers.technical.myprojects_controller import myprojects_bp
-from controllers.technical.ausencias_controller import ausencias_bp
+from controllers.technical.absences_controller import absences_bp
 
 # --- ADMIN ---
-from controllers.admin.usuarios_controller import usuarios_bp
-from controllers.admin.proyectos_controller import proyectos_bp
-from controllers.admin.auditoria_controller import auditoria_bp
+from controllers.admin.users_controller import users_bp
+from controllers.admin.projects_controller import projects_bp
+from controllers.admin.audit_controller import audit_bp
 from controllers.admin.dashboard_controller import dashboard_bp
 from controllers.admin.tickets_controller import tickets_bp
 
@@ -24,34 +24,21 @@ from controllers.manager.projects_controller import manager_projects_bp
 from controllers.manager.validation_controller import validation_bp
 
 app = Flask(__name__)
-CORS(app)
-
-# --- CONFIGURACIÓN SQLALCHEMY ---
 app.config['SQLALCHEMY_DATABASE_URI'] = SQLALCHEMY_DATABASE_URI
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+CORS(app)
 
+# Inicializamos la base de datos
 db.init_app(app)
 
-# Importamos los modelos dentro del contexto de la app
-with app.app_context():
-    from models.users import Users
-    from models.clients import Clients
-    from models.projects import Projects
-    from models.assignments import Assignments
-    from models.time_entries import TimeEntries
-    from models.absences import Absences
-    from models.month_closings import MonthClosings
-    from models.audits import Audits
-    from models.logs import Logs
-
-# --- REGISTRO DE BLUEPRINTS ---
-app.register_blueprint(usuarios_bp)
-app.register_blueprint(proyectos_bp)
-app.register_blueprint(auditoria_bp)
+# REGISTRAMOS TODOS LOS BLUEPRINTS
+app.register_blueprint(users_bp)
+app.register_blueprint(projects_bp)
+app.register_blueprint(audit_bp)
 app.register_blueprint(dashboard_bp)
-app.register_blueprint(imputaciones_user_bp)
+app.register_blueprint(time_entries_user_bp)
 app.register_blueprint(myprojects_bp)
-app.register_blueprint(ausencias_bp)
+app.register_blueprint(absences_bp)
 app.register_blueprint(tickets_bp)
 
 app.register_blueprint(manager_analytics_bp)

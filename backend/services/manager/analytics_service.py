@@ -5,42 +5,40 @@ from models.users import Users
 from models.absences import Absences
 from sqlalchemy import func, extract, and_
 
-
-def get_analytics_data(mes):
+def get_analytics_data(month):
     try:
-        anio, mes_num = mes.split("-")
+        year, month_num = month.split("-")
 
-        proyectos_query = (
+        projects_query = (
             db.session.query(
                 Projects.nombre.label("nombre"),
                 func.sum(TimeEntries.horas).label("total_horas"),
             )
             .join(TimeEntries.proyecto)
             .filter(
-                extract("year", TimeEntries.fecha) == anio,
-                extract("month", TimeEntries.fecha) == mes_num,
+                extract("year", TimeEntries.fecha) == year,
+                extract("month", TimeEntries.fecha) == month_num,
             )
             .group_by(Projects.nombre)
             .all()
         )
 
-        proyectos_stats = []
-        total_horas_imputadas = 0
+        project_stats = []
+        total_logged_hours = 0
 
-        for p in proyectos_query:
-            horas = float(p.total_horas or 0)
-            total_horas_imputadas += horas
-            proyectos_stats.append(
+        for p in projects_query:
+            hours = float(p.total_horas or 0)
+            total_logged_hours += hours
+            project_stats.append(
                 {
-                    "nombre": p.nombre,
-                    "horas": horas,
+                    "name": p.nombre,
+                    "hours": hours,
                     "color": "bg-blue-500",
                     "contributors": [],
                 }
             )
 
-        # 2. Carga de Empleados (LEFT JOIN con condiciones)
-        empleados_query = (
+        employees_query = (
             db.session.query(
                 Users.id,
                 Users.nombre,
@@ -51,8 +49,8 @@ def get_analytics_data(mes):
                 TimeEntries,
                 and_(
                     Users.id == TimeEntries.usuario_id,
-                    extract("year", TimeEntries.fecha) == anio,
-                    extract("month", TimeEntries.fecha) == mes_num,
+                    extract("year", TimeEntries.fecha) == year,
+                    extract("month", TimeEntries.fecha) == month_num,
                 ),
             )
             .filter(Users.activo == True)
@@ -60,54 +58,53 @@ def get_analytics_data(mes):
             .all()
         )
 
-        carga_empleados = []
-        total_capacidad_teorica = 0
+        employee_workload = []
+        total_theoretical_capacity = 0
 
-        for u in empleados_query:
-            # Capacidad teórica aproximada (160h/mes)
-            capacidad = 160
-            total_capacidad_teorica += capacidad
+        for u in employees_query:
+            capacity = 160
+            total_theoretical_capacity += capacity
 
-            nombres = u.nombre.split() if u.nombre else []
+            names = u.nombre.split() if u.nombre else []
             avatar = (
-                (nombres[0][0] + (nombres[1][0] if len(nombres) > 1 else "")).upper()
-                if nombres
+                (names[0][0] + (names[1][0] if len(names) > 1 else "")).upper()
+                if names
                 else "XX"
             )
 
-            carga_empleados.append(
+            employee_workload.append(
                 {
-                    "nombre": u.nombre,
-                    "horas": float(u.horas_imputadas or 0),
-                    "capacidad": capacidad,
-                    "rol": u.rol,
+                    "name": u.nombre,
+                    "hours": float(u.horas_imputadas or 0),
+                    "capacity": capacity,
+                    "role": u.rol,
                     "avatar": avatar,
                     "trend": "equal",
                 }
             )
 
-        ausencias_db = Absences.query.filter(
-            extract("year", Absences.fecha) == anio,
-            extract("month", Absences.fecha) == mes_num,
+        absences_db = Absences.query.filter(
+            extract("year", Absences.fecha) == year,
+            extract("month", Absences.fecha) == month_num,
         ).all()
 
-        ausencias = []
-        for a in ausencias_db:
-            ausencias.append(
+        absences = []
+        for a in absences_db:
+            absences.append(
                 {
                     "date": a.fecha.strftime("%Y-%m-%d") if a.fecha else "",
-                    "nombre": a.usuario.nombre if a.usuario else "Desconocido",
+                    "name": a.usuario.nombre if a.usuario else "Desconocido",
                     "type": a.tipo,
                     "userId": a.usuario_id,
                 }
             )
 
         return {
-            "totalHorasImputadas": total_horas_imputadas,
-            "totalCapacidadTeorica": total_capacidad_teorica,
-            "proyectosStats": proyectos_stats,
-            "cargaEmpleados": carga_empleados,
-            "ausencias": ausencias,
+            "totalLoggedHours": total_logged_hours,
+            "totalTheoreticalCapacity": total_theoretical_capacity,
+            "projectStats": project_stats,
+            "employeeWorkload": employee_workload,
+            "absences": absences,
         }, 200
 
     except Exception as e:

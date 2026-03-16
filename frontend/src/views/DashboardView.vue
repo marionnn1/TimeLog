@@ -55,7 +55,8 @@ const getInfoDia = (date) => {
     const user = store.getCurrentUser()
     if (!user) return null
     
-    const ausencia = store.getAusenciaPorFecha(isoDate, user.id)
+    // Accedemos a las ausencias del estado global del store
+    const ausencia = store.state.ausencias?.find(a => a.date === isoDate && a.userId === user.id)
     if (!ausencia) return null
     
     const tipoNormalizado = (ausencia.type === 'asuntos' || ausencia.type === 'asuntos_propios') ? 'asuntos' : ausencia.type
@@ -76,24 +77,28 @@ const diaSeleccionado = ref(new Date().getDate())
 const proyectosRealDB = ref([])
 const filas = ref([])
 
-// --- LOGICA DE VALIDACION DE DECIMALES (FRONTEND) ---
 const esPasoInvalido = (valor) => {
     if (!valor || valor === 0) return false
-    // Solo permitimos múltiplos de 0.5 (1, 1.5, 2, 2.5...)
-    // Multiplicamos por 2 y comprobamos si el resultado es un número entero
     return !Number.isInteger(valor * 2)
 }
 
 // --- CARGA DE PROYECTOS REALES (PARA EL MODAL) ---
 const cargarProyectosParaModal = async () => {
     try {
-        const res = await fetch('http://localhost:5000/api/proyectos')
+        // CAMBIO: Usamos 127.0.0.1 para mayor compatibilidad
+        const res = await fetch('http://127.0.0.1:5000/api/admin/projects')
+        if (!res.ok) throw new Error("Error en la respuesta")
+        
         const json = await res.json()
-        if (json.status === 'success') {
-            proyectosRealDB.value = json.data.filter(p => p.Estado === 'Activo')
-        }
+        const data = json.data || json
+        
+        // Mapeamos soportando ambos idiomas por el refactor
+        proyectosRealDB.value = data.filter(p => 
+            (p.status === 'Activo' || p.status === 'Active' || p.Estado === 'Activo')
+        )
     } catch (e) {
-        console.error("Error al obtener proyectos maestros", e)
+        console.error("Error al obtener proyectos maestros:", e)
+        // No lanzamos toast de error aquí para no molestar al usuario si el servidor está caído
     }
 }
 
@@ -104,25 +109,26 @@ const cargarHorasDesdeAPI = async () => {
     const lunesStr = lunesActual.value.toISOString().split('T')[0]
     try {
         cargando.value = true
-        const res = await fetch(`http://localhost:5000/api/myprojects/semana?usuario_id=${user.id}&fecha_lunes=${lunesStr}`)
-        const json = await res.json()
-        if (json.status === 'success') {
-            const datosBackend = json.data || []
+        const res = await fetch(`http://127.0.0.1:5000/api/myprojects/week?user_id=${user.id}&monday_date=${lunesStr}`)
+        
+        if (res.ok) {
+            const json = await res.json()
+            const datosBackend = json.data || json || []
             const nuevasFilas = []
-            const proyectosUnicos = [...new Set(datosBackend.map(d => d.ProyectoId))]
+            const proyectosUnicos = [...new Set(datosBackend.map(d => d.projectId || d.ProyectoId))]
             
             proyectosUnicos.forEach(pId => {
-                const registrosP = datosBackend.filter(d => d.ProyectoId === pId)
+                const registrosP = datosBackend.filter(d => (d.projectId || d.ProyectoId) === pId)
                 nuevasFilas.push({
                     id: pId,
-                    cliente: registrosP[0].ClienteNombre,
-                    proyecto: registrosP[0].ProyectoNombre,
+                    cliente: registrosP[0].clientName || registrosP[0].ClienteNombre,
+                    proyecto: registrosP[0].projectName || registrosP[0].ProyectoNombre,
                     horas: Array(7).fill(0).map((_, i) => {
                         const fechaBuscada = new Date(lunesActual.value)
                         fechaBuscada.setDate(lunesActual.value.getDate() + i)
                         const isoBuscada = fechaBuscada.toISOString().split('T')[0]
-                        const reg = registrosP.find(r => new Date(r.Fecha).toISOString().split('T')[0] === isoBuscada)
-                        return reg ? reg.Horas : 0
+                        const reg = registrosP.find(r => (r.date || r.Fecha).split('T')[0] === isoBuscada)
+                        return reg ? (reg.hours || reg.Horas) : 0
                     }),
                     seleccionado: false
                 })
@@ -130,7 +136,7 @@ const cargarHorasDesdeAPI = async () => {
             filas.value = nuevasFilas
         }
     } catch (error) {
-        showToast("Error al conectar con el servidor", "error")
+        console.error("Fallo al conectar con el Backend:", error)
     } finally {
         cargando.value = false
     }
@@ -140,13 +146,15 @@ const guardarCambios = async () => {
     if (hayErrores.value) return showToast('Por favor corrige los errores antes de guardar.', 'error')
     const user = store.getCurrentUser()
     const fechasSemana = diasSemana.value.map(d => d.toISOString().split('T')[0])
+    
     const payload = {
-        usuario_id: user.id,
-        fechas: fechasSemana,
-        filas: filas.value.map(f => ({ id_proyecto: f.id, horas: f.horas }))
+        userId: user.id, 
+        weekDates: fechasSemana,
+        rows: filas.value.map(f => ({ projectId: f.id, hours: f.horas }))
     }
+    
     try {
-        const res = await fetch('http://localhost:5000/api/myprojects/guardar', {
+        const res = await fetch('http://127.0.0.1:5000/api/myprojects/save', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(payload)
@@ -158,7 +166,7 @@ const guardarCambios = async () => {
             showToast('Error al guardar: Revisa la consola del servidor', 'error')
         }
     } catch (error) {
-        showToast('Error de red', 'error')
+        showToast('Error de red: ¿Está el servidor encendido?', 'error')
     }
 }
 
@@ -179,6 +187,10 @@ const diasSemana = computed(() => {
     }
     return dias
 })
+
+// Compatibilidad: algunas partes del código (o templates antiguos) usan "weekDays".
+// La mantenemos como alias para evitar errores si alguna referencia antigua persiste.
+const weekDays = diasSemana
 
 watch(lunesActual, cargarHorasDesdeAPI)
 
@@ -201,18 +213,13 @@ const nombresDias = ['LUN', 'MAR', 'MIÉ', 'JUE', 'VIE', 'SÁB', 'DOM']
 const formatoFechaCabecera = (fecha) => fecha.toLocaleDateString('es-ES', { month: 'long', year: 'numeric' })
 const esFinDeSemana = (date) => { const d = date.getDay(); return d === 0 || d === 6 }
 const esHoy = (date) => {
-    const hoy = new Date()
-    return date.getDate() === hoy.getDate() && date.getMonth() === hoy.getMonth() && date.getFullYear() === hoy.getFullYear()
+    const hoyObj = new Date()
+    return date.getDate() === hoyObj.getDate() && date.getMonth() === hoyObj.getMonth() && date.getFullYear() === hoyObj.getFullYear()
 }
 const esEditable = (date) => {
-    const hoy = new Date(); hoy.setHours(0,0,0,0)
+    const hoyObj = new Date(); hoyObj.setHours(0,0,0,0)
     const fComp = new Date(date); fComp.setHours(0,0,0,0)
-    return !esFinDeSemana(date) && fComp >= hoy && !getTipoDia(date)
-}
-const esPasadoNormal = (date) => {
-    const hoy = new Date(); hoy.setHours(0,0,0,0)
-    const fComp = new Date(date); fComp.setHours(0,0,0,0)
-    return fComp < hoy && !getTipoDia(date) && !esFinDeSemana(date)
+    return !esFinDeSemana(date) && fComp >= hoyObj && !getTipoDia(date)
 }
 
 const esSeleccionado = (date) => date.getDate() === diaSeleccionado.value && date.getMonth() === fechaActual.value.getMonth()
@@ -222,9 +229,9 @@ const seleccionarDia = (date) => { diaSeleccionado.value = date.getDate() }
 const irAHoy = () => { fechaActual.value = new Date(); diaSeleccionado.value = new Date().getDate() }
 
 const textoBotonCentral = computed(() => {
-    const hoy = new Date()
+    const hoyObj = new Date()
     const seleccion = new Date(fechaActual.value); seleccion.setDate(diaSeleccionado.value)
-    if (seleccion.getDate() === hoy.getDate() && seleccion.getMonth() === hoy.getMonth()) return 'HOY'
+    if (seleccion.getDate() === hoyObj.getDate() && seleccion.getMonth() === hoyObj.getMonth()) return 'HOY'
     return `${nombresDias[seleccion.getDay() === 0 ? 6 : seleccion.getDay() - 1]} ${diaSeleccionado.value}`
 })
 
@@ -240,7 +247,6 @@ const excedeLimiteDiario = (index) => {
 }
 const excedeLimiteSemanal = computed(() => totalSemanal.value > getMaxHorasSemana())
 
-// --- COMPUTED ACTUALIZADO PARA BLOQUEAR SI HAY DECIMALES MAL ---
 const hayErrores = computed(() => {
     const excedeHoras = excedeLimiteSemanal.value || Array.from({length:7}).some((_,i) => excedeLimiteDiario(i));
     const tieneDecimalesMal = filas.value.some(f => f.horas.some(h => esPasoInvalido(h)));
@@ -249,15 +255,16 @@ const hayErrores = computed(() => {
 
 const abrirModal = () => { nuevoRegistro.value = { proyectoId: undefined }; mostrarModal.value = true }
 const cerrarModal = () => { mostrarModal.value = false }
+
 const confirmarAnadirLinea = () => {
-    const p = proyectosRealDB.value.find(x => x.Id === nuevoRegistro.value.proyectoId)
+    const p = proyectosRealDB.value.find(x => (x.id || x.Id) === nuevoRegistro.value.proyectoId)
     if (!p) return showToast('Selecciona un proyecto válido', 'error')
-    if (filas.value.find(f => f.id === p.Id)) return showToast('El proyecto ya está en la lista', 'error')
+    if (filas.value.find(f => f.id === (p.id || p.Id))) return showToast('El proyecto ya está en la lista', 'error')
     
     filas.value.push({ 
-        id: p.Id, 
-        cliente: p.ClienteNombre || 'Cliente', 
-        proyecto: p.Nombre, 
+        id: p.id || p.Id, 
+        cliente: p.client || p.ClienteNombre || 'Cliente', 
+        proyecto: p.name || p.Nombre, 
         horas: [0, 0, 0, 0, 0, 0, 0], 
         seleccionado: false 
     })
@@ -283,7 +290,7 @@ onUnmounted(() => document.removeEventListener('click', handleClickOutside))
                 <div class="flex items-center gap-3">
                     <h1 class="h1-title capitalize">{{ formatoFechaCabecera(lunesActual) }}</h1>
                     <span class="text-sm font-medium text-gray-400 px-2 border-l border-gray-300">
-                        Semana {{ lunesActual.getDate() }} - {{ new Date(lunesActual.getTime() + 6 * 24 * 60 * 60 * 1000).getDate() }}
+                        Semana {{ lunesActual.getDate() }} - {{ diasSemana[6].getDate() }}
                     </span>
                 </div>
                 <div class="flex gap-4 items-center">
@@ -316,7 +323,7 @@ onUnmounted(() => document.removeEventListener('click', handleClickOutside))
                     <div class="flex items-center bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
                         <button @click="semanaAnterior" class="p-2 hover:bg-gray-50 text-gray-600 border-r"><ChevronLeft class="w-5 h-5" /></button>
                         <button @click="irAHoy" class="px-4 py-2 text-sm font-bold uppercase tracking-wide hover:bg-gray-50 flex items-center gap-2 min-w-[100px] justify-center text-dark">
-                            <RotateCcw v-if="textoBotonCentral !== 'HOY'" class="w-3 h-3 opacity-50" /> {{ textoBotonCentral }}
+                             <RotateCcw v-if="textoBotonCentral !== 'HOY'" class="w-3 h-3 opacity-50" /> {{ textoBotonCentral }}
                         </button>
                         <button @click="semanaSiguiente" class="p-2 hover:bg-gray-50 text-gray-600 border-l"><ChevronRight class="w-5 h-5" /></button>
                     </div>
@@ -338,13 +345,9 @@ onUnmounted(() => document.removeEventListener('click', handleClickOutside))
                     <span class="text-xs font-bold uppercase tracking-widest" :class="esHoy(fecha) ? 'text-primary' : 'text-gray-400'">{{ nombresDias[index] }}</span>
                     <span class="text-2xl font-bold" :class="esHoy(fecha) ? 'text-dark' : (esFinDeSemana(fecha) ? 'text-gray-400' : 'text-gray-700')">{{ fecha.getDate() }}</span>
                     <div v-if="getTipoDia(fecha)" class="mt-1">
-                        <span class="text-[9px] font-bold uppercase px-1.5 py-0.5 rounded shadow-sm" :class="{
-                            'bg-orange-100 text-orange-700': getTipoDia(fecha) === 'festivo',
-                            'bg-emerald-100 text-emerald-700': getTipoDia(fecha) === 'vacaciones',
-                            'bg-blue-100 text-blue-700': getTipoDia(fecha) === 'asuntos'
-                        }">{{ getLabelDia(fecha) }}</span>
+                        <span class="text-[9px] font-bold uppercase px-1.5 py-0.5 rounded shadow-sm bg-blue-100 text-blue-700">{{ getLabelDia(fecha) }}</span>
                     </div>
-                    <div v-else-if="totalDia(index) > 0" class="px-2 py-0.5 rounded-full text-xs font-bold" :class="excedeLimiteDiario(index) ? 'bg-red-100 text-red-700 animate-pulse' : 'bg-blue-100 text-dark'">{{ totalDia(index) }}h</div>
+                    <div v-else-if="totalDia(index) > 0" class="px-2 py-0.5 rounded-full text-xs font-bold bg-blue-100 text-dark">{{ totalDia(index) }}h</div>
                     <div v-else class="h-5"></div>
                     <div v-if="esHoy(fecha)" class="absolute top-2 right-2 w-2 h-2 rounded-full bg-primary"></div>
                 </div>
@@ -387,9 +390,9 @@ onUnmounted(() => document.removeEventListener('click', handleClickOutside))
                             
                             <td v-for="(hora, index) in fila.horas" :key="index" class="p-1 text-center" :class="[esFinDeSemana(diasSemana[index]) ? 'bg-slate-50' : '', getTipoDia(diasSemana[index]) ? 'opacity-40' : '']">
                                 <input type="number" min="0" max="24" step="0.5" v-model="fila.horas[index]" @focus="handleFocus" @blur="(e) => handleBlur(e, fila, index)" :disabled="!esEditable(diasSemana[index])"
-                                    class="w-full text-center py-1 rounded transition font-medium text-sm disabled:cursor-not-allowed appearance-none"
+                                    class="w-full text-center py-1 rounded transition font-medium text-sm disabled:cursor-not-allowed appearance-none border"
                                     :class="{
-                                        'text-primary font-bold border border-transparent hover:border-gray-300 bg-transparent': esEditable(diasSemana[index]) && fila.horas[index] > 0 && !esPasoInvalido(fila.horas[index]),
+                                        'bg-transparent border-transparent text-primary font-bold': esEditable(diasSemana[index]) && fila.horas[index] > 0 && !esPasoInvalido(fila.horas[index]),
                                         'bg-white border border-gray-200 text-primary shadow-sm': esEditable(diasSemana[index]) && fila.horas[index] == 0,
                                         'bg-gray-100 text-gray-400': !esEditable(diasSemana[index]),
                                         'border-red-500 bg-red-50 text-red-600 ring-2 ring-red-500 font-black shadow-none': esEditable(diasSemana[index]) && (excedeLimiteDiario(index) || esPasoInvalido(fila.horas[index]))
@@ -432,8 +435,8 @@ onUnmounted(() => document.removeEventListener('click', handleClickOutside))
                         <label class="text-[10px] font-black uppercase text-slate-400 tracking-widest">Proyecto Asignado (Base de Datos)</label>
                         <select v-model="nuevoRegistro.proyectoId" class="w-full border-2 border-slate-100 rounded-xl p-3 mt-2 outline-none focus:border-primary transition bg-slate-50">
                             <option :value="undefined" disabled>Selecciona un proyecto activo...</option>
-                            <option v-for="p in proyectosRealDB" :key="p.Id" :value="p.Id">
-                                {{ p.Nombre }} - ({{ p.ClienteNombre }})
+                            <option v-for="p in proyectosRealDB" :key="p.id || p.Id" :value="p.id || p.Id">
+                                {{ p.name || p.Nombre }} - ({{ p.client || p.ClienteNombre }})
                             </option>
                         </select>
                     </div>
@@ -455,7 +458,3 @@ onUnmounted(() => document.removeEventListener('click', handleClickOutside))
         </transition>
     </div>
 </template>
-
-<style scoped>
-input[type=number]::-webkit-inner-spin-button, input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
-</style>
