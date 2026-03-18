@@ -3,7 +3,7 @@ from models.projects import Projects
 from models.clients import Clients
 from models.assignments import Assignments
 from models.users import Users
-from TimeLog.backend.services.admin.audit_service import registrar_log
+from services.admin.audit_service import registrar_log
 from sqlalchemy import text
 from datetime import datetime
 

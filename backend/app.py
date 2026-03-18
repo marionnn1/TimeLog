@@ -6,14 +6,14 @@ from config import SQLALCHEMY_DATABASE_URI
 from database.db import db
 
 # --- TECHNICAL ---
-from TimeLog.backend.controllers.technical.time_entries_user_controller import time_entries_user_bp
+from controllers.technical.time_entries_user_controller import time_entries_user_bp
 from controllers.technical.myprojects_controller import myprojects_bp
-from TimeLog.backend.controllers.technical.absences_controller import absences_bp
+from controllers.technical.absences_controller import absences_bp
 
 # --- ADMIN ---
-from TimeLog.backend.controllers.admin.users_controller import users_bp
-from TimeLog.backend.controllers.admin.projects_controller import projects_bp
-from TimeLog.backend.controllers.admin.audit_controller import audit_bp
+from controllers.admin.users_controller import users_bp
+from controllers.admin.projects_controller import projects_bp
+from controllers.admin.audit_controller import audit_bp
 from controllers.admin.dashboard_controller import dashboard_bp
 from controllers.admin.tickets_controller import tickets_bp
 

@@ -1,5 +1,5 @@
 from flask import Blueprint, request, jsonify
-from TimeLog.backend.services.technical.absences_service import obtener_ausencias_mes, guardar_ausencias, eliminar_ausencia
+from services.technical.absences_service import obtener_ausencias_mes, guardar_ausencias, eliminar_ausencia
 from datetime import datetime
 
 absences_bp = Blueprint('absences', __name__)
