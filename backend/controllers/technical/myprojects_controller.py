@@ -1,98 +1,81 @@
 from flask import Blueprint, request, jsonify
+from services.technical.myprojects_service import solicitar_correccion_imputacion
 from services.technical.myprojects_service import (
-    request_time_entry_correction,
-    get_weekly_time_entries, 
-    save_time_entries_batch, 
-    get_monthly_analytics,
-    get_team_analytics,
-    get_monthly_calendar
+    obtener_imputaciones_semana, 
+    guardar_imputaciones_lote, 
+    obtener_analitica_mensual,
+    obtener_analitica_equipo,
+    obtener_calendario_mensual
 )
 from datetime import datetime
 
 myprojects_bp = Blueprint('myprojects', __name__)
 
-@myprojects_bp.route('/api/myprojects/week', methods=['GET'])
-def get_week():
-    user_id = request.args.get('user_id')
-    monday_date = request.args.get('monday_date')
-    return jsonify({"status": "success", "data": get_weekly_time_entries(user_id, monday_date)})
+@myprojects_bp.route('/api/myprojects/semana', methods=['GET'])
+def get_semana():
+    u_id = request.args.get('usuario_id')
+    lunes = request.args.get('fecha_lunes')
+    return jsonify({"status": "success", "data": obtener_imputaciones_semana(u_id, lunes)})
 
-@myprojects_bp.route('/api/myprojects/monthly-analytic', methods=['GET'])
-def get_analytics():
-    user_id = request.args.get('user_id')
+@myprojects_bp.route('/api/myprojects/analitica-mensual', methods=['GET'])
+def get_analitica():
+    u_id = request.args.get('usuario_id')
     try:
-        month = int(request.args.get('month', datetime.now().month))
-        year = int(request.args.get('year', datetime.now().year))
+        mes = int(request.args.get('mes', datetime.now().month))
+        anio = int(request.args.get('anio', datetime.now().year))
     except (ValueError, TypeError):
-        month, year = datetime.now().month, datetime.now().year
+        mes, anio = datetime.now().month, datetime.now().year
 
-    data = get_monthly_analytics(user_id, month, year)
+    data = obtener_analitica_mensual(u_id, mes, anio)
     return jsonify({"status": "success", "data": data})
 
-@myprojects_bp.route('/api/myprojects/team-analytic', methods=['GET'])
-def get_team_stats():
+@myprojects_bp.route('/api/myprojects/analitica-equipo', methods=['GET'])
+def get_analitica_equipo():
     try:
-        month = int(request.args.get('month', datetime.now().month))
-        year = int(request.args.get('year', datetime.now().year))
+        mes = int(request.args.get('mes', datetime.now().month))
+        anio = int(request.args.get('anio', datetime.now().year))
     except (ValueError, TypeError):
-        month, year = datetime.now().month, datetime.now().year
+        mes, anio = datetime.now().month, datetime.now().year
 
-    data = get_team_analytics(month, year)
+    data = obtener_analitica_equipo(mes, anio)
     return jsonify({"status": "success", "data": data})
 
-@myprojects_bp.route('/api/myprojects/save', methods=['POST'])
+@myprojects_bp.route('/api/myprojects/guardar', methods=['POST'])
 def save():
-    req_data = request.json
-    if not req_data:
-        return jsonify({"status": "error", "message": "Empty payload"}), 400
+    d = request.json
+    if not d: return jsonify({"status": "error"}), 400
+    exito = guardar_imputaciones_lote(d.get('usuario_id'), d.get('filas'), d.get('fechas'))
+    return jsonify({"status": "success" if exito else "error"}), 200 if exito else 500
 
-    # Compatibilidad: el frontend envía 'userId' y 'weekDates' (camelCase), pero
-    # algunas partes antiguas del backend esperan 'user_id' y 'dates'. Soportamos ambos.
-    user_id = req_data.get('user_id') or req_data.get('userId')
-    week_dates = req_data.get('weekDates') or req_data.get('dates')
-    rows = req_data.get('rows')
-
-    if not user_id or not week_dates or rows is None:
-        return jsonify({"status": "error", "message": "Missing mandatory fields"}), 400
-
-    # Aseguramos que el id de usuario sea un entero si es posible
-    try:
-        user_id = int(user_id)
-    except Exception:
-        pass
-
-    success = save_time_entries_batch(user_id, rows, week_dates)
-    return jsonify({"status": "success" if success else "error"}), 200 if success else 500
-
-@myprojects_bp.route('/api/myprojects/calendar', methods=['GET'])
-def get_calendar():
-    user_id = request.args.get('user_id')
-    month = request.args.get('month')
-    year = request.args.get('year')
+@myprojects_bp.route('/api/myprojects/calendario', methods=['GET'])
+def get_calendario():
+    u_id = request.args.get('usuario_id')
+    mes = request.args.get('mes')
+    anio = request.args.get('anio')
     
-    if not all([user_id, month, year]):
-        return jsonify({"status": "error", "message": "Missing parameters"}), 400
+    if not all([u_id, mes, anio]):
+        return jsonify({"status": "error", "message": "Faltan parámetros"}), 400
         
-    data = get_monthly_calendar(user_id, int(month), int(year))
+    data = obtener_calendario_mensual(u_id, int(mes), int(anio))
     return jsonify({"status": "success", "data": data})
 
-@myprojects_bp.route('/api/myprojects/request-correction', methods=['POST'])
-def request_correction():
+@myprojects_bp.route('/api/myprojects/solicitar-correccion', methods=['POST'])
+def solicitar_correccion():
     data = request.json
     if not data: 
-        return jsonify({"status": "error", "message": "Empty data"}), 400
+        return jsonify({"status": "error", "message": "Datos vacíos"}), 400
 
-    user_id = data.get('user_id')
-    project_id = data.get('project_id')
-    date = data.get('date')
-    new_hours = data.get('new_hours')
-    reason = data.get('reason')
+    usuario_id = data.get('usuario_id')
+    proyecto_id = data.get('proyecto_id')
+    fecha = data.get('fecha')
+    nuevas_horas = data.get('nuevas_horas')
+    motivo = data.get('motivo')
 
-    if not all([user_id, project_id, date, new_hours is not None, reason]):
-        return jsonify({"status": "error", "message": "Missing mandatory data"}), 400
+    if not all([usuario_id, proyecto_id, fecha, nuevas_horas is not None, motivo]):
+        return jsonify({"status": "error", "message": "Faltan datos obligatorios"}), 400
 
-    success = request_time_entry_correction(user_id, project_id, date, new_hours, reason)
+    exito = solicitar_correccion_imputacion(usuario_id, proyecto_id, fecha, nuevas_horas, motivo)
 
-    if success:
-        return jsonify({"status": "success", "message": "Request sent to the manager"}), 200
-    return jsonify({"status": "error", "message": "Failed to send request"}), 500
+    if exito:
+        return jsonify({"status": "success", "message": "Solicitud enviada al responsable"}), 200
+    return jsonify({"status": "error", "message": "Fallo al enviar la solicitud"}), 500
