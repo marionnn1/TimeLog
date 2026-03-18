@@ -3,7 +3,7 @@ from services.manager.closing_service import get_closing_audit, toggle_closing_m
 
 closing_bp = Blueprint('manager_closing', __name__, url_prefix='/api/manager/closing')
 
-@closing_bp.route('', methods=['GET'], strict_slashes=False)
+@closing_bp.route('/', methods=['GET'])
 def get_closing():
     month = request.args.get('month')
     if not month:
@@ -12,7 +12,7 @@ def get_closing():
     data, status = get_closing_audit(month)
     return jsonify(data), status
 
-@closing_bp.route('', methods=['POST'], strict_slashes=False)
+@closing_bp.route('/', methods=['POST'])
 def toggle_closing():
     body = request.get_json()
     month = body.get('month')
