@@ -31,19 +31,7 @@ CORS(app)
 # Inicializamos la base de datos
 db.init_app(app)
 
-# Importamos los modelos dentro del contexto de la app
-with app.app_context():
-    from models.users import Users
-    from models.clients import Clients
-    from models.projects import Projects
-    from models.assignments import Assignments
-    from models.time_entries import TimeEntries
-    from models.absences import Absences
-    from models.month_closings import MonthClosings
-    from models.audits import Audits
-    from models.logs import Logs
-
-# --- REGISTRO DE BLUEPRINTS ---
+# REGISTRAMOS TODOS LOS BLUEPRINTS
 app.register_blueprint(users_bp)
 app.register_blueprint(projects_bp)
 app.register_blueprint(audit_bp)

@@ -1,33 +1,48 @@
 from flask import Blueprint, request, jsonify
-from services.technical.absences_service import obtener_ausencias_mes, guardar_ausencias, eliminar_ausencia
+from services.technical.absences_service import get_monthly_absences, get_annual_absences, save_absences, delete_absence
 from datetime import datetime
 
 absences_bp = Blueprint('absences', __name__)
 
 @absences_bp.route('/api/absences', methods=['GET'])
-def get_ausencias():
+def get_absences():
     try:
-        mes = int(request.args.get('mes', datetime.now().month))
-        anio = int(request.args.get('anio', datetime.now().year))
+        month = int(request.args.get('month', datetime.now().month))
+        year = int(request.args.get('year', datetime.now().year))
     except (ValueError, TypeError):
-        mes = datetime.now().month
-        anio = datetime.now().year
+        month = datetime.now().month
+        year = datetime.now().year
         
-    data = obtener_ausencias_mes(mes, anio)
+    data = get_monthly_absences(month, year)
+    return jsonify({"status": "success", "data": data})
+
+@absences_bp.route('/api/absences/summary', methods=['GET'])
+def get_absences_summary():
+    try:
+        year = int(request.args.get('year', datetime.now().year))
+    except (ValueError, TypeError):
+        year = datetime.now().year
+
+    data = get_annual_absences(year)
     return jsonify({"status": "success", "data": data})
 
 @absences_bp.route('/api/absences', methods=['POST'])
-def create_ausencias():
-    d = request.json
-    if not d: return jsonify({"status": "error"}), 400
+def create_absences():
+    req_data = request.json
+    if not req_data: return jsonify({"status": "error"}), 400
     
-    exito = guardar_ausencias(d.get('usuario_id'), d.get('fechas'), d.get('tipo'), d.get('comentario', ''))
-    return jsonify({"status": "success" if exito else "error"}), 200 if exito else 500
+    success = save_absences(
+        req_data.get('user_id'), 
+        req_data.get('dates'), 
+        req_data.get('type'), 
+        req_data.get('comment', '')
+    )
+    return jsonify({"status": "success" if success else "error"}), 200 if success else 500
 
 @absences_bp.route('/api/absences', methods=['DELETE'])
-def delete_ausencia():
-    d = request.json
-    if not d: return jsonify({"status": "error"}), 400
+def remove_absence():
+    req_data = request.json
+    if not req_data: return jsonify({"status": "error"}), 400
     
-    exito = eliminar_ausencia(d.get('usuario_id'), d.get('fecha'))
-    return jsonify({"status": "success" if exito else "error"}), 200 if exito else 500
+    success = delete_absence(req_data.get('user_id'), req_data.get('date'))
+    return jsonify({"status": "success" if success else "error"}), 200 if success else 500
