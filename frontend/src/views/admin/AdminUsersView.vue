@@ -13,7 +13,7 @@ const DEFAULT_FORM = {
     id: null,
     nombre: '',
     email: '',
-    rol: 'Técnico',
+    rol: 'Tecnico',
     sede: 'Tarragona',
     activo: 1
 }
