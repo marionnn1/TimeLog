@@ -1,55 +1,57 @@
 from flask import Blueprint, request, jsonify
+from services.admin.users_service import toggle_estado_usuario
 from services.admin.users_service import (
-    get_users, 
-    create_user, 
-    update_user, 
-    delete_user,         
-    hard_delete_user,    
-    toggle_user_status
+    obtener_usuarios, 
+    crear_usuario, 
+    actualizar_usuario, 
+    eliminar_usuario # Este ahora actúa como baja lógica (desactivar)
 )
 
-# We create the routes blueprint for users
+# Creamos el "molde" de rutas para usuarios
 users_bp = Blueprint('users', __name__)
 
-@users_bp.route('/api/admin/users', methods=['GET'])
+@users_bp.route('/api/usuarios', methods=['GET'])
 def get_all():
-    users = get_users()
-    if users is not None:
-        return jsonify({"status": "success", "data": users}), 200
-    return jsonify({"status": "error", "message": "Error connecting to the DB"}), 500
+    usuarios = obtener_usuarios()
+    if usuarios is not None:
+        return jsonify({"status": "success", "data": usuarios}), 200
+    return jsonify({"status": "error", "message": "Error al conectar con la BD"}), 500
 
-@users_bp.route('/api/admin/users', methods=['POST'])
+@users_bp.route('/api/usuarios', methods=['POST'])
 def create():
-    if create_user(request.json):
-        return jsonify({"status": "success", "message": "User created"}), 201
-    return jsonify({"status": "error", "message": "Failed to create user"}), 500
+    if crear_usuario(request.json):
+        return jsonify({"status": "success", "message": "Usuario creado"}), 201
+    return jsonify({"status": "error", "message": "Fallo al crear"}), 500
 
-@users_bp.route('/api/admin/users/<int:user_id>', methods=['PUT'])
-def update(user_id):
-    if update_user(user_id, request.json):
-        return jsonify({"status": "success", "message": "User updated"}), 200
-    return jsonify({"status": "error", "message": "Failed to update user"}), 500
+@users_bp.route('/api/usuarios/<int:id_usuario>', methods=['PUT'])
+def update(id_usuario):
+    if actualizar_usuario(id_usuario, request.json):
+        return jsonify({"status": "success", "message": "Usuario actualizado"}), 200
+    return jsonify({"status": "error", "message": "Fallo al actualizar"}), 500
 
+# Ruta para la Baja Lógica (Desactivar usuario)
+@users_bp.route('/api/usuarios/<int:id_usuario>', methods=['DELETE'])
+def deactivate(id_usuario):
+    if eliminar_usuario(id_usuario):
+        return jsonify({"status": "success", "message": "Usuario desactivado correctamente"}), 200
+    return jsonify({"status": "error", "message": "Fallo al desactivar usuario"}), 500
 
-@users_bp.route('/api/admin/users/<int:user_id>', methods=['DELETE'])
-def deactivate(user_id):
-    if delete_user(user_id):
-        return jsonify({"status": "success", "message": "User deactivated successfully"}), 200
-    return jsonify({"status": "error", "message": "Failed to deactivate user"}), 500
-
-
-@users_bp.route('/api/admin/users/<int:user_id>/force', methods=['DELETE'])
-def delete_permanent(user_id):
-    if hard_delete_user(user_id):
-        return jsonify({"status": "success", "message": "User permanently deleted from DB"}), 200
+# NUEVA: Ruta para el Borrado Físico (Eliminar de la BD definitivamente)
+@users_bp.route('/api/usuarios/<int:id_usuario>/force', methods=['DELETE'])
+def delete_permanent(id_usuario):
+    # Nota: Asegúrate de tener esta función 'eliminar_usuario_fisico' en tu usuarios_service.py
+    from services.admin.users_service import eliminar_usuario_fisico
+    if eliminar_usuario_fisico(id_usuario):
+        return jsonify({"status": "success", "message": "Usuario eliminado permanentemente de la BD"}), 200
     return jsonify({
         "status": "error", 
-        "message": "Cannot delete from DB: the user has linked data (time entries or projects)"
+        "message": "No se puede eliminar de la BD: el usuario tiene datos vinculados (imputaciones o proyectos)"
     }), 500
 
-@users_bp.route('/api/admin/users/<int:user_id>/toggle', methods=['PUT'])
-def toggle_user(user_id):
-    success = toggle_user_status(user_id)
-    if success:
-        return jsonify({"status": "success", "message": "User status updated"}), 200
-    return jsonify({"status": "error", "message": "Could not change status"}), 500
+@users_bp.route('/api/usuarios/<int:id_usuario>/toggle', methods=['PUT'])
+def toggle_usuario(id_usuario):
+    from services.admin.users_service import toggle_estado_usuario # Importar arriba
+    exito = toggle_estado_usuario(id_usuario)
+    if exito:
+        return jsonify({"status": "success", "message": "Estado del usuario actualizado"}), 200
+    return jsonify({"status": "error", "message": "No se pudo cambiar el estado"}), 500

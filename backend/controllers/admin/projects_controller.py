@@ -1,44 +1,44 @@
 from flask import Blueprint, request, jsonify
 from services.admin.projects_service import (
-    get_projects, 
-    create_project, 
-    update_project, 
-    hard_delete_project, 
-    toggle_project_status
+    obtener_proyectos, 
+    crear_proyecto, 
+    actualizar_proyecto, 
+    eliminar_proyecto_fisico, 
+    toggle_estado_proyecto
 )
 
 projects_bp = Blueprint('projects', __name__)
 
-@projects_bp.route('/api/admin/projects', methods=['GET'])
+@projects_bp.route('/api/proyectos', methods=['GET'])
 def get_all():
-    projects = get_projects()
-    if projects is not None:
-        return jsonify({"status": "success", "data": projects}), 200
-    return jsonify({"status": "error", "message": "Error connecting to the DB"}), 500
+    proyectos = obtener_proyectos()
+    if proyectos is not None:
+        return jsonify({"status": "success", "data": proyectos}), 200
+    return jsonify({"status": "error", "message": "Error al conectar con la BD"}), 500
 
-@projects_bp.route('/api/admin/projects', methods=['POST'])
+@projects_bp.route('/api/proyectos', methods=['POST'])
 def create():
-    if create_project(request.json):
-        return jsonify({"status": "success", "message": "Project created"}), 201
-    return jsonify({"status": "error", "message": "Failed to create project"}), 500
+    if crear_proyecto(request.json):
+        return jsonify({"status": "success", "message": "Proyecto creado"}), 201
+    return jsonify({"status": "error", "message": "Fallo al crear el proyecto"}), 500
 
-@projects_bp.route('/api/admin/projects/<int:project_id>', methods=['PUT'])
-def update(project_id):
-    if update_project(project_id, request.json):
-        return jsonify({"status": "success", "message": "Project updated"}), 200
-    return jsonify({"status": "error", "message": "Failed to update project"}), 500
+@projects_bp.route('/api/proyectos/<int:id_proyecto>', methods=['PUT'])
+def update(id_proyecto):
+    if actualizar_proyecto(id_proyecto, request.json):
+        return jsonify({"status": "success", "message": "Proyecto actualizado"}), 200
+    return jsonify({"status": "error", "message": "Fallo al actualizar el proyecto"}), 500
 
-@projects_bp.route('/api/admin/projects/<int:project_id>/force', methods=['DELETE'])
-def delete_permanent(project_id):
-    if hard_delete_project(project_id):
-        return jsonify({"status": "success", "message": "Project permanently deleted from DB"}), 200
+@projects_bp.route('/api/proyectos/<int:id_proyecto>/force', methods=['DELETE'])
+def delete_permanent(id_proyecto):
+    if eliminar_proyecto_fisico(id_proyecto):
+        return jsonify({"status": "success", "message": "Proyecto eliminado permanentemente de la BD"}), 200
     return jsonify({
         "status": "error", 
-        "message": "Cannot delete from DB: project has linked data"
+        "message": "No se puede eliminar de la BD: el proyecto tiene datos vinculados"
     }), 500
 
-@projects_bp.route('/api/admin/projects/<int:project_id>/toggle', methods=['PUT'])
-def toggle_project(project_id):
-    if toggle_project_status(project_id):
-        return jsonify({"status": "success", "message": "Project status updated"}), 200
-    return jsonify({"status": "error", "message": "Could not change status"}), 500
+@projects_bp.route('/api/proyectos/<int:id_proyecto>/toggle', methods=['PUT'])
+def toggle_proyecto(id_proyecto):
+    if toggle_estado_proyecto(id_proyecto):
+        return jsonify({"status": "success", "message": "Estado del proyecto actualizado"}), 200
+    return jsonify({"status": "error", "message": "No se pudo cambiar el estado"}), 500

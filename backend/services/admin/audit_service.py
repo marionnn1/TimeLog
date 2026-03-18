@@ -1,18 +1,19 @@
 from database.db import db
 from models.audits import Audits
 
-def get_logs():
+
+def obtener_logs():
     try:
         logs = Audits.query.order_by(Audits.fecha.desc(), Audits.id.desc()).all()
 
         return [
             {
                 "id": log.id,
-                "date": log.fecha.strftime("%d/%m/%Y %H:%M:%S") if log.fecha else "",
+                "fecha": log.fecha.strftime("%d/%m/%Y %H:%M:%S") if log.fecha else "",
                 "actor": log.actor_nombre,
-                "action": log.accion,
-                "severity": log.gravedad,
-                "detail": log.detalle,
+                "accion": log.accion,
+                "gravedad": log.gravedad,
+                "detalle": log.detalle,
             }
             for log in logs
         ]
@@ -20,14 +21,15 @@ def get_logs():
         print(f"Error al obtener logs: {e}")
         return None
 
-def register_log(actor_id, actor_name, action, severity, detail):
+
+def registrar_log(actor_id, actor_nombre, accion, gravedad, detalle):
     try:
         nuevo_log = Audits(
             actor_id=actor_id,
-            actor_nombre=actor_name,
-            accion=action,
-            gravedad=severity,
-            detalle=detail,
+            actor_nombre=actor_nombre,
+            accion=accion,
+            gravedad=gravedad,
+            detalle=detalle,
         )
         db.session.add(nuevo_log)
         db.session.commit()

@@ -45,9 +45,8 @@ const annualSummary = ref([])
 const fetchAbsences = async () => {
     if (!currentUser) return
     try {
-        const monthParam = month.value + 1
-        // URL estandarizada al servicio de ausencias
-        const res = await fetch(`http://localhost:5000/api/absences?month=${monthParam}&year=${year.value}`)
+        const mesApi = month.value + 1
+        const res = await fetch(`http://localhost:5000/api/absences?mes=${mesApi}&anio=${year.value}`)
         const json = await res.json()
         if (res.ok) {
             monthAbsences.value = json.data || json
@@ -60,9 +59,11 @@ const fetchAbsences = async () => {
 const fetchAnnualSummary = async () => {
     if (!currentUser) return
     try {
-        // Obtenemos el resumen completo del año para la sección inferior
-        const res = await fetch(`http://localhost:5000/api/absences/summary?year=${year.value}`)
-        const json = await res.json()
+        const promesas = []
+        for(let m = 1; m <= 12; m++) {
+            promesas.push(fetch(`http://localhost:5000/api/absences?mes=${m}&anio=${year.value}`).then(r => r.json()))
+        }
+        const resultados = await Promise.all(promesas)
         
         if (res.ok) {
             const data = json.data || json
