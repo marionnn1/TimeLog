@@ -3,19 +3,9 @@ import { ref, computed, onMounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useDataStore } from '../stores/dataStore'
 import { 
-  ChevronLeft, 
-  ChevronRight, 
-  Calendar as CalendarIcon, 
-  FileText,
-  Hash, 
-  Briefcase,
-  CheckCircle2,
-  AlertCircle,
-  X,
-  MessageSquare, 
-  Send, 
-  Clock,
-  ArrowRight
+  ChevronLeft, ChevronRight, Calendar as CalendarIcon, FileText,
+  Hash, Briefcase, CheckCircle2, AlertCircle, X,
+  MessageSquare, Send, Clock, ArrowRight
 } from 'lucide-vue-next'
 
 const router = useRouter()
@@ -75,33 +65,26 @@ const getLabelDia = (dateObj) => {
 }
 // ==========================================
 
-const fechaActual = ref(new Date()) 
-const hoy = new Date() 
+const monthNames = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre']
+const weekDays = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom']
 
-const meses = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre']
-const diasSemana = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom']
+const currentYear = computed(() => currentDate.value.getFullYear())
+const currentMonthIndex = computed(() => currentDate.value.getMonth())
+const currentMonthName = computed(() => monthNames[currentMonthIndex.value])
 
-const anioActual = computed(() => fechaActual.value.getFullYear())
-const mesActualIndex = computed(() => fechaActual.value.getMonth())
-const nombreMes = computed(() => meses[mesActualIndex.value])
-
-const diasEnBlanco = computed(() => {
-  const primerDia = new Date(anioActual.value, mesActualIndex.value, 1).getDay()
-  return primerDia === 0 ? 6 : primerDia - 1
+const blankDays = computed(() => {
+  const firstDay = new Date(currentYear.value, currentMonthIndex.value, 1).getDay()
+  return firstDay === 0 ? 6 : firstDay - 1
 })
-const diasDelMes = computed(() => {
-  return new Date(anioActual.value, mesActualIndex.value + 1, 0).getDate()
+const daysInMonthCount = computed(() => {
+  return new Date(currentYear.value, currentMonthIndex.value + 1, 0).getDate()
 })
 
-const esFinDeSemana = (dia) => {
-  const fecha = new Date(anioActual.value, mesActualIndex.value, dia)
-  return fecha.getDay() === 0 || fecha.getDay() === 6 
+const isWeekend = (day) => {
+  const date = new Date(currentYear.value, currentMonthIndex.value, day)
+  return date.getDay() === 0 || date.getDay() === 6 
 }
-const esHoy = (dia) => dia === hoy.getDate() && mesActualIndex.value === hoy.getMonth() && anioActual.value === hoy.getFullYear()
-
-const mesAnterior = () => fechaActual.value = new Date(anioActual.value, mesActualIndex.value - 1, 1)
-const mesSiguiente = () => fechaActual.value = new Date(anioActual.value, mesActualIndex.value + 1, 1)
-const irAHoy = () => fechaActual.value = new Date()
+const isToday = (day) => day === today.getDate() && currentMonthIndex.value === hoy.getMonth() && currentYear.value === hoy.getFullYear()
 
 const imputaciones = ref([])
 
@@ -114,7 +97,7 @@ const coloresProyectos = [
     'bg-indigo-50 text-indigo-700 border-indigo-100 hover:bg-indigo-100'
 ]
 
-const cargarCalendario = async () => {
+const fetchCalendarData = async () => {
     const user = store.getCurrentUser()
     if (!user) return
     
@@ -160,13 +143,13 @@ const resumenProyectos = computed(() => {
     if (!grupos[key]) {
       grupos[key] = { cliente: imp.cliente, codigo: imp.codigo, proyecto: imp.proyecto, horas: 0 }
     }
-    grupos[key].horas += imp.horas
+    groups[key].hours += imp.hours
   })
-  return Object.values(grupos).sort((a, b) => b.horas - a.horas)
+  return Object.values(groups).sort((a, b) => b.hours - a.hours)
 })
 
-const totalHorasMes = computed(() => {
-  return imputaciones.value.reduce((acc, curr) => acc + curr.horas, 0)
+const totalMonthHours = computed(() => {
+  return monthlyEntries.value.reduce((acc, curr) => acc + curr.hours, 0)
 })
 
 const exportarDatos = () => {
@@ -209,7 +192,7 @@ const abrirSolicitud = (imputacion, dia) => {
         fechaVisible: fechaStr, fechaISO: isoDate, proyecto: imputacion.proyecto, proyecto_id: imputacion.proyecto_id,
         mensaje: '', horasActuales: imputacion.horas, horasNuevas: imputacion.horas
     }
-    mostrarModalSolicitud.value = true
+    showRequestModal.value = true
 }
 
 const enviarSolicitudJefe = async () => {
@@ -218,7 +201,7 @@ const enviarSolicitudJefe = async () => {
     if (!user) return;
 
     try {
-        const response = await fetch('http://localhost:5000/api/myprojects/solicitar-correccion', {
+        const response = await fetch('http://localhost:5000/api/myprojects/request-correction', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -232,7 +215,7 @@ const enviarSolicitudJefe = async () => {
             showToast('Solicitud enviada al responsable', 'success')
             cargarCalendario() 
         } else {
-            showToast(json.message || 'Error al enviar la solicitud', 'error')
+            showToast('Error al enviar la solicitud', 'error')
         }
     } catch (error) {}
 }
@@ -247,7 +230,7 @@ const enviarSolicitudJefe = async () => {
           <div class="p-2 rounded-lg bg-white shadow-sm border border-gray-100">
             <CalendarIcon class="w-6 h-6 text-primary"/>
           </div>
-          {{ nombreMes }} <span class="font-light opacity-50">{{ anioActual }}</span>
+          {{ currentMonthName }} <span class="font-light opacity-50">{{ currentYear }}</span>
         </h1>
         
         <div class="flex items-center bg-white rounded-lg shadow-sm border border-gray-200 ml-6">
@@ -277,8 +260,10 @@ const enviarSolicitudJefe = async () => {
 
     <div class="card p-0 overflow-hidden mb-8 flex-none shadow-xl">
       <div class="grid grid-cols-7 border-b border-gray-200">
-        <div v-for="dia in diasSemana.slice(0, 5)" :key="dia" class="py-4 text-center text-xs font-bold uppercase tracking-widest bg-white text-dark">{{ dia }}</div>
-        <div v-for="dia in diasSemana.slice(5, 7)" :key="dia" class="py-4 text-center text-xs font-bold uppercase tracking-widest text-white/90 bg-dark">{{ dia }}</div>
+        <div v-for="dayName in weekDays" :key="dayName" class="py-4 text-center text-xs font-bold uppercase tracking-widest"
+             :class="dayName === 'Sáb' || dayName === 'Dom' ? 'bg-dark text-white/90' : 'bg-white text-dark'">
+          {{ dayName }}
+        </div>
       </div>
 
       <div class="grid grid-cols-7 auto-rows-fr">
@@ -335,9 +320,8 @@ const enviarSolicitudJefe = async () => {
                 <thead>
                     <tr class="bg-white text-xs uppercase tracking-wider border-b-2 border-gray-100 text-dark">
                         <th class="px-6 py-3 font-bold">Cliente</th>
-                        <th class="px-6 py-3 font-bold">Cód. Proyecto</th>
-                        <th class="px-6 py-3 font-bold">Proyecto / Tarea</th>
-                        <th class="px-6 py-3 font-bold text-center">Horas Mensuales</th>
+                        <th class="px-6 py-3 font-bold">Proyecto</th>
+                        <th class="px-6 py-3 font-bold text-center">Horas</th>
                     </tr>
                 </thead>
                 <tbody class="text-sm text-gray-700 divide-y divide-gray-50">
@@ -353,7 +337,7 @@ const enviarSolicitudJefe = async () => {
         </div>
     </div>
 
-    <div v-if="mostrarModalSolicitud" class="fixed inset-0 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+    <div v-if="showRequestModal" class="fixed inset-0 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center z-50 p-4">
         <div class="bg-white w-full max-w-md rounded-xl shadow-2xl p-6 animate-in zoom-in-95">
             <div class="flex justify-between items-center mb-6 border-b border-gray-100 pb-3">
                 <h3 class="text-lg font-bold text-dark flex items-center gap-2"><MessageSquare class="w-5 h-5 text-primary"/> Solicitar Corrección</h3>
@@ -361,8 +345,8 @@ const enviarSolicitudJefe = async () => {
             </div>
             <div class="space-y-5">
                 <div class="p-3 bg-gray-50 rounded-lg border border-gray-200 text-sm">
-                    <p class="text-gray-500 font-bold mb-1 flex items-center gap-2"><CalendarIcon class="w-4 h-4"/> {{ formSolicitud.fechaVisible }}</p>
-                    <p class="text-primary font-bold flex items-center gap-2"><Briefcase class="w-4 h-4"/> {{ formSolicitud.proyecto }}</p>
+                    <p class="text-gray-500 font-bold mb-1 flex items-center gap-2"><CalendarIcon class="w-4 h-4"/> {{ correctionForm.displayDate }}</p>
+                    <p class="text-primary font-bold flex items-center gap-2"><Briefcase class="w-4 h-4"/> {{ correctionForm.projectName }}</p>
                 </div>
                 <div class="flex items-center justify-between gap-4">
                     <div class="flex-1 text-center">
@@ -391,7 +375,7 @@ const enviarSolicitudJefe = async () => {
     </div>
 
     <transition enter-active-class="transform ease-out duration-300 transition" enter-from-class="translate-y-2 opacity-0 sm:translate-y-0 sm:translate-x-2" enter-to-class="translate-y-0 opacity-100 sm:translate-x-0" leave-active-class="transition ease-in duration-100" leave-from-class="opacity-100" leave-to-class="opacity-0">
-        <div v-if="toast.show" class="absolute bottom-6 right-6 z-50 flex items-center w-full max-w-xs p-4 space-x-3 text-gray-500 bg-white rounded-lg shadow-lg border border-gray-100" role="alert">
+        <div v-if="toast.show" class="absolute bottom-6 right-6 z-50 flex items-center w-full max-w-xs p-4 space-x-3 text-gray-500 bg-white rounded-lg shadow-lg border border-gray-100">
             <div class="inline-flex items-center justify-center flex-shrink-0 w-8 h-8 rounded-lg" :class="toast.type === 'success' ? 'text-green-500 bg-green-100' : 'text-red-500 bg-red-100'">
                 <component :is="toast.type === 'success' ? CheckCircle2 : AlertCircle" class="w-5 h-5"/>
             </div>

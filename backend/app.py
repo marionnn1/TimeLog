@@ -24,12 +24,11 @@ from controllers.manager.projects_controller import manager_projects_bp
 from controllers.manager.validation_controller import validation_bp
 
 app = Flask(__name__)
-CORS(app)
-
-# --- CONFIGURACIÓN SQLALCHEMY ---
 app.config['SQLALCHEMY_DATABASE_URI'] = SQLALCHEMY_DATABASE_URI
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+CORS(app)
 
+# Inicializamos la base de datos
 db.init_app(app)
 
 # Importamos los modelos dentro del contexto de la app

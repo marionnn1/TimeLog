@@ -2,23 +2,23 @@ const API_URL = 'http://localhost:5000/api/manager';
 
 export default {
     // ANALYTICS
-    async getAnalytics(mes) {
-        const res = await fetch(`${API_URL}/analytics?mes=${mes}`);
+    async getAnalytics(month) {
+        const res = await fetch(`${API_URL}/analytics?month=${month}`);
         if (!res.ok) throw new Error('Error fetching analytics');
         return { data: await res.json() };
     },
 
     // CLOSING
-    async getClosingData(mes) {
-        const res = await fetch(`${API_URL}/closing?mes=${mes}`);
+    async getClosingData(month) {
+        const res = await fetch(`${API_URL}/closing?month=${month}`);
         if (!res.ok) throw new Error('Error fetching closing data');
         return { data: await res.json() };
     },
-    async toggleCierreMes(mes, accion) {
+    async toggleClosingMonth(month, action) {
         const res = await fetch(`${API_URL}/closing`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ mes, accion })
+            body: JSON.stringify({ month, action })
         });
         if (!res.ok) throw new Error('Error toggling closing month');
         return { data: await res.json() };
@@ -55,11 +55,11 @@ export default {
         if (!res.ok) throw new Error('Error deleting project');
         return { data: await res.json() };
     },
-    async assignUserToProject(proyectoId, usuarioId) {
-        const res = await fetch(`${API_URL}/projects/${proyectoId}/assign`, {
+    async assignUserToProject(projectId, userId) {
+        const res = await fetch(`${API_URL}/projects/${projectId}/assign`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ usuarioId })
+            body: JSON.stringify({ userId })
         });
         if (!res.ok) {
             const err = await res.json();
@@ -74,20 +74,20 @@ export default {
         if (!res.ok) throw new Error('Error fetching validations');
         return { data: await res.json() };
     },
-    async approveValidation(id, horas) {
+    async approveValidation(id, hours) {
         const res = await fetch(`${API_URL}/validation/${id}/approve`, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ horas })
+            body: JSON.stringify({ hours })
         });
         if (!res.ok) throw new Error('Error approving validation');
         return { data: await res.json() };
     },
-    async rejectValidation(id, motivo) {
+    async rejectValidation(id, reason) {
         const res = await fetch(`${API_URL}/validation/${id}/reject`, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ motivo })
+            body: JSON.stringify({ reason })
         });
         if (!res.ok) throw new Error('Error rejecting validation');
         return { data: await res.json() };
