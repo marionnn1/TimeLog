@@ -81,9 +81,7 @@ const mesAnterior = () => fechaActual.value = new Date(anioActual.value, mesActu
 const mesSiguiente = () => fechaActual.value = new Date(anioActual.value, mesActualIndex.value + 1, 1)
 const irAHoy = () => fechaActual.value = new Date()
 
-// ==========================================
-// LÓGICA DE CARGA DESDE LA API
-// ==========================================
+
 const imputaciones = ref([])
 
 // Paleta de colores para asignar a los proyectos

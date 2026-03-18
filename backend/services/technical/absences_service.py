@@ -1,6 +1,7 @@
 from database.db import db
 from models.absences import Absences
 from sqlalchemy import extract
+from datetime import datetime 
 
 
 def obtener_ausencias_mes(mes, anio):
@@ -32,13 +33,16 @@ def obtener_ausencias_mes(mes, anio):
 
 def guardar_ausencias(usuario_id, fechas, tipo, comentario=""):
     try:
-        for fecha in fechas:
+        for f in fechas:
+            fecha_obj = datetime.strptime(f, "%Y-%m-%d").date() if isinstance(f, str) else f
+            
             existe = Absences.query.filter_by(
-                usuario_id=usuario_id, fecha=fecha
+                usuario_id=usuario_id, fecha=fecha_obj
             ).first()
+            
             if not existe:
                 nueva_ausencia = Absences(
-                    usuario_id=usuario_id, fecha=fecha, tipo=tipo, comentario=comentario
+                    usuario_id=usuario_id, fecha=fecha_obj, tipo=tipo, comentario=comentario
                 )
                 db.session.add(nueva_ausencia)
 
@@ -52,7 +56,10 @@ def guardar_ausencias(usuario_id, fechas, tipo, comentario=""):
 
 def eliminar_ausencia(usuario_id, fecha):
     try:
-        ausencia = Absences.query.filter_by(usuario_id=usuario_id, fecha=fecha).first()
+
+        fecha_obj = datetime.strptime(fecha, "%Y-%m-%d").date() if isinstance(fecha, str) else fecha
+        
+        ausencia = Absences.query.filter_by(usuario_id=usuario_id, fecha=fecha_obj).first()
         if ausencia:
             db.session.delete(ausencia)
             db.session.commit()
