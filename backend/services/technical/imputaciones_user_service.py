@@ -1,7 +1,8 @@
 from database.db import db
 from models.time_entries import TimeEntries
-from services.admin.audit_service import registrar_log
+from services.admin.auditoria_service import registrar_log
 from datetime import datetime, timedelta
+
 
 def obtener_imputaciones_semana(usuario_id, lunes):
     try:
@@ -34,20 +35,9 @@ def obtener_imputaciones_semana(usuario_id, lunes):
         print(f"Error al obtener imputaciones: {e}")
         return None
 
-def guardar_imputaciones_lote(usuario_id, filas, fechas_semana):
-    from models.absences import Absences 
-    
-    try:
-        ausencias = Absences.query.filter(
-            Absences.usuario_id == usuario_id,
-            Absences.fecha.in_(fechas_semana),
-            Absences.tipo.in_(['vacaciones', 'festivo'])
-        ).all()
-        fechas_bloqueadas = [
-            a.fecha.strftime("%Y-%m-%d") if isinstance(a.fecha, datetime) else str(a.fecha) 
-            for a in ausencias
-        ]
 
+def guardar_imputaciones_lote(usuario_id, filas, fechas_semana):
+    try:
         for fila in filas:
             proyecto_id = fila.get("id_proyecto")
             horas = fila.get("horas", [])
@@ -55,10 +45,6 @@ def guardar_imputaciones_lote(usuario_id, filas, fechas_semana):
             for i in range(7):
                 fecha = fechas_semana[i]
                 h = float(horas[i]) if i < len(horas) and horas[i] else 0
-                fecha_str = fecha.strftime("%Y-%m-%d") if isinstance(fecha, datetime) else str(fecha)
-                if fecha_str in fechas_bloqueadas and h > 0:
-                    continue  
-
 
                 registro = TimeEntries.query.filter_by(
                     usuario_id=usuario_id, proyecto_id=proyecto_id, fecha=fecha

@@ -49,55 +49,25 @@ const handleClickOutside = (event) => {
     }
 }
 
-// ==========================================
-// LÓGICA DE AUSENCIAS (CON REACTIVIDAD VUE 3)
-// ==========================================
-const ausenciasPersonales = ref([])
-
-const cargarAusenciasAPI = async () => {
+const getInfoDia = (date) => {
+    const offset = date.getTimezoneOffset() * 60000
+    const isoDate = new Date(date.getTime() - offset).toISOString().split('T')[0]
     const user = store.getCurrentUser()
-    if (!user) return
-    try {
-        const m1 = diasSemana.value[0].getMonth() + 1
-        const y1 = diasSemana.value[0].getFullYear()
-        const m2 = diasSemana.value[6].getMonth() + 1
-        const y2 = diasSemana.value[6].getFullYear()
-        
-        const res1 = await fetch(`http://localhost:5000/api/absences?mes=${m1}&anio=${y1}`)
-        const json1 = await res1.json()
-        let todas = json1.status === 'success' ? json1.data : []
+    if (!user) return null
+    
+    const ausencia = store.getAusenciaPorFecha(isoDate, user.id)
+    if (!ausencia) return null
+    
+    const tipoNormalizado = (ausencia.type === 'asuntos' || ausencia.type === 'asuntos_propios') ? 'asuntos' : ausencia.type
 
-        if (m1 !== m2 || y1 !== y2) {
-            const res2 = await fetch(`http://localhost:5000/api/absences?mes=${m2}&anio=${y2}`)
-            const json2 = await res2.json()
-            if (json2.status === 'success') todas = todas.concat(json2.data)
-        }
-        
-        ausenciasPersonales.value = todas.filter(a => String(a.userId) === String(user.id))
-    } catch (e) {
-        console.error("Error cargando ausencias:", e)
+    return {
+        tipo: tipoNormalizado,
+        label: tipoNormalizado === 'asuntos' ? 'Asuntos P.' : (ausencia.type.charAt(0).toUpperCase() + ausencia.type.slice(1))
     }
 }
 
-// Creamos arrays computados. Si hay cambios, Vue redibuja la tabla al instante.
-const tiposDiasSemana = computed(() => {
-    return diasSemana.value.map(date => {
-        const offset = date.getTimezoneOffset() * 60000
-        const iso = new Date(date.getTime() - offset).toISOString().split('T')[0]
-        const ausencia = ausenciasPersonales.value.find(a => a.fecha === iso)
-        if (!ausencia) return null
-        return (ausencia.tipo === 'asuntos' || ausencia.tipo === 'asuntos_propios') ? 'asuntos' : ausencia.tipo
-    })
-})
-
-const labelsDiasSemana = computed(() => {
-    return tiposDiasSemana.value.map(tipo => {
-        if (!tipo) return null
-        if (tipo === 'asuntos') return 'Asuntos P.'
-        return tipo.charAt(0).toUpperCase() + tipo.slice(1)
-    })
-})
-// ==========================================
+const getTipoDia = (date) => getInfoDia(date)?.tipo
+const getLabelDia = (date) => getInfoDia(date)?.label
 
 const mostrarModal = ref(false)
 const nuevoRegistro = ref({ proyectoId: undefined })
@@ -106,11 +76,15 @@ const diaSeleccionado = ref(new Date().getDate())
 const proyectosRealDB = ref([])
 const filas = ref([])
 
+// --- LOGICA DE VALIDACION DE DECIMALES (FRONTEND) ---
 const esPasoInvalido = (valor) => {
     if (!valor || valor === 0) return false
+    // Solo permitimos múltiplos de 0.5 (1, 1.5, 2, 2.5...)
+    // Multiplicamos por 2 y comprobamos si el resultado es un número entero
     return !Number.isInteger(valor * 2)
 }
 
+// --- CARGA DE PROYECTOS REALES (PARA EL MODAL) ---
 const cargarProyectosParaModal = async () => {
     try {
         const res = await fetch('http://localhost:5000/api/proyectos')
@@ -123,6 +97,7 @@ const cargarProyectosParaModal = async () => {
     }
 }
 
+// --- LÓGICA DE API (SINCRONIZACIÓN) ---
 const cargarHorasDesdeAPI = async () => {
     const user = store.getCurrentUser()
     if (!user) return
@@ -163,12 +138,6 @@ const cargarHorasDesdeAPI = async () => {
 
 const guardarCambios = async () => {
     if (hayErrores.value) return showToast('Por favor corrige los errores antes de guardar.', 'error')
-    
-    // Forzamos 0 horas en días bloqueados por seguridad antes de enviar
-    filas.value.forEach(f => {
-        f.horas = f.horas.map((h, i) => tiposDiasSemana.value[i] ? 0 : h)
-    })
-
     const user = store.getCurrentUser()
     const fechasSemana = diasSemana.value.map(d => d.toISOString().split('T')[0])
     const payload = {
@@ -193,6 +162,7 @@ const guardarCambios = async () => {
     }
 }
 
+// --- NAVEGACIÓN ---
 const getLunesSemana = (fecha) => {
     const d = new Date(fecha)
     const dia = d.getDay()
@@ -210,17 +180,11 @@ const diasSemana = computed(() => {
     return dias
 })
 
-watch(lunesActual, () => {
-    cargarHorasDesdeAPI()
-    cargarAusenciasAPI() // Recargar ausencias al cambiar de semana
-})
+watch(lunesActual, cargarHorasDesdeAPI)
 
 const esJornadaVerano = (date) => { const mes = date.getMonth(); return mes === 6 || mes === 7 }
-
-// Recibe índice en lugar de fecha para usar los arrays computados
-const getMaxHorasDia = (index) => {
-    const date = diasSemana.value[index]
-    if (tiposDiasSemana.value[index]) return 0 // Si hay vacaciones, máximo 0h
+const getMaxHorasDia = (date) => {
+    if (getTipoDia(date)) return 0 
     if (date.getDay() === 0 || date.getDay() === 6) return 0 
     if (horasDiarias.value === 8.5) {
         if (esJornadaVerano(date)) return 7.0
@@ -230,7 +194,7 @@ const getMaxHorasDia = (index) => {
     return horasDiarias.value
 }
 const getMaxHorasSemana = () => {
-    return diasSemana.value.reduce((total, _, i) => total + getMaxHorasDia(i), 0)
+    return diasSemana.value.reduce((total, fecha) => total + getMaxHorasDia(fecha), 0)
 }
 
 const nombresDias = ['LUN', 'MAR', 'MIÉ', 'JUE', 'VIE', 'SÁB', 'DOM']
@@ -240,12 +204,15 @@ const esHoy = (date) => {
     const hoy = new Date()
     return date.getDate() === hoy.getDate() && date.getMonth() === hoy.getMonth() && date.getFullYear() === hoy.getFullYear()
 }
-const esEditable = (index) => {
-    const date = diasSemana.value[index]
+const esEditable = (date) => {
     const hoy = new Date(); hoy.setHours(0,0,0,0)
     const fComp = new Date(date); fComp.setHours(0,0,0,0)
-    // No editable si es fin de semana, pasado, o si hay vacaciones
-    return !esFinDeSemana(date) && fComp >= hoy && !tiposDiasSemana.value[index]
+    return !esFinDeSemana(date) && fComp >= hoy && !getTipoDia(date)
+}
+const esPasadoNormal = (date) => {
+    const hoy = new Date(); hoy.setHours(0,0,0,0)
+    const fComp = new Date(date); fComp.setHours(0,0,0,0)
+    return fComp < hoy && !getTipoDia(date) && !esFinDeSemana(date)
 }
 
 const esSeleccionado = (date) => date.getDate() === diaSeleccionado.value && date.getMonth() === fechaActual.value.getMonth()
@@ -268,11 +235,12 @@ const totalDia = (index) => filas.value.reduce((acc, f) => acc + (parseFloat(f.h
 const totalSemanal = computed(() => filas.value.reduce((acc, f) => acc + totalFila(f), 0))
 
 const excedeLimiteDiario = (index) => {
-    const max = getMaxHorasDia(index)
+    const max = getMaxHorasDia(diasSemana.value[index])
     return max > 0 && totalDia(index) > max
 }
 const excedeLimiteSemanal = computed(() => totalSemanal.value > getMaxHorasSemana())
 
+// --- COMPUTED ACTUALIZADO PARA BLOQUEAR SI HAY DECIMALES MAL ---
 const hayErrores = computed(() => {
     const excedeHoras = excedeLimiteSemanal.value || Array.from({length:7}).some((_,i) => excedeLimiteDiario(i));
     const tieneDecimalesMal = filas.value.some(f => f.horas.some(h => esPasoInvalido(h)));
@@ -304,7 +272,6 @@ onMounted(() => {
     document.addEventListener('click', handleClickOutside)
     cargarHorasDesdeAPI()
     cargarProyectosParaModal()
-    cargarAusenciasAPI() // Llamar nada más entrar
 })
 onUnmounted(() => document.removeEventListener('click', handleClickOutside))
 </script>
@@ -370,15 +337,13 @@ onUnmounted(() => document.removeEventListener('click', handleClickOutside))
                     ]">
                     <span class="text-xs font-bold uppercase tracking-widest" :class="esHoy(fecha) ? 'text-primary' : 'text-gray-400'">{{ nombresDias[index] }}</span>
                     <span class="text-2xl font-bold" :class="esHoy(fecha) ? 'text-dark' : (esFinDeSemana(fecha) ? 'text-gray-400' : 'text-gray-700')">{{ fecha.getDate() }}</span>
-                    
-                    <div v-if="tiposDiasSemana[index]" class="mt-1">
+                    <div v-if="getTipoDia(fecha)" class="mt-1">
                         <span class="text-[9px] font-bold uppercase px-1.5 py-0.5 rounded shadow-sm" :class="{
-                            'bg-orange-100 text-orange-700': tiposDiasSemana[index] === 'festivo',
-                            'bg-emerald-100 text-emerald-700': tiposDiasSemana[index] === 'vacaciones',
-                            'bg-blue-100 text-blue-700': tiposDiasSemana[index] === 'asuntos'
-                        }">{{ labelsDiasSemana[index] }}</span>
+                            'bg-orange-100 text-orange-700': getTipoDia(fecha) === 'festivo',
+                            'bg-emerald-100 text-emerald-700': getTipoDia(fecha) === 'vacaciones',
+                            'bg-blue-100 text-blue-700': getTipoDia(fecha) === 'asuntos'
+                        }">{{ getLabelDia(fecha) }}</span>
                     </div>
-
                     <div v-else-if="totalDia(index) > 0" class="px-2 py-0.5 rounded-full text-xs font-bold" :class="excedeLimiteDiario(index) ? 'bg-red-100 text-red-700 animate-pulse' : 'bg-blue-100 text-dark'">{{ totalDia(index) }}h</div>
                     <div v-else class="h-5"></div>
                     <div v-if="esHoy(fecha)" class="absolute top-2 right-2 w-2 h-2 rounded-full bg-primary"></div>
@@ -420,29 +385,16 @@ onUnmounted(() => document.removeEventListener('click', handleClickOutside))
                             <td class="p-2"><div class="flex items-center gap-2 border border-transparent rounded px-2 py-1"><Building2 class="w-3 h-3 text-gray-400" /><span class="text-xs font-medium">{{ fila.cliente }}</span></div></td>
                             <td class="p-2"><span class="text-xs font-bold text-slate-700 px-2">{{ fila.proyecto }}</span></td>
                             
-                            <td v-for="(hora, index) in fila.horas" :key="index" class="p-1 text-center relative" :class="[esFinDeSemana(diasSemana[index]) ? 'bg-slate-50' : '']">
-                                
-                                <div v-if="tiposDiasSemana[index]" class="w-full py-1 flex items-center justify-center cursor-not-allowed" :title="labelsDiasSemana[index]">
-                                    <span class="text-[9px] font-black uppercase tracking-wider rounded px-1.5 py-1 w-full border text-center"
-                                          :class="{
-                                              'bg-emerald-50 text-emerald-700 border-emerald-200': tiposDiasSemana[index] === 'vacaciones',
-                                              'bg-orange-50 text-orange-700 border-orange-200': tiposDiasSemana[index] === 'festivo',
-                                              'bg-blue-50 text-blue-700 border-blue-200': tiposDiasSemana[index] === 'asuntos'
-                                          }">
-                                        {{ tiposDiasSemana[index].substring(0, 3) }}
-                                    </span>
-                                </div>
-
-                                <input v-else type="number" min="0" max="24" step="0.5" v-model="fila.horas[index]" @focus="handleFocus" @blur="(e) => handleBlur(e, fila, index)" :disabled="!esEditable(index)"
+                            <td v-for="(hora, index) in fila.horas" :key="index" class="p-1 text-center" :class="[esFinDeSemana(diasSemana[index]) ? 'bg-slate-50' : '', getTipoDia(diasSemana[index]) ? 'opacity-40' : '']">
+                                <input type="number" min="0" max="24" step="0.5" v-model="fila.horas[index]" @focus="handleFocus" @blur="(e) => handleBlur(e, fila, index)" :disabled="!esEditable(diasSemana[index])"
                                     class="w-full text-center py-1 rounded transition font-medium text-sm disabled:cursor-not-allowed appearance-none"
                                     :class="{
-                                        'text-primary font-bold border border-transparent hover:border-gray-300 bg-transparent': esEditable(index) && fila.horas[index] > 0 && !esPasoInvalido(fila.horas[index]),
-                                        'bg-white border border-gray-200 text-primary shadow-sm': esEditable(index) && fila.horas[index] == 0,
-                                        'bg-gray-100 text-gray-400 border border-transparent': !esEditable(index),
-                                        'border-red-500 bg-red-50 text-red-600 ring-2 ring-red-500 font-black shadow-none': esEditable(index) && (excedeLimiteDiario(index) || esPasoInvalido(fila.horas[index]))
+                                        'text-primary font-bold border border-transparent hover:border-gray-300 bg-transparent': esEditable(diasSemana[index]) && fila.horas[index] > 0 && !esPasoInvalido(fila.horas[index]),
+                                        'bg-white border border-gray-200 text-primary shadow-sm': esEditable(diasSemana[index]) && fila.horas[index] == 0,
+                                        'bg-gray-100 text-gray-400': !esEditable(diasSemana[index]),
+                                        'border-red-500 bg-red-50 text-red-600 ring-2 ring-red-500 font-black shadow-none': esEditable(diasSemana[index]) && (excedeLimiteDiario(index) || esPasoInvalido(fila.horas[index]))
                                     }">
                             </td>
-                            
                             <td class="p-3 text-center font-bold text-dark bg-gray-50 text-sm">{{ totalFila(fila) }}</td>
                         </tr>
                     </tbody>

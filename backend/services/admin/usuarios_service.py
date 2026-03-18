@@ -1,7 +1,7 @@
 # backend/services/admin/usuarios_service.py
 from database.db import db
 from models.users import Users
-from services.admin.audit_service import registrar_log
+from services.admin.auditoria_service import registrar_log
 from datetime import datetime
 
 def obtener_usuarios():
