@@ -8,108 +8,112 @@ from models.month_closings import MonthClosings
 from sqlalchemy import extract
 
 
-def get_closing_audit(month):
+def get_closing_audit(mes):
     try:
-        year, month_num = map(int, month.split("-"))
+        anio, mes_num = map(int, mes.split("-"))
 
-        closing_record = MonthClosings.query.filter_by(anio=year, mes=month_num).first()
-        is_month_closed = bool(closing_record.esta_cerrado) if closing_record else False
+        # 1. Comprobar si el mes está cerrado
+        registro_cierre = MonthClosings.query.filter_by(anio=anio, mes=mes_num).first()
+        mes_cerrado = bool(registro_cierre.esta_cerrado) if registro_cierre else False
 
-        _, num_days = calendar.monthrange(year, month_num)
+        # Total de días del mes seleccionado
+        _, num_days = calendar.monthrange(anio, mes_num)
 
-        users = Users.query.filter_by(activo=True).all()
+        # 2. Obtener usuarios activos
+        usuarios = Users.query.filter_by(activo=True).all()
 
-        month_time_entries = TimeEntries.query.filter(
-            extract("year", TimeEntries.fecha) == year,
-            extract("month", TimeEntries.fecha) == month_num,
+        # 3. Traer TODAS las imputaciones y ausencias del mes
+        imputaciones_mes = TimeEntries.query.filter(
+            extract("year", TimeEntries.fecha) == anio,
+            extract("month", TimeEntries.fecha) == mes_num,
             TimeEntries.horas > 0,
         ).all()
 
-        month_absences = Absences.query.filter(
-            extract("year", Absences.fecha) == year,
-            extract("month", Absences.fecha) == month_num,
+        ausencias_mes = Absences.query.filter(
+            extract("year", Absences.fecha) == anio,
+            extract("month", Absences.fecha) == mes_num,
         ).all()
 
-        user_data = {
-            u.id: {"hours": 0.0, "logged_days": set(), "absence_days": set()}
-            for u in users
+        # Pre-procesamos los datos
+        datos_usuarios = {
+            u.id: {"horas": 0.0, "dias_imputados": set(), "dias_ausencias": set()}
+            for u in usuarios
         }
 
-        for i in month_time_entries:
-            if i.usuario_id in user_data and i.fecha:
-                user_data[i.usuario_id]["hours"] += float(i.horas)
-                user_data[i.usuario_id]["logged_days"].add(i.fecha.day)
+        for i in imputaciones_mes:
+            if i.usuario_id in datos_usuarios and i.fecha:
+                datos_usuarios[i.usuario_id]["horas"] += float(i.horas)
+                datos_usuarios[i.usuario_id]["dias_imputados"].add(i.fecha.day)
 
-        for a in month_absences:
-            if a.usuario_id in user_data and a.fecha:
-                user_data[a.usuario_id]["absence_days"].add(a.fecha.day)
+        for a in ausencias_mes:
+            if a.usuario_id in datos_usuarios and a.fecha:
+                datos_usuarios[a.usuario_id]["dias_ausencias"].add(a.fecha.day)
 
-        audit_users = []
-        for u in users:
-            data = user_data[u.id]
-            actual_hours = data["hours"]
-            logged_days = data["logged_days"]
-            absence_days = data["absence_days"]
+        # 4. Construimos la respuesta evaluando a cada usuario
+        usuarios_auditoria = []
+        for u in usuarios:
+            datos = datos_usuarios[u.id]
+            horas_reales = datos["horas"]
+            dias_imputados = datos["dias_imputados"]
+            dias_ausencias = datos["dias_ausencias"]
 
-            missing_days = []
-            total_work_days = 0
+            dias_faltantes = []
+            dias_laborables_totales = 0
 
             for day in range(1, num_days + 1):
-                current_date = date(year, month_num, day)
-                if current_date.weekday() < 5: 
-                    total_work_days += 1
-                    if day not in logged_days and day not in absence_days:
-                        missing_days.append(str(day))
+                current_date = date(anio, mes_num, day)
+                if current_date.weekday() < 5:  # 0-4 representan Lunes a Viernes
+                    dias_laborables_totales += 1
+                    if day not in dias_imputados and day not in dias_ausencias:
+                        dias_faltantes.append(str(day))
 
-            if len(missing_days) == 0:
-                status = "complete"
-            elif len(missing_days) == total_work_days and actual_hours == 0:
-                status = "empty"
+            # Determinar el estado del usuario
+            if len(dias_faltantes) == 0:
+                estado = "completo"
+            elif len(dias_faltantes) == dias_laborables_totales and horas_reales == 0:
+                estado = "vacio"
             else:
-                status = "incomplete"
+                estado = "incompleto"
 
-            audit_users.append(
+            usuarios_auditoria.append(
                 {
                     "id": u.id,
-                    "name": u.nombre,
-                    "role": u.rol,
-                    "actualHours": actual_hours,
-                    "status": status,
-                    "missingDays": missing_days,
+                    "nombre": u.nombre,
+                    "rol": u.rol,
+                    "horasReales": horas_reales,
+                    "estado": estado,
+                    "diasFaltantes": dias_faltantes,
                 }
             )
 
-        return {"isMonthClosed": is_month_closed, "users": audit_users}, 200
+        return {"mesCerrado": mes_cerrado, "usuarios": usuarios_auditoria}, 200
 
     except Exception as e:
         print(f"Error en get_closing_audit: {e}")
         return {"error": str(e)}, 500
 
 
-def toggle_closing_month(month, action):
+def toggle_closing_month(mes, accion):
     try:
-        year, month_num = map(int, month.split("-"))
+        anio, mes_num = map(int, mes.split("-"))
+        esta_cerrado = True if accion == "cerrar" else False
 
-        is_closed = True if action == "close" else False
+        registro = MonthClosings.query.filter_by(anio=anio, mes=mes_num).first()
 
-        record = MonthClosings.query.filter_by(anio=year, mes=month_num).first()
-
-        if record:
-            record.esta_cerrado = is_closed
-            record.fecha_cierre = datetime.utcnow()
+        if registro:
+            registro.esta_cerrado = esta_cerrado
+            registro.fecha_cierre = datetime.utcnow()
         else:
-            new_closing = MonthClosings(
-                anio=year,
-                mes=month_num,
-                esta_cerrado=is_closed,
+            nuevo_cierre = MonthClosings(
+                anio=anio,
+                mes=mes_num,
+                esta_cerrado=esta_cerrado,
                 fecha_cierre=datetime.utcnow(),
             )
-            db.session.add(new_closing)
+            db.session.add(nuevo_cierre)
 
         db.session.commit()
-        
-        action_msg = "closed" if action == "close" else "opened"
-        return {"message": f"Month {action_msg} successfully"}, 200
+        return {"message": f"Mes {accion} correctamente"}, 200
 
     except Exception as e:
         db.session.rollback()

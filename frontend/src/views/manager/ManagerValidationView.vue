@@ -6,7 +6,7 @@ import {
     CheckCircle2, AlertCircle, Trash2, AlertTriangle
 } from 'lucide-vue-next'
 
-const validations = ref([])
+const solicitudes = ref([])
 const isLoading = ref(false)
 
 const toast = ref({ show: false, message: '', type: 'success' })
@@ -22,20 +22,21 @@ const showToast = (message, type = 'success') => {
 
 const confirmState = ref({ show: false, title: '', message: '', type: 'neutral', action: null, inputMode: false, inputValue: '' })
 
-const requestConfirmation = (title, message, type, callback, inputMode = false) => {
+const solicitarConfirmacion = (title, message, type, callback, inputMode = false) => {
     confirmState.value = { show: true, title, message, type, action: callback, inputMode, inputValue: '' }
 }
 
-const executeConfirmation = () => {
+const ejecutarConfirmacion = () => {
     if (confirmState.value.action) confirmState.value.action(confirmState.value.inputValue)
     confirmState.value.show = false
 }
 
+// --- LLAMADAS AL BACKEND ---
 const fetchValidations = async () => {
     isLoading.value = true
     try {
         const response = await ManagerAPI.getValidations()
-        validations.value = response.data || response
+        solicitudes.value = response.data || []
     } catch (error) {
         console.error("Error obteniendo validaciones:", error)
         showToast("Error al cargar las solicitudes", "error")
@@ -48,43 +49,43 @@ onMounted(() => {
     fetchValidations()
 })
 
-const selectedValidation = ref(null)
-const editedHours = ref(0)
-const showModal = ref(false)
+const solicitudSeleccionada = ref(null)
+const horasEditadas = ref(0)
+const mostrarModal = ref(false)
 
-const openEditor = (validation) => {
-    selectedValidation.value = validation
-    editedHours.value = validation.currentHours
-    showModal.value = true
+const abrirEditor = (solicitud) => {
+    solicitudSeleccionada.value = solicitud
+    horasEditadas.value = solicitud.horasActuales
+    mostrarModal.value = true
 }
 
-const closeModal = () => {
-    showModal.value = false
-    selectedValidation.value = null
+const cerrarModal = () => {
+    mostrarModal.value = false
+    solicitudSeleccionada.value = null
 }
 
-const saveCorrection = async () => {
+const guardarCorreccion = async () => {
     try {
-        await ManagerAPI.approveValidation(selectedValidation.value.id, editedHours.value)
+        await ManagerAPI.approveValidation(solicitudSeleccionada.value.id, horasEditadas.value)
         showToast(`Corrección aplicada correctamente`, 'success')
-        closeModal()
-        fetchValidations() 
+        cerrarModal()
+        fetchValidations() // Recargar la lista
     } catch (error) {
         showToast(`Error al guardar la corrección`, 'error')
     }
 }
 
-const rejectValidationRequest = (id) => {
-    requestConfirmation(
+const rechazarSolicitud = (id) => {
+    solicitarConfirmacion(
         'Rechazar Solicitud',
         'Por favor, indica el motivo del rechazo para notificar al usuario:',
         'danger',
-        async (reason) => {
-            if (reason) {
+        async (motivo) => {
+            if (motivo) {
                 try {
-                    await ManagerAPI.rejectValidation(id, reason)
+                    await ManagerAPI.rejectValidation(id, motivo)
                     showToast("Solicitud rechazada y notificada.", "success")
-                    fetchValidations() 
+                    fetchValidations() // Recargar la lista
                 } catch (error) {
                     showToast("Error al rechazar la solicitud.", "error")
                 }
@@ -112,28 +113,28 @@ const rejectValidationRequest = (id) => {
         <p class="text-gray-500">Cargando solicitudes...</p>
     </div>
 
-    <div v-else-if="validations.length > 0" class="grid gap-4">
-        <div v-for="item in validations" :key="item.id" 
-             class="card p-0 overflow-hidden flex flex-col md:flex-row shadow-md border-l-4 border-l-amber-400 group hover:shadow-lg transition bg-white">
+    <div v-else-if="solicitudes.length > 0" class="grid gap-4">
+        <div v-for="solicitud in solicitudes" :key="solicitud.id" 
+             class="card p-0 overflow-hidden flex flex-col md:flex-row shadow-md border-l-4 border-l-amber-400 group hover:shadow-lg transition">
             
             <div class="p-5 bg-slate-50 border-r border-gray-100 w-full md:w-64 flex flex-col gap-3 shrink-0">
                 <div class="flex items-center gap-3">
                     <div class="w-10 h-10 rounded-full bg-slate-200 text-slate-600 flex items-center justify-center font-bold">
-                        {{ item.avatar }}
+                        {{ solicitud.avatar }}
                     </div>
                     <div>
-                        <p class="font-bold text-dark">{{ item.user }}</p>
-                        <p class="text-xs text-gray-500 font-mono">ID Solicitud: #{{ item.id }}</p>
+                        <p class="font-bold text-dark">{{ solicitud.usuario }}</p>
+                        <p class="text-xs text-gray-500 font-mono">ID Solicitud: #{{ solicitud.id }}</p>
                     </div>
                 </div>
                 <div class="space-y-1">
                     <div class="flex items-center gap-2 text-xs text-gray-500">
                         <Calendar class="w-3.5 h-3.5" />
-                        <span class="font-bold text-dark">{{ item.date }}</span>
+                        <span class="font-bold text-dark">{{ solicitud.fecha }}</span>
                     </div>
                     <div class="flex items-center gap-2 text-xs text-gray-500">
                         <Clock class="w-3.5 h-3.5" />
-                        <span>Imputado actual: <b class="text-dark">{{ item.currentHours }}h</b></span>
+                        <span>Imputado actual: <b class="text-dark">{{ solicitud.horasActuales }}h</b></span>
                     </div>
                 </div>
             </div>
@@ -141,23 +142,23 @@ const rejectValidationRequest = (id) => {
             <div class="p-5 flex-1 flex flex-col justify-center gap-3">
                 <div class="flex items-center gap-2">
                     <span class="text-[10px] font-bold uppercase bg-blue-50 text-blue-700 px-2 py-0.5 rounded border border-blue-100">
-                        {{ item.client }}
+                        {{ solicitud.cliente }}
                     </span>
-                    <span class="text-sm font-bold text-dark">{{ item.project }}</span>
+                    <span class="text-sm font-bold text-dark">{{ solicitud.proyecto }}</span>
                 </div>
                 
                 <div class="bg-amber-50 p-3 rounded-lg border border-amber-100 text-sm text-amber-900 flex gap-3 items-start">
                     <MessageSquare class="w-5 h-5 mt-0.5 text-amber-600 shrink-0" />
-                    <p class="italic">"{{ item.reason }}"</p>
+                    <p class="italic">"{{ solicitud.motivo }}"</p>
                 </div>
             </div>
 
             <div class="p-5 flex flex-col justify-center gap-3 w-full md:w-56 shrink-0 bg-white border-l border-gray-100">
-                <button @click="openEditor(item)" 
+                <button @click="abrirEditor(solicitud)" 
                         class="btn-primary w-full flex items-center justify-center gap-2 text-xs shadow-sm">
                     <FileEdit class="w-4 h-4" /> Aceptar y Corregir
                 </button>
-                <button @click="rejectValidationRequest(item.id)" 
+                <button @click="rechazarSolicitud(solicitud.id)" 
                         class="w-full py-2 px-4 rounded-lg border border-gray-200 text-gray-500 hover:bg-red-50 hover:text-red-500 hover:border-red-200 transition text-xs font-bold uppercase tracking-wide flex items-center justify-center gap-2">
                     <X class="w-4 h-4" /> Rechazar
                 </button>
@@ -171,27 +172,27 @@ const rejectValidationRequest = (id) => {
         <p class="text-gray-500">No hay solicitudes de corrección pendientes.</p>
     </div>
 
-    <div v-if="showModal" class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4">
+    <div v-if="mostrarModal" class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4">
         <div class="bg-white rounded-xl shadow-2xl w-full max-w-md overflow-hidden animate-in fade-in zoom-in duration-200">
             
             <div class="bg-primary px-6 py-4 flex justify-between items-center">
                 <h3 class="text-lg font-bold text-white flex items-center gap-2">
                     <FileEdit class="w-5 h-5"/> Corregir Imputación
                 </h3>
-                <button @click="closeModal" class="text-white/80 hover:text-white"><X class="w-5 h-5"/></button>
+                <button @click="cerrarModal" class="text-white/80 hover:text-white"><X class="w-5 h-5"/></button>
             </div>
 
-            <div v-if="selectedValidation" class="p-6 space-y-4">
+            <div v-if="solicitudSeleccionada" class="p-6 space-y-4">
                 <div class="bg-gray-50 p-3 rounded border border-gray-200 text-sm space-y-1">
-                    <p><span class="font-bold text-gray-500 w-20 inline-block">Usuario:</span> {{ selectedValidation.user }}</p>
-                    <p><span class="font-bold text-gray-500 w-20 inline-block">Proyecto:</span> {{ selectedValidation.project }}</p>
-                    <p><span class="font-bold text-gray-500 w-20 inline-block">Fecha:</span> {{ selectedValidation.date }}</p>
+                    <p><span class="font-bold text-gray-500 w--20 inline-block">Usuario:</span> {{ solicitudSeleccionada.usuario }}</p>
+                    <p><span class="font-bold text-gray-500 w-20 inline-block">Proyecto:</span> {{ solicitudSeleccionada.proyecto }}</p>
+                    <p><span class="font-bold text-gray-500 w-20 inline-block">Fecha:</span> {{ solicitudSeleccionada.fecha }}</p>
                 </div>
 
                 <div>
                     <label class="label-std">Horas Correctas (Sobrescribir)</label>
                     <div class="flex items-center gap-3">
-                        <input type="number" step="0.5" min="0" max="24" v-model="editedHours" 
+                        <input type="number" step="0.5" min="0" max="24" v-model="horasEditadas" 
                                class="input-std text-center text-lg font-bold w-32" />
                         <span class="text-sm text-gray-500">Horas</span>
                     </div>
@@ -202,8 +203,8 @@ const rejectValidationRequest = (id) => {
             </div>
 
             <div class="p-4 bg-gray-50 border-t border-gray-200 flex justify-end gap-3">
-                <button @click="closeModal" class="btn-secondary">Cancelar</button>
-                <button @click="saveCorrection" class="btn-primary">
+                <button @click="cerrarModal" class="btn-secondary">Cancelar</button>
+                <button @click="guardarCorreccion" class="btn-primary">
                     <Save class="w-4 h-4 mr-2"/> Guardar Cambios
                 </button>
             </div>
@@ -226,7 +227,7 @@ const rejectValidationRequest = (id) => {
 
                 <div class="flex gap-3 w-full mt-4">
                     <button @click="confirmState.show = false" class="btn-secondary flex-1 justify-center">Cancelar</button>
-                    <button @click="executeConfirmation" 
+                    <button @click="ejecutarConfirmacion" 
                             class="flex-1 justify-center btn-primary"
                             :class="confirmState.type === 'danger' ? 'bg-red-600 hover:bg-red-700' : 'bg-amber-600 hover:bg-amber-700'">
                         Confirmar
@@ -250,14 +251,3 @@ const rejectValidationRequest = (id) => {
 
   </div>
 </template>
-
-<style scoped>
-input::-webkit-outer-spin-button,
-input::-webkit-inner-spin-button {
-  -webkit-appearance: none;
-  margin: 0;
-}
-input[type=number] {
-  -moz-appearance: textfield;
-}
-</style>

@@ -11,19 +11,19 @@ def get_validations():
 @validation_bp.route('/<int:id>/approve', methods=['PUT'])
 def approve(id):
     body = request.get_json()
-    hours = body.get('hours')
-    if hours is None:
+    horas = body.get('horas')
+    if horas is None:
         return jsonify({"error": "Faltan las horas corregidas"}), 400
     
-    data, status = approve_validation(id, hours)
+    data, status = approve_validation(id, horas)
     return jsonify(data), status
 
 @validation_bp.route('/<int:id>/reject', methods=['PUT'])
 def reject(id):
     body = request.get_json()
-    reason = body.get('motivo')
-    if not reason:
+    motivo = body.get('motivo')
+    if not motivo:
         return jsonify({"error": "Falta el motivo de rechazo"}), 400
         
-    data, status = reject_validation(id, reason)
+    data, status = reject_validation(id, motivo)
     return jsonify(data), status

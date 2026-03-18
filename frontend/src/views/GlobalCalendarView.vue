@@ -10,7 +10,7 @@ import {
 const store = useDataStore()
 const currentUser = store.getCurrentUser() 
 
-// --- NOTIFICATION SYSTEM (TOAST) ---
+// --- SISTEMA DE NOTIFICACIONES (TOAST) ---
 const toast = ref({ show: false, message: '', type: 'success' })
 let toastTimeout = null
 
@@ -22,112 +22,123 @@ const showToast = (message, type = 'success') => {
     }, 3000)
 }
 
-// --- CONFIRMATION SYSTEM ---
+// --- SISTEMA DE CONFIRMACIÓN ---
 const confirmState = ref({ show: false, title: '', message: '', type: 'neutral', action: null })
-const requestConfirmation = (title, message, type, callback) => {
+const solicitarConfirmacion = (title, message, type, callback) => {
     confirmState.value = { show: true, title, message, type, action: callback }
 }
-const executeConfirmation = () => {
+const ejecutarConfirmacion = () => {
     if (confirmState.value.action) confirmState.value.action()
     confirmState.value.show = false
 }
 
-// --- DATE AND CALENDAR ---
+// --- FECHA Y CALENDARIO ---
 const currentDate = ref(new Date())
 const year = computed(() => currentDate.value.getFullYear())
 const month = computed(() => currentDate.value.getMonth())
 const monthNames = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"]
 
-// --- API DATA CONNECTION ---
-const monthAbsences = ref([])
-const annualSummary = ref([])
+// --- CONEXIÓN DE DATOS REAL (API) ---
+const ausenciasDelMes = ref([])
+const resumenAnual = ref([])
 
-const fetchAbsences = async () => {
+const cargarAusencias = async () => {
     if (!currentUser) return
     try {
-        const monthParam = month.value + 1
-        // URL estandarizada al servicio de ausencias
-        const res = await fetch(`http://localhost:5000/api/absences?month=${monthParam}&year=${year.value}`)
+        const mesApi = month.value + 1
+        const res = await fetch(`http://localhost:5000/api/ausencias?mes=${mesApi}&anio=${year.value}`)
         const json = await res.json()
-        if (res.ok) {
-            monthAbsences.value = json.data || json
+        if (json.status === 'success') {
+            ausenciasDelMes.value = json.data
         }
     } catch (e) {
-        console.error("Error loading absences:", e)
+        console.error("Error al cargar ausencias:", e)
     }
 }
 
-const fetchAnnualSummary = async () => {
+const cargarResumenAnual = async () => {
     if (!currentUser) return
     try {
-        // Obtenemos el resumen completo del año para la sección inferior
-        const res = await fetch(`http://localhost:5000/api/absences/summary?year=${year.value}`)
-        const json = await res.json()
+        const promesas = []
+        for(let m = 1; m <= 12; m++) {
+            promesas.push(fetch(`http://localhost:5000/api/ausencias?mes=${m}&anio=${year.value}`).then(r => r.json()))
+        }
+        const resultados = await Promise.all(promesas)
         
-        if (res.ok) {
-            const data = json.data || json
-            // Agrupamos por usuario para el listado inferior
-            const groups = {}
-            data.forEach(a => {
-                if (!groups[a.userId]) {
-                    groups[a.userId] = { name: a.name, initials: a.initials, days: [] }
-                }
-                groups[a.userId].days.push(a)
-            })
+        let todasLasAusencias = []
+        resultados.forEach(res => {
+            if(res.status === 'success') todasLasAusencias = todasLasAusencias.concat(res.data)
+        })
 
-            annualSummary.value = Object.values(groups).sort((a, b) => a.name.localeCompare(b.name))
-        }
-    } catch (e) {
-        console.error("Error loading annual summary:", e)
+        const grupos = {}
+        todasLasAusencias.forEach(a => {
+            if (!grupos[a.userId]) {
+                grupos[a.userId] = { nombre: a.nombre, iniciales: a.iniciales, dias: [] }
+            }
+            if (!grupos[a.userId].dias.find(d => d.fecha === a.fecha)) {
+                grupos[a.userId].dias.push(a)
+            }
+        })
+
+        Object.values(grupos).forEach(g => {
+            g.dias.sort((a,b) => new Date(a.fecha) - new Date(b.fecha))
+        })
+
+        resumenAnual.value = Object.values(grupos).sort((a,b) => a.nombre.localeCompare(b.nombre))
+    } catch(e) {
+        console.error("Error cargando resumen anual:", e)
     }
 }
 
-watch([month, year], fetchAbsences)
-watch(year, fetchAnnualSummary)
+watch([month, year], cargarAusencias)
+watch(year, cargarResumenAnual)
 
 onMounted(() => {
-    fetchAbsences()
-    fetchAnnualSummary()
+    cargarAusencias()
+    cargarResumenAnual()
 })
 
-const getDayAbsences = (isoDate) => monthAbsences.value.filter(a => a.date === isoDate)
-const getMyAbsence = (isoDate) => getDayAbsences(isoDate).find(a => a.userId === currentUser.id)
+const getAusenciasDia = (isoDate) => ausenciasDelMes.value.filter(a => a.fecha === isoDate)
+const getMiAusencia = (isoDate) => getAusenciasDia(isoDate).find(a => a.userId === currentUser.id)
 
-// --- MODAL AND STYLES ---
-const showModal = ref(false)
-const absenceForm = ref({
-    startDate: '',
-    endDate: '',
-    type: 'vacaciones',
-    comment: ''
+// --- MODAL Y ESTILOS VISUALES ---
+const mostrarModal = ref(false)
+const form = ref({
+    fechaInicio: '',
+    fechaFin: '',
+    tipo: 'vacaciones',
+    comentario: ''
 })
 
-const getMyAbsenceStyle = (type) => {
-    const t = (type || '').toLowerCase()
+// Estilo para MIS ausencias (Color Sólido)
+const getMiEstiloTipo = (tipo) => {
+    const t = (tipo || '').toLowerCase()
     if (t.includes('vacaciones')) return 'bg-emerald-500 text-white border-emerald-600 shadow-md ring-1 ring-emerald-300'
     if (t.includes('festivo')) return 'bg-orange-500 text-white border-orange-600 shadow-md ring-1 ring-orange-300' 
     if (t.includes('asuntos')) return 'bg-blue-500 text-white border-blue-600 shadow-md ring-1 ring-blue-300'
     return 'bg-gray-700 text-white border-gray-800'
 }
 
-const getColleagueAbsenceStyle = (type) => {
-    const t = (type || '').toLowerCase()
+// Estilo para las ausencias de COMPAÑEROS (Color Claro)
+const getCompaneroEstiloTipo = (tipo) => {
+    const t = (tipo || '').toLowerCase()
     if (t.includes('vacaciones')) return 'bg-emerald-50 text-emerald-700 border-emerald-200'
     if (t.includes('festivo')) return 'bg-orange-50 text-orange-700 border-orange-200' 
     if (t.includes('asuntos')) return 'bg-blue-50 text-blue-700 border-blue-200'
     return 'bg-gray-50 text-gray-700 border-gray-200'
 }
 
-const getAvatarColor = (type) => {
-    const t = (type || '').toLowerCase()
+// Color del circulito avatar para compañeros
+const getAvatarColor = (tipo) => {
+    const t = (tipo || '').toLowerCase()
     if (t.includes('vacaciones')) return 'bg-emerald-500 text-white'
     if (t.includes('festivo')) return 'bg-orange-500 text-white' 
     if (t.includes('asuntos')) return 'bg-blue-500 text-white'
     return 'bg-gray-500 text-white'
 }
 
-const getTypeIcon = (type) => {
-    const t = (type || '').toLowerCase()
+const getIconoTipo = (tipo) => {
+    const t = (tipo || '').toLowerCase()
     if (t.includes('vacaciones')) return Palmtree
     if (t.includes('festivo')) return MapPin
     return Briefcase
@@ -138,10 +149,10 @@ const formatShortDate = (isoString) => {
     return d.toLocaleDateString('es-ES', { day: '2-digit', month: 'short' }).replace('.', '')
 }
 
-// --- CALENDAR CALCULATIONS ---
+// --- CÁLCULOS CALENDARIO ---
 const daysInMonth = computed(() => {
-    const totalDays = new Date(year.value, month.value + 1, 0).getDate()
-    return Array.from({ length: totalDays }, (_, i) => {
+    const days = new Date(year.value, month.value + 1, 0).getDate()
+    return Array.from({ length: days }, (_, i) => {
         const d = new Date(year.value, month.value, i + 1)
         const offset = d.getTimezoneOffset() * 60000
         const isoDate = new Date(d.getTime() - offset).toISOString().split('T')[0]
@@ -157,26 +168,26 @@ const startPadding = computed(() => {
     return firstDay === 0 ? 6 : firstDay - 1 
 })
 
-// --- ACTIONS ---
-const openAbsenceModal = (day) => {
+// --- ACCIONES ---
+const abrirModal = (day) => {
     if (day.isWeekend) return
 
-    const existing = getMyAbsence(day.isoDate)
+    const existing = getMiAusencia(day.isoDate)
     if (existing) {
-        requestConfirmation(
+        solicitarConfirmacion(
             'Eliminar Ausencia',
-            `¿Estás seguro de eliminar tu ${existing.type} del día ${day.dayNum}?`,
+            `¿Estás seguro de eliminar tu ${existing.tipo} del día ${day.dayNum}?`,
             'danger',
             async () => {
                 try {
-                    await fetch('http://localhost:5000/api/absences', {
+                    await fetch('http://localhost:5000/api/ausencias', {
                         method: 'DELETE',
                         headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ userId: currentUser.id, date: day.isoDate })
+                        body: JSON.stringify({ usuario_id: currentUser.id, fecha: day.isoDate })
                     })
                     showToast('Ausencia eliminada correctamente', 'success')
-                    await fetchAbsences()
-                    await fetchAnnualSummary()
+                    cargarAusencias()
+                    cargarResumenAnual()
                 } catch(e) {
                     showToast('Error al eliminar', 'error')
                 }
@@ -185,27 +196,27 @@ const openAbsenceModal = (day) => {
         return
     }
 
-    absenceForm.value = { startDate: day.isoDate, endDate: day.isoDate, type: 'vacaciones', comment: '' }
-    showModal.value = true
+    form.value = { fechaInicio: day.isoDate, fechaFin: day.isoDate, tipo: 'vacaciones', comentario: '' }
+    mostrarModal.value = true
 }
 
-const handleRequest = async (requestedDays) => {
+const procesarSolicitud = async (diasSolicitados) => {
     try {
-        const res = await fetch('http://localhost:5000/api/absences', {
+        const res = await fetch('http://localhost:5000/api/ausencias', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-                userId: currentUser.id,
-                dates: requestedDays,
-                type: absenceForm.value.type,
-                comment: absenceForm.value.comment
+                usuario_id: currentUser.id,
+                fechas: diasSolicitados,
+                tipo: form.value.tipo,
+                comentario: form.value.comentario
             })
         })
         if (res.ok) {
-            showModal.value = false
+            mostrarModal.value = false
             showToast('Solicitud registrada con éxito', 'success')
-            await fetchAbsences()
-            await fetchAnnualSummary()
+            cargarAusencias()
+            cargarResumenAnual()
         } else {
             showToast('Error al guardar la solicitud', 'error')
         }
@@ -214,42 +225,45 @@ const handleRequest = async (requestedDays) => {
     }
 }
 
-const confirmRequest = () => {
-    const start = new Date(absenceForm.value.startDate)
-    const end = new Date(absenceForm.value.endDate)
-    const requestedDays = []
+const confirmarSolicitud = () => {
+    const start = new Date(form.value.fechaInicio)
+    const end = new Date(form.value.fechaFin)
+    const diasSolicitados = []
 
     for(let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
         if (d.getDay() !== 0 && d.getDay() !== 6) {
             const offset = d.getTimezoneOffset() * 60000
             const iso = new Date(d.getTime() - offset).toISOString().split('T')[0]
-            requestedDays.push(iso)
+            diasSolicitados.push(iso)
         }
     }
 
-    if (requestedDays.length === 0) {
+    if (diasSolicitados.length === 0) {
         showToast("Selecciona al menos un día laborable.", "error")
         return
     }
 
-    let alertManager = false
-    requestedDays.forEach(date => {
-        const total = getDayAbsences(date).length
-        if (total >= 3) alertManager = true
+    let alertaJefe = false
+    diasSolicitados.forEach(date => {
+        const total = getAusenciasDia(date).length
+        if (total >= 3) alertaJefe = true
     })
 
-    if (alertManager) {
-        requestConfirmation(
+    if (alertaJefe) {
+        solicitarConfirmacion(
             'Alta Demanda Detectada',
-            'Algunos días seleccionados ya tienen a 3 o más compañeros fuera. Se notificará al responsable. ¿Continuar?',
+            'Algunos días seleccionados ya tienen a 3 o más compañeros fuera. Se notificará al Jefe de Proyecto. ¿Continuar?',
             'warning',
-            () => handleRequest(requestedDays)
+            () => procesarSolicitud(diasSolicitados)
         )
         return
     }
 
-    handleRequest(requestedDays)
+    procesarSolicitud(diasSolicitados)
 }
+
+const prevMonth = () => currentDate.value = new Date(year.value, month.value - 1, 1)
+const nextMonth = () => currentDate.value = new Date(year.value, month.value + 1, 1)
 </script>
 
 <template>
@@ -278,12 +292,13 @@ const confirmRequest = () => {
     </div>
 
     <div class="flex items-center justify-between bg-white p-4 rounded-t-xl border border-slate-200 border-b-0 shadow-sm shrink-0">
-        <button @click="currentDate = new Date(year, month - 1, 1)" class="btn-ghost hover:bg-slate-100"><ChevronLeft/></button>
+        <button @click="prevMonth" class="btn-ghost hover:bg-slate-100"><ChevronLeft/></button>
         <h2 class="text-xl font-bold text-slate-800 capitalize">{{ monthNames[month] }} {{ year }}</h2>
-        <button @click="currentDate = new Date(year, month + 1, 1)" class="btn-ghost hover:bg-slate-100"><ChevronRight/></button>
+        <button @click="nextMonth" class="btn-ghost hover:bg-slate-100"><ChevronRight/></button>
     </div>
 
     <div class="bg-white rounded-b-xl border border-slate-200 shadow-sm overflow-hidden select-none mb-8 shrink-0">
+        
         <div class="grid grid-cols-7 bg-slate-50 border-b border-slate-200 text-center py-3">
             <div v-for="d in ['Lun','Mar','Mié','Jue','Vie','Sáb','Dom']" :key="d" 
                  class="text-xs font-bold text-slate-400 uppercase tracking-wider">
@@ -295,7 +310,7 @@ const confirmRequest = () => {
             <div v-for="p in startPadding" :key="'pad-'+p" class="bg-slate-50/50 border-b border-r border-slate-100 min-h-[100px] xl:min-h-[120px]"></div>
 
             <div v-for="day in daysInMonth" :key="day.isoDate" 
-                 @click="openAbsenceModal(day)"
+                 @click="abrirModal(day)"
                  class="relative border-b border-r border-slate-100 min-h-[100px] xl:min-h-[120px] p-2 transition-all group hover:bg-slate-50 cursor-pointer"
                  :class="{ 'bg-slate-50/50': day.isWeekend, 'bg-white': !day.isWeekend }">
                 
@@ -304,39 +319,43 @@ const confirmRequest = () => {
                           :class="day.isoDate === new Date().toISOString().split('T')[0] ? 'bg-slate-900 text-white w-6 h-6 rounded-full flex items-center justify-center' : 'text-slate-700'">
                         {{ day.dayNum }}
                     </span>
-                    <div v-if="!day.isWeekend && getDayAbsences(day.isoDate).length >= 3" 
+                    
+                    <div v-if="!day.isWeekend && getAusenciasDia(day.isoDate).length >= 3" 
                          class="text-rose-500 animate-pulse" title="Alta concurrencia">
                         <AlertTriangle class="w-4 h-4" />
                     </div>
                 </div>
 
                 <div class="flex flex-col gap-1 overflow-y-auto no-scrollbar max-h-[85px] pr-1 mt-1">
-                    <div v-for="aus in getDayAbsences(day.isoDate)" :key="aus.userId"
+                    <div v-for="aus in getAusenciasDia(day.isoDate)" :key="aus.userId"
                          class="px-1.5 py-1 rounded text-[10px] font-bold flex items-center gap-1.5 truncate transition-all border"
-                         :class="aus.userId === currentUser.id ? getMyAbsenceStyle(aus.type) : getColleagueAbsenceStyle(aus.type)">
+                         :class="aus.userId === currentUser.id ? getMiEstiloTipo(aus.tipo) : getCompaneroEstiloTipo(aus.tipo)"
+                         :title="`${aus.nombre} - ${aus.tipo} ${aus.comentario ? '('+aus.comentario+')' : ''}`">
                         
                         <template v-if="aus.userId === currentUser.id">
                             <div class="w-3.5 h-3.5 rounded-full bg-white/20 flex items-center justify-center shrink-0">
-                                <component :is="getTypeIcon(aus.type)" class="w-2.5 h-2.5 text-white" />
+                                <component :is="getIconoTipo(aus.tipo)" class="w-2.5 h-2.5 text-white" />
                             </div>
-                            <span class="truncate flex-1 uppercase tracking-wider">Tú</span>
+                            <span class="truncate flex-1 uppercase tracking-wider">Tú - {{ aus.tipo }}</span>
                         </template>
+
                         <template v-else>
                             <div class="w-3.5 h-3.5 rounded-full flex items-center justify-center shrink-0 text-[7px]"
-                                 :class="getAvatarColor(aus.type)">
-                                {{ aus.initials }}
+                                 :class="getAvatarColor(aus.tipo)">
+                                {{ aus.iniciales }}
                             </div>
-                            <span class="truncate flex-1">{{ aus.name }}</span>
+                            <span class="truncate flex-1">{{ aus.nombre }}</span>
                         </template>
                     </div>
                 </div>
 
-                <div v-if="!day.isWeekend && !getMyAbsence(day.isoDate)" 
+                <div v-if="!day.isWeekend && !getMiAusencia(day.isoDate)" 
                      class="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity bg-slate-50/30">
                     <div class="bg-white rounded-full p-2 shadow-sm border border-slate-200 text-slate-400">
                         <UserPlus class="w-5 h-5" />
                     </div>
                 </div>
+
             </div>
         </div>
     </div>
@@ -344,92 +363,127 @@ const confirmRequest = () => {
     <div class="bg-white p-6 rounded-xl border border-slate-200 shadow-sm mt-4 shrink-0">
         <h2 class="text-lg font-bold text-slate-800 mb-6 flex items-center gap-2">
             <Users class="w-5 h-5 text-primary" />
-            Resumen Anual ({{ year }})
+            Resumen Anual de Ausencias ({{ year }})
         </h2>
 
         <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-            <div v-for="user in annualSummary" :key="user.name" class="p-5 rounded-xl border border-slate-100 bg-slate-50/50">
+            <div v-for="user in resumenAnual" :key="user.nombre" class="p-5 rounded-xl border border-slate-100 bg-slate-50/50 hover:shadow-sm transition-all">
                 <div class="flex items-center gap-3 mb-4">
                     <div class="w-10 h-10 rounded-full bg-slate-200 text-slate-700 font-bold flex items-center justify-center shadow-inner">
-                        {{ user.initials }}
+                        {{ user.iniciales }}
                     </div>
                     <div>
-                        <h3 class="font-bold text-slate-800">{{ user.name }}</h3>
-                        <p class="text-xs text-slate-500">{{ user.days.length }} días registrados</p>
+                        <h3 class="font-bold text-slate-800">{{ user.nombre }}</h3>
+                        <p class="text-xs text-slate-500">{{ user.dias.length }} días registrados</p>
                     </div>
                 </div>
+
                 <div class="flex flex-wrap gap-1.5">
-                    <span v-for="day in user.days" :key="day.date"
-                          class="px-2 py-1 rounded text-[10px] font-bold border flex items-center gap-1"
-                          :class="getColleagueAbsenceStyle(day.type)"
-                          :title="day.comment || day.type">
-                        {{ formatShortDate(day.date) }}
+                    <span v-for="dia in user.dias" :key="dia.fecha"
+                          class="px-2 py-1 rounded text-[10px] font-bold border flex items-center gap-1 cursor-default"
+                          :class="getCompaneroEstiloTipo(dia.tipo)"
+                          :title="dia.comentario || dia.tipo">
+                        {{ formatShortDate(dia.fecha) }}
                     </span>
                 </div>
             </div>
         </div>
+
+        <div v-if="resumenAnual.length === 0" class="text-center py-10">
+            <p class="text-slate-400 font-medium">No hay ausencias registradas en todo el año.</p>
+        </div>
     </div>
 
-    <div v-if="showModal" class="fixed inset-0 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+    <div v-if="mostrarModal" class="fixed inset-0 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center z-50 p-4">
         <div class="bg-white w-full max-w-md rounded-2xl shadow-2xl p-6 animate-in zoom-in-95">
+            
             <div class="flex justify-between items-center mb-6">
                 <h3 class="text-xl font-bold text-slate-800">Solicitar Días</h3>
-                <button @click="showModal=false" class="text-slate-400 hover:text-slate-600"><X class="w-6 h-6"/></button>
+                <button @click="mostrarModal=false" class="text-slate-400 hover:text-slate-600"><X class="w-6 h-6"/></button>
             </div>
+
             <div class="space-y-6">
                 <div class="grid grid-cols-2 gap-4">
                     <div>
-                        <label class="block text-[11px] font-bold text-slate-400 uppercase mb-2">Desde</label>
-                        <input type="date" v-model="absenceForm.startDate" class="input-std w-full font-bold">
+                        <label class="block text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-2">Desde</label>
+                        <input type="date" v-model="form.fechaInicio" class="w-full bg-slate-50 border border-slate-200 text-slate-800 rounded-lg px-3 py-2 font-bold focus:ring-2 focus:ring-primary outline-none">
                     </div>
                     <div>
-                        <label class="block text-[11px] font-bold text-slate-400 uppercase mb-2">Hasta</label>
-                        <input type="date" v-model="absenceForm.endDate" class="input-std w-full font-bold">
+                        <label class="block text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-2">Hasta</label>
+                        <input type="date" v-model="form.fechaFin" class="w-full bg-slate-50 border border-slate-200 text-slate-800 rounded-lg px-3 py-2 font-bold focus:ring-2 focus:ring-primary outline-none">
                     </div>
                 </div>
+
                 <div>
-                    <label class="block text-[11px] font-bold text-slate-400 uppercase mb-2">Tipo</label>
+                    <label class="block text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-2">Tipo de Ausencia</label>
                     <div class="grid grid-cols-3 gap-2">
-                        <div v-for="t in ['vacaciones', 'festivo', 'asuntos']" :key="t" 
-                             @click="absenceForm.type = t"
-                             class="cursor-pointer border rounded-xl p-3 flex flex-col items-center gap-2 transition-all capitalize"
-                             :class="absenceForm.type === t ? 'border-primary bg-blue-50 text-primary ring-1 ring-primary' : 'border-slate-200 text-slate-500'">
-                            <component :is="getTypeIcon(t)" class="w-6 h-6" />
-                            <span class="text-[10px] font-bold">{{ t }}</span>
+                        <div @click="form.tipo = 'vacaciones'" 
+                             class="cursor-pointer border rounded-xl p-3 flex flex-col items-center gap-2 transition-all"
+                             :class="form.tipo === 'vacaciones' ? 'border-emerald-500 bg-emerald-50 text-emerald-700 ring-1 ring-emerald-500' : 'border-slate-200 hover:border-slate-300 text-slate-500'">
+                            <Palmtree class="w-6 h-6" />
+                            <span class="text-[10px] font-bold uppercase">Vacaciones</span>
+                        </div>
+                        <div @click="form.tipo = 'festivo'" 
+                             class="cursor-pointer border rounded-xl p-3 flex flex-col items-center gap-2 transition-all"
+                             :class="form.tipo === 'festivo' ? 'border-orange-500 bg-orange-50 text-orange-700 ring-1 ring-orange-500' : 'border-slate-200 hover:border-slate-300 text-slate-500'">
+                            <MapPin class="w-6 h-6" />
+                            <span class="text-[10px] font-bold uppercase">Festivo</span>
+                        </div>
+                        <div @click="form.tipo = 'asuntos'" 
+                             class="cursor-pointer border rounded-xl p-3 flex flex-col items-center gap-2 transition-all"
+                             :class="form.tipo === 'asuntos' ? 'border-blue-500 bg-blue-50 text-blue-700 ring-1 ring-blue-500' : 'border-slate-200 hover:border-slate-300 text-slate-500'">
+                            <Briefcase class="w-6 h-6" />
+                            <span class="text-[10px] font-bold uppercase">Asuntos P.</span>
                         </div>
                     </div>
                 </div>
+
                 <div>
-                    <label class="block text-[11px] font-bold text-slate-400 uppercase mb-2">Comentario (Opcional)</label>
-                    <input type="text" v-model="absenceForm.comment" placeholder="..." class="input-std w-full">
+                    <label class="block text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-2">Comentario (Opcional)</label>
+                    <input type="text" v-model="form.comentario" placeholder="Ej: Viaje a Londres..." maxlength="255"
+                           class="w-full bg-white border border-slate-200 text-slate-800 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-primary outline-none">
                 </div>
-                <button @click="confirmRequest" class="w-full btn-primary py-3 justify-center text-base">
+
+                <button @click="confirmarSolicitud" class="w-full btn-primary py-3 justify-center text-base bg-primary text-white font-bold rounded-lg hover:bg-emerald-600 transition flex items-center">
                     <Check class="w-5 h-5 mr-2"/> Confirmar Solicitud
                 </button>
             </div>
         </div>
     </div>
 
-    <transition enter-active-class="transform transition" enter-from-class="translate-y-2 opacity-0" enter-to-class="translate-y-0 opacity-100" leave-active-class="transition" leave-from-class="opacity-100" leave-to-class="opacity-0">
-        <div v-if="toast.show" class="fixed bottom-6 right-6 z-[200] flex items-center p-4 bg-white rounded-2xl shadow-2xl border border-slate-100 min-w-[300px]">
-            <div class="w-10 h-10 rounded-xl flex items-center justify-center mr-4" :class="toast.type === 'success' ? 'bg-green-100 text-green-600' : 'bg-red-100 text-red-600'">
-                <component :is="toast.type === 'success' ? CheckCircle2 : AlertCircle" class="w-6 h-6"/>
-            </div>
-            <div class="text-sm font-bold text-slate-800">{{ toast.message }}</div>
-        </div>
-    </transition>
-
     <div v-if="confirmState.show" class="fixed inset-0 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center z-[60] p-4">
-        <div class="bg-white w-full max-w-sm rounded-xl shadow-2xl p-6 text-center animate-in zoom-in-95">
-            <component :is="confirmState.type === 'danger' ? Trash2 : AlertTriangle" class="w-12 h-12 mx-auto mb-4" :class="confirmState.type === 'danger' ? 'text-red-500' : 'text-amber-500'"/>
-            <h3 class="text-lg font-bold text-slate-900">{{ confirmState.title }}</h3>
-            <p class="text-sm text-slate-500 mt-2">{{ confirmState.message }}</p>
-            <div class="flex gap-3 mt-6">
-                <button @click="confirmState.show = false" class="btn-secondary flex-1">Cancelar</button>
-                <button @click="executeConfirmation" class="btn-primary flex-1 justify-center" :class="confirmState.type === 'danger' ? 'bg-red-600 hover:bg-red-700' : ''">Confirmar</button>
+        <div class="bg-white w-full max-w-sm rounded-xl shadow-2xl p-6 animate-in zoom-in-95">
+            <div class="flex flex-col items-center text-center gap-3">
+                <div class="w-12 h-12 rounded-full flex items-center justify-center mb-2"
+                     :class="confirmState.type === 'danger' ? 'bg-red-100 text-red-600' : 'bg-amber-100 text-amber-600'">
+                    <component :is="confirmState.type === 'danger' ? Trash2 : AlertTriangle" class="w-6 h-6" />
+                </div>
+                <h3 class="text-lg font-bold text-slate-900">{{ confirmState.title }}</h3>
+                <p class="text-sm text-slate-500 leading-relaxed">{{ confirmState.message }}</p>
+                
+                <div class="flex gap-3 w-full mt-4">
+                    <button @click="confirmState.show = false" class="px-4 py-2 bg-slate-100 text-slate-600 rounded-lg font-bold flex-1 hover:bg-slate-200 transition">Cancelar</button>
+                    <button @click="ejecutarConfirmacion" 
+                            class="px-4 py-2 text-white rounded-lg font-bold flex-1 transition shadow-sm"
+                            :class="confirmState.type === 'danger' ? 'bg-red-600 hover:bg-red-700' : 'bg-amber-600 hover:bg-amber-700'">
+                        Confirmar
+                    </button>
+                </div>
             </div>
         </div>
     </div>
+
+    <transition enter-active-class="transform ease-out duration-300 transition" enter-from-class="translate-y-2 opacity-0 sm:translate-y-0 sm:translate-x-2" enter-to-class="translate-y-0 opacity-100 sm:translate-x-0" leave-active-class="transition ease-in duration-100" leave-from-class="opacity-100" leave-to-class="opacity-0">
+        <div v-if="toast.show" class="absolute bottom-6 right-6 z-50 flex items-center w-full max-w-xs p-4 space-x-3 text-gray-500 bg-white rounded-lg shadow-lg border border-gray-100">
+            <div class="inline-flex items-center justify-center flex-shrink-0 w-8 h-8 rounded-lg" :class="toast.type === 'success' ? 'text-emerald-500 bg-emerald-100' : 'text-red-500 bg-red-100'">
+                <component :is="toast.type === 'success' ? CheckCircle2 : AlertCircle" class="w-5 h-5"/>
+            </div>
+            <div class="ml-3 text-sm font-bold text-gray-800">{{ toast.message }}</div>
+            <button @click="toast.show = false" class="ml-auto -mx-1.5 -my-1.5 bg-white text-gray-400 hover:text-gray-900 rounded-lg focus:ring-2 focus:ring-gray-300 p-1.5 hover:bg-gray-100 inline-flex h-8 w-8 items-center justify-center">
+                <X class="w-4 h-4"/>
+            </button>
+        </div>
+    </transition>
 
   </div>
 </template>

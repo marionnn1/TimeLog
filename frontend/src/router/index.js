@@ -1,6 +1,6 @@
 import { createRouter, createWebHistory } from 'vue-router'
 
-// 1. Importamos las vistas (Mantenemos los nombres de archivo actuales)
+// 1. Importamos las vistas
 import LoginView from '../views/LoginView.vue'
 import DashboardView from '../views/DashboardView.vue'
 import ImputacionesView from '../views/ImputacionesView.vue'
@@ -12,7 +12,7 @@ import AdminUsersView from '../views/admin/AdminUsersView.vue'
 import AdminProjectsView from '@/views/admin/AdminProjectsView.vue'
 import AdminAuditView from '../views/admin/AdminAuditView.vue'
 import AdminDashboardView from '../views/admin/AdminDashboardView.vue'
-import AdminTicketsView from '../views/admin/AdminTicketsView.vue' 
+import AdminTicketsView from '../views/admin/AdminTicketsView.vue' // <--- NUEVA VISTA
 
 // Vistas de Manager
 import ManagerAnalyticsView from '../views/manager/ManagerAnalyticsView.vue'
@@ -46,13 +46,13 @@ const router = createRouter({
     },
     {
       path: '/imputaciones',
-      name: 'time-entries', // Estandarizado
+      name: 'imputaciones',
       component: ImputacionesView,
       meta: { requiresAuth: true }
     },
     {
       path: '/calendario-global',
-      name: 'global-calendar', // Estandarizado
+      name: 'calendario-global',
       component: GlobalCalendarView,
       meta: { requiresAuth: true }
     },
@@ -89,7 +89,7 @@ const router = createRouter({
       meta: { requiresAuth: true, role: 'admin' }
     },
     {
-      path: '/admin/tickets',
+      path: '/admin/tickets', // <--- NUEVA RUTA DE TICKETS
       name: 'admin-tickets',
       component: AdminTicketsView,
       meta: { requiresAuth: true, role: 'admin' }
@@ -97,42 +97,49 @@ const router = createRouter({
 
     // --- RUTAS MANAGER ---
     {
-      path: '/manager/analitica',
+      path: '/manager/analitica', // <-- Cambiado de /analytics a /analitica
       name: 'manager-analytics',
-      component: ManagerAnalyticsView,
-      meta: { requiresAuth: true }
+      component: ManagerAnalyticsView
     },
     {
-      path: '/manager/cierre',
+      path: '/manager/cierre', // <-- Cambiado de /closing a /cierre
       name: 'manager-closing',
-      component: ManagerClosingView,
-      meta: { requiresAuth: true }
+      component: ManagerClosingView
     },
     {
-      path: '/manager/projects', 
+      path: '/manager/projects', // (Si tu menú dice /proyectos, ponlo así. Si te funcionaba con /projects, déjalo como estaba)
       name: 'manager-projects',
-      component: ProjectsView,
-      meta: { requiresAuth: true }
+      component: ProjectsView
     },
     {
-      path: '/manager/validaciones', 
+      path: '/manager/validaciones', // <-- Cambiado de /validation a /validaciones
       name: 'manager-validation',
-      component: ManagerValidationView,
-      meta: { requiresAuth: true }
+      component: ManagerValidationView
     }
   ]
 })
 
+
 router.beforeEach((to, from, next) => {
   const isAuthenticated = localStorage.getItem('isAuthenticated') === 'true'
 
-  if (to.path !== '/login' && !isAuthenticated) {
+  if (to.meta.requiresAuth && !isAuthenticated) {
     next('/login')
   } 
   else if (to.path === '/login' && isAuthenticated) {
     next('/')
   } 
   else {
+    next()
+  }
+})
+
+router.beforeEach((to, from, next) => {
+  const isAuthenticated = localStorage.getItem('isAuthenticated') === 'true'
+  
+  if (to.path !== '/login' && !isAuthenticated) {
+    next('/login')
+  } else {
     next()
   }
 })

@@ -7,13 +7,13 @@ import {
 } from 'lucide-vue-next'
 
 // Calculamos el mes actual dinámicamente en formato YYYY-MM
-const today = new Date()
-const currentMonth = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}`
+const hoy = new Date()
+const mesActual = `${hoy.getFullYear()}-${String(hoy.getMonth() + 1).padStart(2, '0')}`
 
-const closingMonth = ref(currentMonth)
-const searchQuery = ref('')
-const isMonthClosed = ref(false)
-const auditUsers = ref([])
+const fechaCierre = ref(mesActual)
+const busqueda = ref('')
+const mesCerrado = ref(false)
+const auditoriaUsuarios = ref([])
 const isLoading = ref(false)
 
 const toast = ref({ show: false, message: '', type: 'success' })
@@ -29,11 +29,11 @@ const showToast = (message, type = 'success') => {
 
 const confirmState = ref({ show: false, title: '', message: '', type: 'neutral', action: null })
 
-const requestConfirmation = (title, message, type, callback) => {
+const solicitarConfirmacion = (title, message, type, callback) => {
     confirmState.value = { show: true, title, message, type, action: callback }
 }
 
-const executeConfirmation = () => {
+const ejecutarConfirmacion = () => {
     if (confirmState.value.action) confirmState.value.action()
     confirmState.value.show = false
 }
@@ -42,14 +42,13 @@ const executeConfirmation = () => {
 const fetchClosingData = async () => {
     isLoading.value = true
     try {
-        const response = await ManagerAPI.getClosingData(closingMonth.value)
-        const data = response.data || response
-        isMonthClosed.value = data.isMonthClosed
-        auditUsers.value = data.users || []
+        const response = await ManagerAPI.getClosingData(fechaCierre.value)
+        mesCerrado.value = response.data.mesCerrado
+        auditoriaUsuarios.value = response.data.usuarios || []
     } catch (error) {
         console.error("Error obteniendo datos de cierre:", error)
         showToast("Error al conectar con el servidor", "error")
-        auditUsers.value = []
+        auditoriaUsuarios.value = []
     } finally {
         isLoading.value = false
     }
@@ -59,82 +58,80 @@ onMounted(() => {
     fetchClosingData()
 })
 
-watch(closingMonth, () => {
+watch(fechaCierre, () => {
     fetchClosingData()
 })
 
-const filteredUsers = computed(() => {
-    return auditUsers.value.filter(u =>
-        u.name.toLowerCase().includes(searchQuery.value.toLowerCase())
+const usuariosFiltrados = computed(() => {
+    return auditoriaUsuarios.value.filter(u =>
+        u.nombre.toLowerCase().includes(busqueda.value.toLowerCase())
     )
 })
 
-const canCloseMonth = computed(() => {
-    // Verificamos el estado en inglés devuelto por el backend
-    return !auditUsers.value.some(u => u.status === 'incomplete')
+const puedeCerrarMes = computed(() => {
+    return !auditoriaUsuarios.value.some(u => u.estado === 'incompleto')
 })
 
-const statusSummary = computed(() => {
-    const total = auditUsers.value.length
-    const incompleteCount = auditUsers.value.filter(u => u.status === 'incomplete').length
-    const emptyCount = auditUsers.value.filter(u => u.status === 'empty').length
+const resumenEstado = computed(() => {
+    const total = auditoriaUsuarios.value.length
+    const incompletos = auditoriaUsuarios.value.filter(u => u.estado === 'incompleto').length
+    const vacios = auditoriaUsuarios.value.filter(u => u.estado === 'vacio').length
 
-    return { total, incomplete: incompleteCount, empty: emptyCount, complete: total - incompleteCount - emptyCount }
+    return { total, incompletos, vacios, completos: total - incompletos - vacios }
 })
 
-const processClosingToggle = async (actionStr) => {
+const procesarCierreToggle = async (accion) => {
     try {
-        // actionStr será 'close' u 'open'
-        await ManagerAPI.toggleClosingMonth(closingMonth.value, actionStr)
-        isMonthClosed.value = (actionStr === 'close')
-        showToast(`Mes de ${closingMonth.value} ${actionStr === 'close' ? 'cerrado' : 'reabierto'} correctamente`, 'success')
+        await ManagerAPI.toggleCierreMes(fechaCierre.value, accion)
+        mesCerrado.value = (accion === 'cerrar')
+        showToast(`Mes de ${fechaCierre.value} ${accion === 'cerrar' ? 'cerrado' : 'reabierto'} correctamente`, 'success')
     } catch (error) {
-        showToast(`Error al cambiar el estado del mes`, 'error')
+        showToast(`Error al ${accion} el mes`, 'error')
     }
 }
 
-const executeClosing = () => {
-    if (!canCloseMonth.value) {
-        requestConfirmation(
+const ejecutarCierre = () => {
+    if (!puedeCerrarMes.value) {
+        solicitarConfirmacion(
             'Cierre Forzoso',
             'Hay usuarios con días pendientes de imputar. ¿Estás seguro de que quieres forzar el cierre del mes? Esto bloqueará futuras imputaciones.',
             'warning',
-            () => processClosingToggle('close')
+            () => procesarCierreToggle('cerrar')
         )
         return
     }
     
-    if (statusSummary.value.empty === statusSummary.value.total) {
-        requestConfirmation(
+    if (resumenEstado.value.vacios === resumenEstado.value.total) {
+        solicitarConfirmacion(
             'Mes Vacío',
             'El mes parece no tener actividad registrada. ¿Cerrar igualmente?',
             'neutral',
-            () => processClosingToggle('close')
+            () => procesarCierreToggle('cerrar')
         )
         return
     }
     
-    processClosingToggle('close')
+    procesarCierreToggle('cerrar')
 }
 
-const reopenMonth = () => {
-    requestConfirmation(
+const reabrirMes = () => {
+    solicitarConfirmacion(
         'Reabrir Mes',
         '¿Estás seguro de que quieres reabrir este periodo? Los usuarios podrán volver a editar sus imputaciones.',
         'neutral',
-        () => processClosingToggle('open')
+        () => procesarCierreToggle('reabrir')
     )
 }
 
-const exportExcel = () => {   
+const exportarExcel = () => {   
     const headers = ['ID', 'Nombre', 'Rol', 'Horas Reales', 'Estado', 'Dias Faltantes']
-    const rows = auditUsers.value.map(u => [
+    const rows = auditoriaUsuarios.value.map(u => [
         u.id,
-        u.name,
-        u.role,
-        u.actualHours,
-        u.status,
-        u.missingDays.join(', ') 
+        u.nombre,
+        u.rol,
+        u.horasReales,
+        u.estado,
+        u.diasFaltantes.join(', ') 
     ])
 
     const csvContent = [
@@ -146,7 +143,7 @@ const exportExcel = () => {
     const url = URL.createObjectURL(blob)
     const link = document.createElement('a')
     link.setAttribute('href', url)
-    link.setAttribute('download', `auditoria_cierre_${closingMonth.value}.csv`)
+    link.setAttribute('download', `auditoria_cierre_${fechaCierre.value}.csv`)
     document.body.appendChild(link)
 
     link.click() 
@@ -154,9 +151,9 @@ const exportExcel = () => {
     showToast('Archivo CSV descargado', 'success')
 }
 
-const notifyUser = (user) => {
+const notificarUsuario = (user) => {
     // Vuelve a ser solo un mock visual
-    showToast(`Recordatorio enviado a ${user.name}`, 'success')
+    showToast(`Recordatorio enviado a ${user.nombre}`, 'success')
 }
 </script>
 
@@ -166,7 +163,7 @@ const notifyUser = (user) => {
         <div class="flex justify-between items-end shrink-0">
             <div>
                 <h1 class="h1-title flex items-center gap-2">
-                    <Lock v-if="isMonthClosed" class="w-8 h-8 text-emerald-600" />
+                    <Lock v-if="mesCerrado" class="w-8 h-8 text-emerald-600" />
                     <Unlock v-else class="w-8 h-8 text-amber-500" />
                     Auditoría y Cierre Mensual
                 </h1>
@@ -176,32 +173,32 @@ const notifyUser = (user) => {
             <div class="flex items-center gap-4">
                 <div class="flex items-center bg-white border border-gray-200 rounded-lg px-3 py-2 shadow-sm">
                     <Calendar class="w-4 h-4 text-gray-400 mr-2" />
-                    <input type="month" v-model="closingMonth"
+                    <input type="month" v-model="fechaCierre"
                         class="text-sm font-bold text-dark outline-none bg-transparent">
                 </div>
 
-                <button @click="exportExcel" class="btn-secondary flex items-center gap-2">
+                <button @click="exportarExcel" class="btn-secondary flex items-center gap-2">
                     <FileDown class="w-4 h-4" /> Exportar Auditoría (.CSV)
                 </button>
             </div>
         </div>
 
         <div class="card bg-slate-900 text-white p-4 flex justify-between items-center shadow-lg shrink-0 transition-colors duration-300"
-            :class="isMonthClosed ? 'bg-emerald-900' : 'bg-slate-900'">
+            :class="mesCerrado ? 'bg-emerald-900' : 'bg-slate-900'">
 
             <div class="flex items-center gap-4">
                 <div class="p-3 rounded-full bg-white/10">
-                    <component :is="isMonthClosed ? CheckCircle2 : AlertCircle" class="w-6 h-6 text-white" />
+                    <component :is="mesCerrado ? CheckCircle2 : AlertCircle" class="w-6 h-6 text-white" />
                 </div>
                 <div>
                     <h3 class="font-bold text-lg">
-                        {{ isMonthClosed ? 'Periodo Cerrado' : 'Periodo Abierto' }}
+                        {{ mesCerrado ? 'Periodo Cerrado' : 'Periodo Abierto' }}
                     </h3>
-                    <p class="text-sm text-slate-300" v-if="!isMonthClosed">
-                        <span v-if="statusSummary.incomplete > 0">
-                            Hay <b>{{ statusSummary.incomplete }} usuarios</b> pendientes de completar jornada.
+                    <p class="text-sm text-slate-300" v-if="!mesCerrado">
+                        <span v-if="resumenEstado.incompletos > 0">
+                            Hay <b>{{ resumenEstado.incompletos }} usuarios</b> pendientes de completar jornada.
                         </span>
-                        <span v-else-if="statusSummary.empty === statusSummary.total">
+                        <span v-else-if="resumenEstado.vacios === resumenEstado.total">
                             No hay actividad registrada en este mes.
                         </span>
                         <span v-else>
@@ -214,16 +211,16 @@ const notifyUser = (user) => {
                 </div>
             </div>
 
-            <div v-if="!isMonthClosed">
-                <button @click="executeClosing"
+            <div v-if="!mesCerrado">
+                <button @click="ejecutarCierre"
                     class="px-6 py-2.5 rounded-lg font-bold text-sm transition flex items-center gap-2 shadow-lg"
-                    :class="canCloseMonth ? 'bg-emerald-500 hover:bg-emerald-400 text-white' : 'bg-amber-500 hover:bg-amber-400 text-white'">
+                    :class="puedeCerrarMes ? 'bg-emerald-500 hover:bg-emerald-400 text-white' : 'bg-amber-500 hover:bg-amber-400 text-white'">
                     <Lock class="w-4 h-4" />
-                    {{ canCloseMonth ? 'Cerrar Mes Ahora' : 'Forzar Cierre' }}
+                    {{ puedeCerrarMes ? 'Cerrar Mes Ahora' : 'Forzar Cierre' }}
                 </button>
             </div>
             <div v-else>
-                <button @click="reopenMonth"
+                <button @click="reabrirMes"
                     class="px-6 py-2.5 rounded-lg font-bold text-sm bg-white/10 hover:bg-white/20 text-white flex items-center gap-2 transition">
                     <Unlock class="w-4 h-4" /> Reabrir Mes
                 </button>
@@ -234,7 +231,7 @@ const notifyUser = (user) => {
 
             <div class="p-4 border-b border-gray-200 bg-gray-50 flex items-center gap-3">
                 <Search class="w-5 h-5 text-gray-400" />
-                <input v-model="searchQuery" type="text" placeholder="Buscar empleado..."
+                <input v-model="busqueda" type="text" placeholder="Buscar empleado..."
                     class="w-full bg-transparent border-none outline-none text-sm font-medium text-dark placeholder-gray-400">
             </div>
 
@@ -246,43 +243,44 @@ const notifyUser = (user) => {
                             <th class="px-6 py-4 font-bold text-center">Horas Reales</th>
                             <th class="px-6 py-4 font-bold w-1/3">Días Pendientes</th>
                             <th class="px-6 py-4 font-bold text-center">Estado</th>
-                            <th class="px-6 py-4 font-bold text-right" v-if="!isMonthClosed">Acción</th>
+                            <th class="px-6 py-4 font-bold text-right" v-if="!mesCerrado">Acción</th>
                         </tr>
                     </thead>
                     <tbody class="text-sm divide-y divide-gray-50">
-                        <tr v-for="user in filteredUsers" :key="user.id" class="hover:bg-slate-50 transition group">
+                        <tr v-for="user in usuariosFiltrados" :key="user.id" class="hover:bg-slate-50 transition group">
 
                             <td class="px-6 py-4">
                                 <div class="flex items-center gap-3">
-                                    <div class="w-9 h-9 rounded-full bg-slate-200 flex items-center justify-center text-xs font-bold text-slate-600">
-                                        {{ user.name.charAt(0) }}
+                                    <div
+                                        class="w-9 h-9 rounded-full bg-slate-200 flex items-center justify-center text-xs font-bold text-slate-600">
+                                        {{ user.nombre.charAt(0) }}
                                     </div>
                                     <div>
-                                        <p class="font-bold text-dark">{{ user.name }}</p>
-                                        <p class="text-xs text-gray-500 uppercase">{{ user.role }}</p>
+                                        <p class="font-bold text-dark">{{ user.nombre }}</p>
+                                        <p class="text-xs text-gray-500 uppercase">{{ user.rol }}</p>
                                     </div>
                                 </div>
                             </td>
 
                             <td class="px-6 py-4 text-center">
                                 <span class="font-mono font-bold text-lg"
-                                    :class="user.actualHours === 0 ? 'text-gray-300' : 'text-dark'">
-                                    {{ user.actualHours }}h
+                                    :class="user.horasReales === 0 ? 'text-gray-300' : 'text-dark'">
+                                    {{ user.horasReales }}h
                                 </span>
                             </td>
 
                             <td class="px-6 py-4">
-                                <div v-if="user.status === 'complete'">
+                                <div v-if="user.estado === 'completo'">
                                     <span class="flex items-center gap-1 text-emerald-600 text-xs font-bold w-fit">
                                         <CheckCircle2 class="w-3.5 h-3.5" /> Todo al día
                                     </span>
                                 </div>
-                                <div v-else-if="user.status === 'incomplete'" class="flex flex-col gap-1">
+                                <div v-else-if="user.estado === 'incompleto'" class="flex flex-col gap-1">
                                     <span class="text-[10px] font-bold text-gray-400 uppercase flex items-center gap-1">
                                         <XCircle class="w-3 h-3 text-red-400" /> Días sin registrar:
                                     </span>
                                     <div class="flex flex-wrap gap-1 max-w-[200px]">
-                                        <span v-for="dia in user.missingDays" :key="dia"
+                                        <span v-for="dia in user.diasFaltantes" :key="dia"
                                             class="bg-red-50 text-red-600 border border-red-100 px-1.5 py-0.5 rounded text-[10px] font-mono font-bold">
                                             {{ dia }}
                                         </span>
@@ -296,11 +294,11 @@ const notifyUser = (user) => {
                             </td>
 
                             <td class="px-6 py-4 text-center">
-                                <span v-if="user.status === 'complete'"
+                                <span v-if="user.estado === 'completo'"
                                     class="badge bg-emerald-50 text-emerald-700 border-emerald-200 shadow-sm">
                                     Completo
                                 </span>
-                                <span v-else-if="user.status === 'incomplete'"
+                                <span v-else-if="user.estado === 'incompleto'"
                                     class="badge bg-amber-50 text-amber-700 border-amber-200 shadow-sm">
                                     Incompleto
                                 </span>
@@ -309,8 +307,8 @@ const notifyUser = (user) => {
                                 </span>
                             </td>
 
-                            <td class="px-6 py-4 text-right" v-if="!isMonthClosed">
-                                <button v-if="user.status === 'incomplete'" @click="notifyUser(user)"
+                            <td class="px-6 py-4 text-right" v-if="!mesCerrado">
+                                <button v-if="user.estado === 'incompleto'" @click="notificarUsuario(user)"
                                     class="text-xs font-bold text-blue-600 hover:text-blue-800 hover:bg-blue-50 px-3 py-1.5 rounded transition border border-transparent hover:border-blue-100 ml-auto">
                                     Notificar
                                 </button>
@@ -335,7 +333,7 @@ const notifyUser = (user) => {
                     
                     <div class="flex gap-3 w-full mt-4">
                         <button @click="confirmState.show = false" class="btn-secondary flex-1 justify-center">Cancelar</button>
-                        <button @click="executeConfirmation" 
+                        <button @click="ejecutarConfirmacion" 
                                 class="flex-1 justify-center btn-primary"
                                 :class="confirmState.type === 'warning' ? 'bg-amber-600 hover:bg-amber-700' : 'bg-slate-700 hover:bg-slate-800'">
                             Confirmar

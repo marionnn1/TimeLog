@@ -5,21 +5,21 @@ closing_bp = Blueprint('manager_closing', __name__, url_prefix='/api/manager/clo
 
 @closing_bp.route('/', methods=['GET'])
 def get_closing():
-    month = request.args.get('month')
-    if not month:
-        return jsonify({"error": "Falta el parámetro 'month'"}), 400
+    mes = request.args.get('mes')
+    if not mes:
+        return jsonify({"error": "Falta el parámetro 'mes'"}), 400
 
-    data, status = get_closing_audit(month)
+    data, status = get_closing_audit(mes)
     return jsonify(data), status
 
 @closing_bp.route('/', methods=['POST'])
 def toggle_closing():
     body = request.get_json()
-    month = body.get('month')
-    action = body.get('accion') 
+    mes = body.get('mes')
+    accion = body.get('accion') # 'cerrar' o 'reabrir'
     
-    if not month or not action:
-        return jsonify({"error": "Faltan parámetros 'month' o 'accion'"}), 400
+    if not mes or not accion:
+        return jsonify({"error": "Faltan parámetros 'mes' o 'accion'"}), 400
 
-    data, status = toggle_closing_month(month, action)
+    data, status = toggle_closing_month(mes, accion)
     return jsonify(data), status
