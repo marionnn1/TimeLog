@@ -1,11 +1,10 @@
 <script setup>
 import { ref, onMounted } from 'vue'
-import { useRouter } from 'vue-router' // <--- IMPORTAMOS EL ROUTER
+import { useRouter } from 'vue-router' 
 import { Users, FolderOpen, Ticket, Activity, X, Send, Download } from 'lucide-vue-next'
 
-const router = useRouter() // <--- INICIALIZAMOS EL ROUTER
+const router = useRouter() 
 
-// --- ESTADO ---
 const stats = ref({
     totalUsuarios: 0,
     proyectosActivos: 0,
@@ -13,11 +12,9 @@ const stats = ref({
     ticketsTotales: 0
 })
 
-// Estado para el modal del comunicado
 const mostrarModalComunicado = ref(false)
 const comunicado = ref({ titulo: '', mensaje: '' })
 
-// --- LÓGICA DE API: ESTADÍSTICAS ---
 const cargarEstadisticas = async () => {
     try {
         const res = await fetch('http://localhost:5000/api/dashboard/stats')
@@ -35,9 +32,6 @@ const cargarEstadisticas = async () => {
 
 onMounted(cargarEstadisticas)
 
-// --- ACCIONES DE LOS BOTONES ---
-
-// Acción 1: Exportar CSV
 const exportarCSV = async () => {
     try {
         const res = await fetch('http://localhost:5000/api/auditoria')
@@ -74,7 +68,6 @@ const exportarCSV = async () => {
     }
 }
 
-// Acción 2: Enviar Comunicado
 const enviarComunicado = () => {
     console.log("Enviando comunicado:", comunicado.value)
     mostrarModalComunicado.value = false
@@ -82,18 +75,16 @@ const enviarComunicado = () => {
     alert("Comunicado enviado al equipo.")
 }
 
-// Enrutador de acciones
 const ejecutarAccion = (idAccion) => {
     if (idAccion === 'comunicado') {
         mostrarModalComunicado.value = true
     } else if (idAccion === 'exportar') {
         exportarCSV()
     } else if (idAccion === 'tickets') {
-        router.push('/admin/tickets') // <--- REDIRIGE A TICKETS
+        router.push('/admin/tickets') 
     }
 }
 
-// --- CONFIGURACIÓN DE VISTA ---
 const metricasSistema = [
     { label: 'Base de Datos', valor: 'Conectada', colorTexto: 'text-white' },
     { label: 'Latencia API', valor: '24ms', colorTexto: 'text-[#26AA9B]' },

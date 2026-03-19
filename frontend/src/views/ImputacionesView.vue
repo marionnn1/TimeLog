@@ -32,9 +32,6 @@ const showToast = (message, type = 'success') => {
     }, 3000)
 }
 
-// ==========================================
-// LÓGICA DE AUSENCIAS (CON REACTIVIDAD VUE 3)
-// ==========================================
 const ausenciasPersonales = ref([])
 
 const cargarAusenciasAPI = async () => {
@@ -52,7 +49,6 @@ const cargarAusenciasAPI = async () => {
     }
 }
 
-// Diccionario Reactivo para búsquedas instantáneas en el template HTML
 const ausenciasMesMap = computed(() => {
     const map = {}
     ausenciasPersonales.value.forEach(a => {
@@ -73,7 +69,7 @@ const getLabelDia = (dateObj) => {
     if (tipo === 'asuntos') return 'Asuntos P.'
     return tipo.charAt(0).toUpperCase() + tipo.slice(1)
 }
-// ==========================================
+
 
 const fechaActual = ref(new Date()) 
 const hoy = new Date() 
@@ -142,7 +138,7 @@ const cargarCalendario = async () => {
 
 watch([mesActualIndex, anioActual], () => {
     cargarCalendario()
-    cargarAusenciasAPI() // Recargamos ausencias al cambiar de mes
+    cargarAusenciasAPI() 
 })
 
 onMounted(() => {
@@ -195,7 +191,6 @@ const formSolicitud = ref({
 const abrirSolicitud = (imputacion, dia) => {
     const fechaObj = new Date(anioActual.value, mesActualIndex.value, dia)
     
-    // BLOQUEAMOS EL CLIC DE EDICIÓN EN DÍAS DE VACACIONES
     if (getTipoDia(fechaObj)) {
         showToast(`No puedes modificar horas en un día de ${getLabelDia(fechaObj)}.`, 'error')
         return
