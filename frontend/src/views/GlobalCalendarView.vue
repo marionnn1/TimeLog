@@ -1,6 +1,8 @@
 <script setup>
 import { ref, computed, onMounted, watch } from 'vue'
 import { useDataStore } from '../stores/dataStore'
+import AbsencesAPI from '../services/AbsencesAPI'
+
 import { 
     Calendar as CalendarIcon, ChevronLeft, ChevronRight, 
     AlertTriangle, UserPlus, X, Check, Palmtree, MapPin, Briefcase,
@@ -42,10 +44,9 @@ const cargarAusencias = async () => {
     if (!currentUser) return
     try {
         const mesApi = month.value + 1
-        const res = await fetch(`http://localhost:5000/api/absences?mes=${mesApi}&anio=${year.value}`)
-        const json = await res.json()
-        if (json.status === 'success') {
-            ausenciasDelMes.value = json.data
+        const res = await AbsencesAPI.getAusenciasMes(mesApi, year.value)
+        if (res.status === 'success') {
+            ausenciasDelMes.value = res.data
         }
     } catch (e) {
         console.error("Error al cargar ausencias:", e)
@@ -57,7 +58,8 @@ const cargarResumenAnual = async () => {
     try {
         const promesas = []
         for(let m = 1; m <= 12; m++) {
-            promesas.push(fetch(`http://localhost:5000/api/absences?mes=${m}&anio=${year.value}`).then(r => r.json()))
+            // USAMOS EL SERVICIO
+            promesas.push(AbsencesAPI.getAusenciasMes(m, year.value))
         }
         const resultados = await Promise.all(promesas)
         
@@ -170,11 +172,7 @@ const abrirModal = (day) => {
             'danger',
             async () => {
                 try {
-                    await fetch('http://localhost:5000/api/absences', {
-                        method: 'DELETE',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ usuario_id: currentUser.id, fecha: day.isoDate })
-                    })
+                    await AbsencesAPI.eliminarAusencia(currentUser.id, day.isoDate)
                     showToast('Ausencia eliminada correctamente', 'success')
                     cargarAusencias()
                     cargarResumenAnual()
@@ -192,17 +190,16 @@ const abrirModal = (day) => {
 
 const procesarSolicitud = async (diasSolicitados) => {
     try {
-        const res = await fetch('http://localhost:5000/api/absences', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                usuario_id: currentUser.id,
-                fechas: diasSolicitados,
-                tipo: form.value.tipo,
-                comentario: form.value.comentario
-            })
-        })
-        if (res.ok) {
+        const payload = {
+            usuario_id: currentUser.id,
+            fechas: diasSolicitados,
+            tipo: form.value.tipo,
+            comentario: form.value.comentario
+        }
+        
+        const res = await AbsencesAPI.crearAusencia(payload)
+        
+        if (res.status === 'success') {
             mostrarModal.value = false
             showToast('Solicitud registrada con éxito', 'success')
             cargarAusencias()
