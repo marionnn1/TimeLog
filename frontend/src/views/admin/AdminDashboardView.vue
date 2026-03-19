@@ -1,11 +1,11 @@
 <script setup>
 import { ref, onMounted } from 'vue'
-import { useRouter } from 'vue-router' // <--- IMPORTAMOS EL ROUTER
+import { useRouter } from 'vue-router'
 import { Users, FolderOpen, Ticket, Activity, X, Send, Download } from 'lucide-vue-next'
+import AdminAPI from '../../services/AdminAPI'
 
-const router = useRouter() // <--- INICIALIZAMOS EL ROUTER
+const router = useRouter()
 
-// --- ESTADO ---
 const stats = ref({
     totalUsuarios: 0,
     proyectosActivos: 0,
@@ -13,21 +13,13 @@ const stats = ref({
     ticketsTotales: 0
 })
 
-// Estado para el modal del comunicado
 const mostrarModalComunicado = ref(false)
 const comunicado = ref({ titulo: '', mensaje: '' })
 
-// --- LÓGICA DE API: ESTADÍSTICAS ---
 const cargarEstadisticas = async () => {
     try {
-        const res = await fetch('http://localhost:5000/api/dashboard/stats')
-        if (!res.ok) throw new Error(`El servidor respondió con código ${res.status}`)
-        
-        const json = await res.json()
-        
-        if (json.status === 'success') {
-            stats.value = json.data
-        }
+        const json = await AdminAPI.getDashboardStats()
+        if (json.status === 'success') stats.value = json.data
     } catch (error) {
         console.error("Error crítico al cargar el dashboard.", error)
     }
@@ -35,32 +27,21 @@ const cargarEstadisticas = async () => {
 
 onMounted(cargarEstadisticas)
 
-// --- ACCIONES DE LOS BOTONES ---
-
-// Acción 1: Exportar CSV
 const exportarCSV = async () => {
     try {
-        const res = await fetch('http://localhost:5000/api/auditoria')
-        const json = await res.json()
-        
+        const json = await AdminAPI.getAuditoria()
         if (json.status === 'success') {
             const logs = json.data
             if (logs.length === 0) return alert("No hay registros en la auditoría para exportar.")
 
             const cabeceras = ['ID', 'Fecha', 'Actor', 'Acción', 'Gravedad', 'Detalle']
             const filas = logs.map(log => [
-                log.id, 
-                `"${log.fecha}"`, 
-                `"${log.actor}"`, 
-                `"${log.accion}"`, 
-                `"${log.gravedad}"`, 
-                `"${log.detalle}"`
+                log.id, `"${log.fecha}"`, `"${log.actor}"`, `"${log.accion}"`, `"${log.gravedad}"`, `"${log.detalle}"`
             ])
 
             const contenidoCSV = [cabeceras.join(','), ...filas.map(f => f.join(','))].join('\n')
             const blob = new Blob([contenidoCSV], { type: 'text/csv;charset=utf-8;' })
             const url = URL.createObjectURL(blob)
-            
             const link = document.createElement('a')
             link.setAttribute('href', url)
             link.setAttribute('download', `Auditoria_Timelog_${new Date().toISOString().split('T')[0]}.csv`)
@@ -74,7 +55,6 @@ const exportarCSV = async () => {
     }
 }
 
-// Acción 2: Enviar Comunicado
 const enviarComunicado = () => {
     console.log("Enviando comunicado:", comunicado.value)
     mostrarModalComunicado.value = false
@@ -82,18 +62,12 @@ const enviarComunicado = () => {
     alert("Comunicado enviado al equipo.")
 }
 
-// Enrutador de acciones
 const ejecutarAccion = (idAccion) => {
-    if (idAccion === 'comunicado') {
-        mostrarModalComunicado.value = true
-    } else if (idAccion === 'exportar') {
-        exportarCSV()
-    } else if (idAccion === 'tickets') {
-        router.push('/admin/tickets') // <--- REDIRIGE A TICKETS
-    }
+    if (idAccion === 'comunicado') mostrarModalComunicado.value = true
+    else if (idAccion === 'exportar') exportarCSV()
+    else if (idAccion === 'tickets') router.push('/admin/tickets')
 }
 
-// --- CONFIGURACIÓN DE VISTA ---
 const metricasSistema = [
     { label: 'Base de Datos', valor: 'Conectada', colorTexto: 'text-white' },
     { label: 'Latencia API', valor: '24ms', colorTexto: 'text-[#26AA9B]' },

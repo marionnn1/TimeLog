@@ -2,6 +2,9 @@
 import { ref, computed, onMounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useDataStore } from '../stores/dataStore'
+import MyProjectsAPI from '../services/MyProjectsAPI'
+import AbsencesAPI from '../services/AbsencesAPI'
+
 import { 
   ChevronLeft, 
   ChevronRight, 
@@ -32,9 +35,6 @@ const showToast = (message, type = 'success') => {
     }, 3000)
 }
 
-// ==========================================
-// LÓGICA DE AUSENCIAS (CON REACTIVIDAD VUE 3)
-// ==========================================
 const ausenciasPersonales = ref([])
 
 const cargarAusenciasAPI = async () => {
@@ -42,17 +42,15 @@ const cargarAusenciasAPI = async () => {
     if (!user) return
     try {
         const mesReal = mesActualIndex.value + 1
-        const res = await fetch(`http://localhost:5000/api/absences?mes=${mesReal}&anio=${anioActual.value}`)
-        const json = await res.json()
-        if (json.status === 'success') {
-            ausenciasPersonales.value = json.data.filter(a => String(a.userId) === String(user.id))
+        const res = await AbsencesAPI.getAusenciasMes(mesReal, anioActual.value)
+        if (res.status === 'success') {
+            ausenciasPersonales.value = res.data.filter(a => String(a.userId) === String(user.id))
         }
     } catch (e) {
         console.error(e)
     }
 }
 
-// Diccionario Reactivo para búsquedas instantáneas en el template HTML
 const ausenciasMesMap = computed(() => {
     const map = {}
     ausenciasPersonales.value.forEach(a => {
@@ -73,7 +71,6 @@ const getLabelDia = (dateObj) => {
     if (tipo === 'asuntos') return 'Asuntos P.'
     return tipo.charAt(0).toUpperCase() + tipo.slice(1)
 }
-// ==========================================
 
 const fechaActual = ref(new Date()) 
 const hoy = new Date() 
@@ -120,11 +117,11 @@ const cargarCalendario = async () => {
     
     try {
         const mesReal = mesActualIndex.value + 1
-        const res = await fetch(`http://localhost:5000/api/myprojects/calendario?usuario_id=${user.id}&mes=${mesReal}&anio=${anioActual.value}`)
-        const json = await res.json()
+        // USAMOS EL SERVICIO
+        const res = await MyProjectsAPI.getCalendarioMensual(user.id, mesReal, anioActual.value)
         
-        if (json.status === 'success') {
-            imputaciones.value = json.data.map(imp => {
+        if (res.status === 'success') {
+            imputaciones.value = res.data.map(imp => {
                 const colorAsignado = coloresProyectos[imp.proyecto_id % coloresProyectos.length]
                 return {
                     dia: imp.dia,
@@ -142,7 +139,7 @@ const cargarCalendario = async () => {
 
 watch([mesActualIndex, anioActual], () => {
     cargarCalendario()
-    cargarAusenciasAPI() // Recargamos ausencias al cambiar de mes
+    cargarAusenciasAPI() 
 })
 
 onMounted(() => {
@@ -195,7 +192,6 @@ const formSolicitud = ref({
 const abrirSolicitud = (imputacion, dia) => {
     const fechaObj = new Date(anioActual.value, mesActualIndex.value, dia)
     
-    // BLOQUEAMOS EL CLIC DE EDICIÓN EN DÍAS DE VACACIONES
     if (getTipoDia(fechaObj)) {
         showToast(`No puedes modificar horas en un día de ${getLabelDia(fechaObj)}.`, 'error')
         return
@@ -218,23 +214,22 @@ const enviarSolicitudJefe = async () => {
     if (!user) return;
 
     try {
-        const response = await fetch('http://localhost:5000/api/myprojects/solicitar-correccion', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                usuario_id: user.id, proyecto_id: formSolicitud.value.proyecto_id, fecha: formSolicitud.value.fechaISO,
-                nuevas_horas: formSolicitud.value.horasNuevas, motivo: formSolicitud.value.mensaje
-            })
-        })
-        const json = await response.json()
-        if (response.ok && json.status === 'success') {
+        const payload = {
+            usuario_id: user.id, proyecto_id: formSolicitud.value.proyecto_id, fecha: formSolicitud.value.fechaISO,
+            nuevas_horas: formSolicitud.value.horasNuevas, motivo: formSolicitud.value.mensaje
+        }
+        
+        const res = await MyProjectsAPI.solicitarCorreccion(payload)
+        if (res.status === 'success') {
             mostrarModalSolicitud.value = false
             showToast('Solicitud enviada al responsable', 'success')
             cargarCalendario() 
         } else {
-            showToast(json.message || 'Error al enviar la solicitud', 'error')
+            showToast(res.message || 'Error al enviar la solicitud', 'error')
         }
-    } catch (error) {}
+    } catch (error) {
+        showToast('Fallo en la conexión con el servidor', 'error')
+    }
 }
 </script>
 
@@ -406,4 +401,3 @@ const enviarSolicitudJefe = async () => {
 input::-webkit-outer-spin-button, input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
 input[type=number] { -moz-appearance: textfield; }
 </style>
-
