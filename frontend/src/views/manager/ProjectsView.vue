@@ -147,6 +147,23 @@ const confirmarAsignacion = async () => {
     }
 }
 
+const desasignarUsuario = (proyectoId, usuarioId, nombreUsuario) => {
+    solicitarConfirmacion(
+        'Desasignar Empleado',
+        `¿Quitar a ${nombreUsuario} de este proyecto? Ya no podrá imputar horas.`,
+        'danger',
+        async () => {
+            try {
+                await ManagerAPI.unassignUserFromProject(proyectoId, usuarioId)
+                showToast(`Usuario retirado del proyecto`, 'success')
+                fetchProjects() 
+            } catch (error) {
+                showToast(error.response?.data?.error || "Error al quitar usuario", "error")
+            }
+        }
+    )
+}
+
 const getColorClass = (nombre) => {
     const colors = [
         'bg-indigo-100 text-indigo-600', 'bg-rose-100 text-rose-600', 
@@ -260,17 +277,22 @@ const getColorClass = (nombre) => {
                         </button>
                     </div>
 
-                    <div class="flex-1 overflow-y-auto pr-1 space-y-3 scrollbar-thin scrollbar-thumb-slate-200 scrollbar-track-transparent">
+                    <div class="flex-1 overflow-y-auto pr-1 space-y-1.5 scrollbar-thin scrollbar-thumb-slate-200 scrollbar-track-transparent">
                         
                         <template v-if="proy.equipo.length > 0">
-                            <div v-for="(user, index) in proy.equipo" :key="index" class="flex items-center gap-3 group/user">
-                                <div class="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold shrink-0"
-                                     :class="getColorClass(user.nombre)">
-                                    {{ user.iniciales }}
+                            <div v-for="(user, index) in proy.equipo" :key="index" class="flex items-center justify-between group/user bg-slate-50/50 p-1.5 rounded-lg border border-transparent hover:border-slate-200 hover:bg-white transition-all">
+                                <div class="flex items-center gap-3">
+                                    <div class="w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0"
+                                        :class="getColorClass(user.nombre)">
+                                        {{ user.iniciales }}
+                                    </div>
+                                    <span class="text-xs text-slate-600 font-medium group-hover/user:text-slate-900 transition-colors">
+                                        {{ user.nombre }}
+                                    </span>
                                 </div>
-                                <span class="text-sm text-slate-600 font-medium group-hover/user:text-slate-900 transition-colors">
-                                    {{ user.nombre }}
-                                </span>
+                                <button @click.stop="desasignarUsuario(proy.id, user.id, user.nombre)" class="opacity-0 group-hover/user:opacity-100 text-slate-400 hover:text-red-500 hover:bg-red-50 p-1.5 rounded-md transition-all" title="Quitar empleado">
+                                    <X class="w-3.5 h-3.5" />
+                                </button>
                             </div>
                         </template>
 
