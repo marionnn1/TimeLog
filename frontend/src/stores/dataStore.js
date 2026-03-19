@@ -6,7 +6,7 @@ const STORAGE_KEY = 'timeLog_state'
 // --- CARGA INICIAL (Persistencia + Datos por defecto) ---
 const loadState = () => {
     const saved = localStorage.getItem(STORAGE_KEY)
-    
+
     if (saved) {
         try {
             const parsedState = JSON.parse(saved)
@@ -24,7 +24,7 @@ const loadState = () => {
             console.error('Error cargando estado, reseteando...', e)
         }
     }
-    
+
     return {
         ...initialData,
         imputaciones: [],
@@ -65,16 +65,18 @@ export const useDataStore = () => {
     const getAnuncio = () => state.anuncio
     const getCurrentUser = () => state.currentUser
     const getAusencias = () => state.ausencias
-    
+
     const getClientes = () => state.maestros.clientes
     const getTiposProyecto = () => state.maestros.proyectos
 
     // --- ACTIONS: USUARIOS ---
-    
-    // Esta función es la que llama el LoginView.vue al seleccionar un usuario
+
     const setCurrentUser = (userData) => {
         state.currentUser = userData
-        _addLog('LOGIN_DEV', `Acceso manual como ${userData.nombre} (${userData.rol})`, 'info', 'Sistema')
+
+        if (userData) {
+            _addLog('LOGIN_DEV', `Acceso manual como ${userData.nombre} (${userData.rol})`, 'info', 'Sistema')
+        }
     }
 
     const addUser = (user) => {
@@ -147,9 +149,9 @@ export const useDataStore = () => {
     }
 
     const addImputacion = (imputacion) => {
-        const index = state.imputaciones.findIndex(i => 
-            i.usuarioId === imputacion.usuarioId && 
-            i.proyectoId === imputacion.proyectoId && 
+        const index = state.imputaciones.findIndex(i =>
+            i.usuarioId === imputacion.usuarioId &&
+            i.proyectoId === imputacion.proyectoId &&
             i.fecha === imputacion.fecha
         )
 

@@ -109,6 +109,9 @@ const esPasoInvalido = (valor) => {
 }
 
 const cargarProyectosParaModal = async () => {
+    const user = store.getCurrentUser();
+    if (!user) return;
+
     try {
         const res = await MyProjectsAPI.getProyectosActivos()
         if (res.status === 'success') {
@@ -212,13 +215,20 @@ const esJornadaVerano = (date) => { const mes = date.getMonth(); return mes === 
 const getMaxHorasDia = (index) => {
     const date = diasSemana.value[index]
     if (tiposDiasSemana.value[index]) return 0 
-    if (date.getDay() === 0 || date.getDay() === 6) return 0 
-    if (horasDiarias.value === 8.5) {
-        if (esJornadaVerano(date)) return 7.0
-        if (date.getDay() === 5) return 6.5
-        return 8.5
+    if (date.getDay() === 0 || date.getDay() === 6) return 0
+    
+    // Regla 1: Verano (Julio y Agosto) -> Máximo 7h TODOS los días laborables (incluyendo viernes)
+    if (esJornadaVerano(date)) {
+        return Math.min(horasDiarias.value, 7.0);
     }
-    return horasDiarias.value
+
+    // Regla 2: Resto del año (Invierno) -> L-J lo que marque la jornada, Viernes máximo 6.5h (si la jornada es > 7h)
+    let maxHoras = horasDiarias.value;
+    if (date.getDay() === 5 && horasDiarias.value > 7) {
+        maxHoras = Math.min(maxHoras, 6.5);
+    }
+
+    return maxHoras;
 }
 const getMaxHorasSemana = () => {
     return diasSemana.value.reduce((total, _, i) => total + getMaxHorasDia(i), 0)

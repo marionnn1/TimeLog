@@ -23,21 +23,19 @@ const claseLink = "flex items-center gap-3 px-3 py-2.5 rounded-r-lg text-slate-3
 const claseIcono = "w-5 h-5 text-slate-400 group-hover:text-primary transition shrink-0"
 
 const handleLogout = async () => {
-  // 1. Limpiamos la persistencia local del selector de cuentas
   localStorage.removeItem('isAuthenticated')
+  localStorage.removeItem('timeLog_state')
 
-  // 2. Reseteamos el usuario en el store global
   store.setCurrentUser(null)
 
-  // 3. Intentamos el logout de Microsoft si está configurado
-  try {
-    if (logout) await logout()
-  } catch (e) {
-    console.log("Cerrando sesión local (MSAL no disponible)")
-  }
+  await router.push('/login')
 
-  // 4. Redirigimos al selector de usuarios
-  router.push('/login')
+  try {
+    if (logout) {
+      logout().catch(() => console.log('Aviso: MSAL no respondió, pero la sesión local se cerró.'))
+    }
+  } catch (e) {
+  }
 }
 </script>
 
