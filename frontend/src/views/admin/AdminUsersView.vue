@@ -8,7 +8,6 @@ import { useDataStore } from '../../stores/dataStore'
 
 const store = useDataStore()
 
-// --- CONFIGURACIÓN ---
 const DEFAULT_FORM = {
     id: null,
     nombre: '',
@@ -18,7 +17,6 @@ const DEFAULT_FORM = {
     activo: 1
 }
 
-// --- ESTADO ---
 const usuarios = ref([])
 const cargando = ref(true)
 
@@ -38,7 +36,6 @@ const confirmacion = reactive({
     usuarioId: null 
 })
 
-// --- LÓGICA DE API: LEER (GET) ---
 const cargarUsuariosDesdeAPI = async () => {
     try {
         cargando.value = true
@@ -68,7 +65,6 @@ onMounted(() => {
     cargarUsuariosDesdeAPI()
 })
 
-// --- LÓGICA DE FILTRADO ---
 const usuariosFiltrados = computed(() => {
     const texto = busqueda.value.toLowerCase().trim()
     if (!texto) return usuarios.value
@@ -79,7 +75,6 @@ const usuariosFiltrados = computed(() => {
     )
 })
 
-// --- GESTIÓN DE MODAL ---
 const resetForm = () => {
     formulario.value = { ...DEFAULT_FORM, sede: sedesDisponibles[0] }
 }
@@ -96,7 +91,6 @@ const abrirEditar = (usuario) => {
     mostrarModal.value = true
 }
 
-// --- LÓGICA DE API: CREAR Y EDITAR (POST/PUT) ---
 const guardar = async () => {
     try {
         const metodo = esEdicion.value ? 'PUT' : 'POST'
@@ -130,7 +124,6 @@ const guardar = async () => {
     }
 }
 
-// --- LÓGICA DE CONFIRMACIÓN (ELIMINAR Y TOGGLE) ---
 const solicitarAccion = (id, modo) => {
     confirmacion.usuarioId = id
     confirmacion.action = modo
@@ -170,7 +163,7 @@ const confirmarAccion = async () => {
         
         if (respuesta && respuesta.ok) {
             await cargarUsuariosDesdeAPI(); 
-            mostrarModal.value = false; // Cierra el modal de edición si estaba abierto
+            mostrarModal.value = false; 
         } else {
             console.error("Error del servidor en la operación")
         }
@@ -180,7 +173,6 @@ const confirmarAccion = async () => {
     confirmacion.show = false;
 }
 
-// --- ESTILOS ---
 const obtenerEstiloRol = (rol) => {
     if (rol === 'Admin' || rol === 'Administrador') return 'bg-red-50 text-red-700 border-red-200'
     if (rol === 'JP' || rol === 'Jefe de Proyecto') return 'bg-amber-50 text-amber-700 border-amber-200'

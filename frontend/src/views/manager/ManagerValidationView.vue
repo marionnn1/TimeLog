@@ -31,7 +31,6 @@ const ejecutarConfirmacion = () => {
     confirmState.value.show = false
 }
 
-// --- LLAMADAS AL BACKEND ---
 const fetchValidations = async () => {
     isLoading.value = true
     try {
@@ -85,7 +84,7 @@ const rechazarSolicitud = (id) => {
                 try {
                     await ManagerAPI.rejectValidation(id, motivo)
                     showToast("Solicitud rechazada y notificada.", "success")
-                    fetchValidations() // Recargar la lista
+                    fetchValidations() 
                 } catch (error) {
                     showToast("Error al rechazar la solicitud.", "error")
                 }

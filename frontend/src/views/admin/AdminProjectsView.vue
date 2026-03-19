@@ -8,7 +8,6 @@ import { useDataStore } from '../../stores/dataStore'
 
 const store = useDataStore()
 
-// --- CONFIGURACIÓN ---
 const FORM_DEFAULT = {
     id: null,
     nombre: '',
@@ -17,7 +16,7 @@ const FORM_DEFAULT = {
     equipo: []
 }
 
-// --- ESTADO ---
+
 const proyectos = ref([])
 const usuarios_db = ref([])
 const cargando = ref(true)
@@ -38,7 +37,6 @@ const confirmacion = reactive({
     modo: '' 
 })
 
-// --- LÓGICA DE API: CARGAR DATOS ---
 const cargarDatos = async () => {
     try {
         cargando.value = true
@@ -79,7 +77,6 @@ const cargarDatos = async () => {
 
 onMounted(cargarDatos)
 
-// --- ACCIONES DE UI ---
 const mostrarNotificacion = (mensaje, tipo = 'success') => {
     toast.value = { show: true, message: mensaje, type: tipo }
     clearTimeout(toastTimeout)
@@ -101,7 +98,6 @@ const abrirEditar = (proyecto) => {
     mostrarModal.value = true
 }
 
-// --- LÓGICA DE API: GUARDAR ---
 const guardar = async () => {
     try {
         const metodo = esEdicion.value ? 'PUT' : 'POST'
@@ -134,7 +130,6 @@ const guardar = async () => {
     }
 }
 
-// --- LÓGICA DE CONFIRMACIÓN (ELIMINAR Y TOGGLE) ---
 const solicitarAccion = (id, modo) => {
     confirmacion.proyectoId = id
     confirmacion.modo = modo
@@ -171,7 +166,7 @@ const ejecutarAccionConfirmada = async () => {
         
         if (res.ok) {
             await cargarDatos();
-            mostrarModal.value = false; // Cierra el modal de edición si estaba abierto
+            mostrarModal.value = false; 
             mostrarNotificacion(data.message || 'Operación realizada');
         } else {
             mostrarNotificacion(data.message || 'Error en la operación', 'error');

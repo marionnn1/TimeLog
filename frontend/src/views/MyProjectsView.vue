@@ -9,7 +9,6 @@ const store = useDataStore()
 const datos = ref(null)
 const cargando = ref(true)
 
-// Estado del filtro
 const mesActual = new Date().getMonth() + 1
 const anioActual = new Date().getFullYear()
 const mesSeleccionado = ref(mesActual)
@@ -41,18 +40,14 @@ const cargarData = async () => {
 watch([mesSeleccionado, anioSeleccionado], cargarData)
 onMounted(cargarData)
 
-// Cálculos para la tabla
 const totalMes = computed(() => datos.value?.totales?.mes_real || 1)
 const getPorcentaje = (horas) => Math.round((horas / totalMes.value) * 100)
 
-// Función para exportar a CSV
 const exportarCSV = () => {
     if (!datos.value || !datos.value.proyectos.length) return
 
-    // Definir cabeceras
     const headers = ['Proyecto', 'Cliente', 'Horas Invertidas', 'Impacto (%)']
     
-    // Mapear los datos de los proyectos asegurando que los textos van entre comillas (por si llevan comas)
     const rows = datos.value.proyectos.map(p => {
         return [
             `"${p.proyecto}"`,
@@ -62,15 +57,12 @@ const exportarCSV = () => {
         ].join(';')
     })
 
-    // Fila de totales
     rows.push(`"TOTAL MENSUAL","",${datos.value.totales.mes_real},100`)
 
-    // Generar el archivo
     const csvContent = [headers.join(';'), ...rows].join('\n')
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
     const url = URL.createObjectURL(blob)
     
-    // Crear enlace oculto y forzar descarga
     const link = document.createElement('a')
     link.setAttribute('href', url)
     const mesNombre = meses.find(m => m.v === mesSeleccionado.value).n
