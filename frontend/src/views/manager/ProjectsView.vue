@@ -33,7 +33,6 @@ const ejecutarConfirmacion = () => {
     confirmState.value.show = false
 }
 
-// --- LLAMADAS AL BACKEND ---
 const fetchProjects = async () => {
     isLoading.value = true
     try {
@@ -104,7 +103,7 @@ const guardarProyecto = async () => {
             showToast("Proyecto creado", "success")
         }
         mostrarModalProyecto.value = false
-        fetchProjects() // Recargar datos
+        fetchProjects() 
     } catch (error) {
         showToast("Error al guardar el proyecto", "error")
     }
@@ -119,7 +118,7 @@ const eliminarProyecto = (id) => {
             try {
                 await ManagerAPI.deleteProject(id)
                 showToast("Proyecto eliminado correctamente", "success")
-                fetchProjects() // Recargar
+                fetchProjects() 
             } catch (error) {
                 showToast("Error al eliminar", "error")
             }
@@ -142,13 +141,12 @@ const confirmarAsignacion = async () => {
         await ManagerAPI.assignUserToProject(asignacionData.value.proyectoId, asignacionData.value.usuarioId)
         showToast("Usuario asignado correctamente", "success")
         mostrarModalAsignar.value = false
-        fetchProjects() // Recargar para ver al nuevo integrante
+        fetchProjects() 
     } catch (error) {
         showToast(error.response?.data?.error || "Error al asignar usuario", "error")
     }
 }
 
-// Función auxiliar para generar colores fijos basados en el nombre
 const getColorClass = (nombre) => {
     const colors = [
         'bg-indigo-100 text-indigo-600', 'bg-rose-100 text-rose-600', 

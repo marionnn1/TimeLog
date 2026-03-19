@@ -9,7 +9,14 @@ import AdminAPI from '../../services/AdminAPI'
 
 const store = useDataStore()
 
-const DEFAULT_FORM = { id: null, nombre: '', email: '', rol: 'Tecnico', sede: 'Tarragona', activo: 1 }
+const DEFAULT_FORM = {
+    id: null,
+    nombre: '',
+    email: '',
+    rol: 'Tecnico',
+    sede: 'Tarragona',
+    activo: 1
+}
 
 const usuarios = ref([])
 const cargando = ref(true)
@@ -47,9 +54,21 @@ const usuariosFiltrados = computed(() => {
     return usuarios.value.filter(u => u.nombre.toLowerCase().includes(texto) || u.email.toLowerCase().includes(texto))
 })
 
-const resetForm = () => { formulario.value = { ...DEFAULT_FORM, sede: sedesDisponibles[0] } }
-const abrirCrear = () => { esEdicion.value = false; resetForm(); mostrarModal.value = true }
-const abrirEditar = (usuario) => { esEdicion.value = true; formulario.value = { ...usuario }; mostrarModal.value = true }
+const resetForm = () => {
+    formulario.value = { ...DEFAULT_FORM, sede: sedesDisponibles[0] }
+}
+
+const abrirCrear = () => {
+    esEdicion.value = false
+    resetForm()
+    mostrarModal.value = true
+}
+
+const abrirEditar = (usuario) => {
+    esEdicion.value = true
+    formulario.value = { ...usuario }
+    mostrarModal.value = true
+}
 
 const guardar = async () => {
     try {

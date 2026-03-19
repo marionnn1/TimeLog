@@ -20,7 +20,6 @@ const showToast = (message, type = 'success') => {
     }, 3000)
 }
 
-// CARGAR DATOS REALES
 const fetchTickets = async () => {
     isLoading.value = true
     try {
@@ -65,7 +64,7 @@ const guardarCorreccion = async () => {
         await AdminAPI.approveTicket(solicitudSeleccionada.value.id, horasEditadas.value)
         showToast(`Corrección aplicada correctamente`, 'success')
         cerrarModal()
-        await fetchTickets() // Recargar lista para que desaparezca
+        await fetchTickets() 
     } catch (error) {
         showToast(error.message || "Error al guardar la corrección", "error")
     }
@@ -81,7 +80,7 @@ const rechazarSolicitud = (id) => {
                 try {
                     await AdminAPI.rejectTicket(id, motivo)
                     showToast("Solicitud rechazada y notificada.", "success")
-                    await fetchTickets() // Recargar lista para que desaparezca
+                    await fetchTickets() 
                 } catch (error) {
                     showToast(error.message || "Error al rechazar la solicitud.", "error")
                 }

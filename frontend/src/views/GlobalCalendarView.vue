@@ -12,7 +12,6 @@ import {
 const store = useDataStore()
 const currentUser = store.getCurrentUser() 
 
-// --- SISTEMA DE NOTIFICACIONES (TOAST) ---
 const toast = ref({ show: false, message: '', type: 'success' })
 let toastTimeout = null
 
@@ -24,7 +23,6 @@ const showToast = (message, type = 'success') => {
     }, 3000)
 }
 
-// --- SISTEMA DE CONFIRMACIÓN ---
 const confirmState = ref({ show: false, title: '', message: '', type: 'neutral', action: null })
 const solicitarConfirmacion = (title, message, type, callback) => {
     confirmState.value = { show: true, title, message, type, action: callback }
@@ -34,7 +32,6 @@ const ejecutarConfirmacion = () => {
     confirmState.value.show = false
 }
 
-// --- FECHA Y CALENDARIO ---
 const currentDate = ref(new Date())
 const year = computed(() => currentDate.value.getFullYear())
 const month = computed(() => currentDate.value.getMonth())
@@ -102,7 +99,6 @@ onMounted(() => {
 const getAusenciasDia = (isoDate) => ausenciasDelMes.value.filter(a => a.fecha === isoDate)
 const getMiAusencia = (isoDate) => getAusenciasDia(isoDate).find(a => a.userId === currentUser.id)
 
-// --- MODAL Y ESTILOS VISUALES ---
 const mostrarModal = ref(false)
 const form = ref({
     fechaInicio: '',
@@ -147,7 +143,6 @@ const formatShortDate = (isoString) => {
     return d.toLocaleDateString('es-ES', { day: '2-digit', month: 'short' }).replace('.', '')
 }
 
-// --- CÁLCULOS CALENDARIO ---
 const daysInMonth = computed(() => {
     const days = new Date(year.value, month.value + 1, 0).getDate()
     return Array.from({ length: days }, (_, i) => {
@@ -166,7 +161,6 @@ const startPadding = computed(() => {
     return firstDay === 0 ? 6 : firstDay - 1 
 })
 
-// --- ACCIONES ---
 const abrirModal = (day) => {
     if (day.isWeekend) return
 

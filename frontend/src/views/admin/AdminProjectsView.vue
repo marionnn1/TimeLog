@@ -9,7 +9,14 @@ import AdminAPI from '../../services/AdminAPI'
 
 const store = useDataStore()
 
-const FORM_DEFAULT = { id: null, nombre: '', cliente: '', estado: 'Activo', equipo: [] }
+const FORM_DEFAULT = {
+    id: null,
+    nombre: '',
+    cliente: '',
+    estado: 'Activo',
+    equipo: []
+}
+
 
 const proyectos = ref([])
 const usuarios_db = ref([])
