@@ -178,8 +178,7 @@ def solicitar_correccion_imputacion(usuario_id, proyecto_id, fecha, nuevas_horas
         
         if registro:
             registro.estado = 'Pendiente'
-            registro.horas = nuevas_horas
-            registro.comentario = motivo
+            registro.comentario = f"[Solicita cambio a {nuevas_horas}h] - Motivo: {motivo}"
             
             detalle = f"Usuario {usuario_id} solicita cambiar a {nuevas_horas}h el proyecto {proyecto_id} en {fecha}"
             nueva_auditoria = Audits(actor_nombre='Sistema', accion='Solicitud Corrección', gravedad='warning', detalle=detalle)

@@ -1,3 +1,4 @@
+import re
 from database.db import db
 from models.time_entries import TimeEntries
 from models.audits import Audits
@@ -26,6 +27,18 @@ def get_pending_validations():
                 else "Interno"
             )
 
+            comentario_raw = s.comentario or ""
+            horas_solicitadas = float(s.horas) 
+            motivo_limpio = comentario_raw
+
+            match = re.search(r'\[Solicita cambio a ([\d\.]+)h\] - Motivo: (.*)', comentario_raw)
+            if match:
+                try:
+                    horas_solicitadas = float(match.group(1))
+                    motivo_limpio = match.group(2).strip()
+                except ValueError:
+                    pass
+
             solicitudes.append(
                 {
                     "id": s.id,
@@ -35,7 +48,8 @@ def get_pending_validations():
                     "proyecto": proyecto_nombre,
                     "cliente": cliente_nombre,
                     "horasActuales": float(s.horas),
-                    "motivo": s.comentario or "Sin motivo especificado",
+                    "horasSolicitadas": horas_solicitadas, 
+                    "motivo": motivo_limpio or "Sin motivo especificado",
                     "estado": "pendiente",
                 }
             )

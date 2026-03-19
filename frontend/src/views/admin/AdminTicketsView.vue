@@ -3,7 +3,7 @@ import { ref, onMounted } from 'vue'
 import AdminAPI from '@/services/AdminAPI'
 import { 
     AlertOctagon, Check, X, FileEdit, MessageSquare, Calendar, Clock, Save,
-    CheckCircle2, AlertCircle, Trash2, AlertTriangle, Loader2
+    CheckCircle2, AlertCircle, Trash2, AlertTriangle, Loader2, ArrowRight
 } from 'lucide-vue-next'
 
 const solicitudes = ref([])
@@ -51,7 +51,7 @@ const mostrarModal = ref(false)
 
 const abrirEditor = (solicitud) => {
     solicitudSeleccionada.value = solicitud
-    horasEditadas.value = solicitud.horasActuales
+    horasEditadas.value = solicitud.horasSolicitadas
     mostrarModal.value = true
 }
 
@@ -123,14 +123,17 @@ const rechazarSolicitud = (id) => {
                         <p class="text-xs text-gray-500 font-mono">ID Solicitud: #{{ solicitud.id }}</p>
                     </div>
                 </div>
-                <div class="space-y-1">
-                    <div class="flex items-center gap-2 text-xs text-gray-500">
+                <div class="space-y-1 mt-2">
+                    <div class="flex items-center gap-2 text-xs text-gray-500 mb-1">
                         <Calendar class="w-3.5 h-3.5" />
                         <span class="font-bold text-[#232D4B]">{{ solicitud.fecha }}</span>
                     </div>
-                    <div class="flex items-center gap-2 text-xs text-gray-500">
-                        <Clock class="w-3.5 h-3.5" />
-                        <span>Imputado actual: <b class="text-[#232D4B]">{{ solicitud.horasActuales }}h</b></span>
+                    
+                    <div class="flex items-center gap-2 text-xs">
+                        <Clock class="w-3.5 h-3.5 text-gray-400" />
+                        <span class="text-gray-500 line-through">{{ solicitud.horasActuales }}h</span>
+                        <ArrowRight class="w-3 h-3 text-[#26AA9B]" />
+                        <span class="font-bold text-[#26AA9B]">{{ solicitud.horasSolicitadas }}h</span>
                     </div>
                 </div>
             </div>
@@ -186,14 +189,14 @@ const rechazarSolicitud = (id) => {
                 </div>
 
                 <div>
-                    <label class="label-std">Horas Correctas (Sobrescribir)</label>
+                    <label class="label-std">Horas Solicitadas (Aprobar o Editar)</label>
                     <div class="flex items-center gap-3">
                         <input type="number" step="0.5" min="0" max="24" v-model="horasEditadas" 
                                class="input-std text-center text-lg font-bold w-32" />
                         <span class="text-sm text-gray-500">Horas</span>
                     </div>
                     <p class="text-xs text-gray-400 mt-2">
-                        Al guardar, se actualizará el registro del usuario y se marcará la solicitud como resuelta.
+                        Al guardar, se actualizará el registro del usuario con estas horas y se marcará la solicitud como resuelta.
                     </p>
                 </div>
             </div>
