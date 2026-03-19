@@ -157,3 +157,23 @@ def assign_user(proyecto_id, usuario_id):
         db.session.rollback()
         print(f"Error en assign_user: {e}")
         return {"error": str(e)}, 500
+    
+    
+def unassign_user(proyecto_id, usuario_id):
+    try:
+        asignacion = Assignments.query.filter_by(
+            proyecto_id=proyecto_id, usuario_id=usuario_id, activo=True
+        ).first()
+
+        if not asignacion:
+            return {"error": "El usuario no está activo en este proyecto"}, 404
+
+        asignacion.activo = False
+        asignacion.fecha_desactivacion = datetime.utcnow()
+        db.session.commit()
+
+        return {"message": "Usuario quitado del proyecto"}, 200
+    except Exception as e:
+        db.session.rollback()
+        print(f"Error en unassign_user: {e}")
+        return {"error": str(e)}, 500

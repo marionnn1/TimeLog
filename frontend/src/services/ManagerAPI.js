@@ -40,6 +40,10 @@ export default {
         const res = await api.post(`${BASE_PATH}/projects/${proyectoId}/assign`, { usuarioId });
         return { data: res.data };
     },
+    async unassignUserFromProject(proyectoId, usuarioId) {
+        const res = await api.post(`${BASE_PATH}/projects/${proyectoId}/unassign`, { usuarioId });
+        return { data: res.data };
+    },
 
     // VALIDATIONS (TICKETS)
     async getValidations() {

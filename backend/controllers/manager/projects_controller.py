@@ -1,5 +1,5 @@
 from flask import Blueprint, jsonify, request
-from services.manager.projects_service import get_all_projects_data, save_project, soft_delete_project, assign_user
+from services.manager.projects_service import get_all_projects_data, save_project, soft_delete_project, assign_user, unassign_user
 
 manager_projects_bp = Blueprint('manager_projects', __name__, url_prefix='/api/manager/projects')
 
@@ -29,4 +29,10 @@ def delete_project(id):
 def assign(id):
     body = request.get_json()
     data, status = assign_user(id, body.get('usuarioId'))
+    return jsonify(data), status
+
+@manager_projects_bp.route('/<int:id>/unassign', methods=['POST'], strict_slashes=False)
+def unassign(id):
+    body = request.get_json()
+    data, status = unassign_user(id, body.get('usuarioId'))
     return jsonify(data), status
