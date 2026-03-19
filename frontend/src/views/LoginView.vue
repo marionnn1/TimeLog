@@ -3,6 +3,7 @@ import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { ShieldCheck, LogIn, Users, Loader2, UserPlus } from 'lucide-vue-next'
 import { useDataStore } from '../stores/dataStore'
+import UsersAPI from '../services/UsersAPI'
 
 const router = useRouter()
 const store = useDataStore()
@@ -10,12 +11,10 @@ const store = useDataStore()
 const usuariosValidos = ref([])
 const cargando = ref(true)
 
-// Cargamos los usuarios reales de la base de datos
 const cargarUsuarios = async () => {
     try {
         cargando.value = true
-        const res = await fetch('http://localhost:5000/api/usuarios')
-        const json = await res.json()
+        const json = await UsersAPI.getUsuarios()
         if (json.status === 'success') {
             usuariosValidos.value = json.data
         }
@@ -29,12 +28,11 @@ const cargarUsuarios = async () => {
 onMounted(cargarUsuarios)
 
 const entrarComo = (user) => {
-    // Mapeamos los campos de la BD al objeto que espera la app
     const usuarioParaStore = {
         id: user.Id,
         nombre: user.Nombre,
         email: user.OidAzure || 'test@inetum.com',
-        rol: user.Rol.toLowerCase(), // 'admin', 'jp' o 'tecnico'
+        rol: user.Rol.toLowerCase(),
         iniciales: user.Nombre.split(' ').map(n => n[0]).join('').toUpperCase().substring(0, 2),
         sede: user.Sede
     }

@@ -1,6 +1,7 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import { History, Search, ShieldAlert, Loader2 } from 'lucide-vue-next'
+import AdminAPI from '../../services/AdminAPI'
 
 const logs = ref([])
 const cargando = ref(true)
@@ -10,8 +11,7 @@ const filtroGravedad = ref('todos')
 const cargarLogs = async () => {
     try {
         cargando.value = true
-        const res = await fetch('http://localhost:5000/api/auditoria')
-        const json = await res.json()
+        const json = await AdminAPI.getAuditoria()
         if (json.status === 'success') {
             logs.value = json.data
         }

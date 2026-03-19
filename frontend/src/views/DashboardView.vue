@@ -2,6 +2,9 @@
 import { ref, computed, onMounted, watch, onUnmounted } from 'vue'
 import { useRoute } from 'vue-router'
 import { useDataStore } from '../stores/dataStore' 
+import MyProjectsAPI from '../services/MyProjectsAPI'
+import AbsencesAPI from '../services/AbsencesAPI'
+
 import {
     ChevronLeft, ChevronRight, Plus, Trash2, Save, Building2, Info, X, RotateCcw, 
     Clock, ChevronDown, Check, AlertCircle, CheckCircle2, Loader2
@@ -60,14 +63,13 @@ const cargarAusenciasAPI = async () => {
         const m2 = diasSemana.value[6].getMonth() + 1
         const y2 = diasSemana.value[6].getFullYear()
         
-        const res1 = await fetch(`http://localhost:5000/api/absences?mes=${m1}&anio=${y1}`)
-        const json1 = await res1.json()
-        let todas = json1.status === 'success' ? json1.data : []
+        let todas = []
+        const res1 = await AbsencesAPI.getAusenciasMes(m1, y1)
+        if (res1.status === 'success') todas = res1.data
 
         if (m1 !== m2 || y1 !== y2) {
-            const res2 = await fetch(`http://localhost:5000/api/absences?mes=${m2}&anio=${y2}`)
-            const json2 = await res2.json()
-            if (json2.status === 'success') todas = todas.concat(json2.data)
+            const res2 = await AbsencesAPI.getAusenciasMes(m2, y2)
+            if (res2.status === 'success') todas = todas.concat(res2.data)
         }
         
         ausenciasPersonales.value = todas.filter(a => String(a.userId) === String(user.id))
@@ -76,7 +78,6 @@ const cargarAusenciasAPI = async () => {
     }
 }
 
-// Creamos arrays computados. Si hay cambios, Vue redibuja la tabla al instante.
 const tiposDiasSemana = computed(() => {
     return diasSemana.value.map(date => {
         const offset = date.getTimezoneOffset() * 60000
@@ -94,7 +95,6 @@ const labelsDiasSemana = computed(() => {
         return tipo.charAt(0).toUpperCase() + tipo.slice(1)
     })
 })
-// ==========================================
 
 const mostrarModal = ref(false)
 const nuevoRegistro = ref({ proyectoId: undefined })
@@ -113,16 +113,9 @@ const cargarProyectosParaModal = async () => {
     if (!user) return;
 
     try {
-        const res = await fetch('http://localhost:5000/api/proyectos')
-        const json = await res.json()
-        if (json.status === 'success') {
-            // Filtramos proyectos: que estén activos Y que el usuario esté en su Equipo
-            proyectosRealDB.value = json.data.filter(p => {
-                const estaActivo = p.Estado === 'Activo';
-                const estaAsignado = p.Equipo && p.Equipo.some(miembro => String(miembro.id) === String(user.id));
-                
-                return estaActivo && estaAsignado;
-            })
+        const res = await MyProjectsAPI.getProyectosActivos()
+        if (res.status === 'success') {
+            proyectosRealDB.value = res.data.filter(p => p.Estado === 'Activo')
         }
     } catch (e) {
         console.error("Error al obtener proyectos maestros", e)
@@ -135,10 +128,9 @@ const cargarHorasDesdeAPI = async () => {
     const lunesStr = lunesActual.value.toISOString().split('T')[0]
     try {
         cargando.value = true
-        const res = await fetch(`http://localhost:5000/api/myprojects/semana?usuario_id=${user.id}&fecha_lunes=${lunesStr}`)
-        const json = await res.json()
-        if (json.status === 'success') {
-            const datosBackend = json.data || []
+        const res = await MyProjectsAPI.getSemana(user.id, lunesStr)
+        if (res.status === 'success') {
+            const datosBackend = res.data || []
             const nuevasFilas = []
             const proyectosUnicos = [...new Set(datosBackend.map(d => d.ProyectoId))]
             
@@ -170,7 +162,6 @@ const cargarHorasDesdeAPI = async () => {
 const guardarCambios = async () => {
     if (hayErrores.value) return showToast('Por favor corrige los errores antes de guardar.', 'error')
     
-    // Forzamos 0 horas en días bloqueados por seguridad antes de enviar
     filas.value.forEach(f => {
         f.horas = f.horas.map((h, i) => tiposDiasSemana.value[i] ? 0 : h)
     })
@@ -182,13 +173,11 @@ const guardarCambios = async () => {
         fechas: fechasSemana,
         filas: filas.value.map(f => ({ id_proyecto: f.id, horas: f.horas }))
     }
+    
     try {
-        const res = await fetch('http://localhost:5000/api/myprojects/guardar', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload)
-        })
-        if (res.ok) {
+        // USAMOS EL SERVICIO
+        const res = await MyProjectsAPI.guardarImputaciones(payload)
+        if (res.status === 'success') {
             showToast('Imputaciones guardadas correctamente', 'success')
             await cargarHorasDesdeAPI()
         } else {
@@ -218,7 +207,7 @@ const diasSemana = computed(() => {
 
 watch(lunesActual, () => {
     cargarHorasDesdeAPI()
-    cargarAusenciasAPI() // Recargar ausencias al cambiar de semana
+    cargarAusenciasAPI()
 })
 
 const esJornadaVerano = (date) => { const mes = date.getMonth(); return mes === 6 || mes === 7 }
@@ -256,7 +245,6 @@ const esEditable = (index) => {
     const date = diasSemana.value[index]
     const hoy = new Date(); hoy.setHours(0,0,0,0)
     const fComp = new Date(date); fComp.setHours(0,0,0,0)
-    // No editable si es fin de semana, pasado, o si hay vacaciones
     return !esFinDeSemana(date) && fComp >= hoy && !tiposDiasSemana.value[index]
 }
 
@@ -316,7 +304,7 @@ onMounted(() => {
     document.addEventListener('click', handleClickOutside)
     cargarHorasDesdeAPI()
     cargarProyectosParaModal()
-    cargarAusenciasAPI() // Llamar nada más entrar
+    cargarAusenciasAPI()
 })
 onUnmounted(() => document.removeEventListener('click', handleClickOutside))
 </script>

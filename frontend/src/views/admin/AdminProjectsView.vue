@@ -1,14 +1,14 @@
 <script setup>
-import { ref, computed, onMounted, reactive } from 'vue'
+import { ref, onMounted, reactive } from 'vue'
 import { 
     FolderPlus, Pencil, Tag, X, Briefcase, Users, Check, 
     CheckCircle2, AlertCircle, Trash2, AlertTriangle
 } from 'lucide-vue-next'
 import { useDataStore } from '../../stores/dataStore'
+import AdminAPI from '../../services/AdminAPI'
 
 const store = useDataStore()
 
-// --- CONFIGURACIÓN ---
 const FORM_DEFAULT = {
     id: null,
     nombre: '',
@@ -17,7 +17,7 @@ const FORM_DEFAULT = {
     equipo: []
 }
 
-// --- ESTADO ---
+
 const proyectos = ref([])
 const usuarios_db = ref([])
 const cargando = ref(true)
@@ -29,43 +29,27 @@ const formulario = ref({ ...FORM_DEFAULT })
 const toast = ref({ show: false, message: '', type: 'success' })
 let toastTimeout = null
 
-const confirmacion = reactive({
-    show: false,
-    title: '',
-    message: '',
-    type: 'neutral',
-    proyectoId: null,
-    modo: '' 
-})
+const confirmacion = reactive({ show: false, title: '', message: '', type: 'neutral', proyectoId: null, modo: '' })
 
-// --- LÓGICA DE API: CARGAR DATOS ---
 const cargarDatos = async () => {
     try {
         cargando.value = true
-        const resProj = await fetch('http://localhost:5000/api/proyectos')
-        const jsonProj = await resProj.json()
-        
+        const jsonProj = await AdminAPI.getProyectos()
         if (jsonProj.status === 'success') {
             proyectos.value = jsonProj.data.map(p => ({
-                id: p.Id,
-                nombre: p.Nombre,
-                cliente: p.Cliente,
-                estado: p.Estado,
+                id: p.Id, nombre: p.Nombre, cliente: p.Cliente, estado: p.Estado,
                 equipo: p.Equipo ? p.Equipo.map(u => ({
-                    id: u.id,
-                    nombre: u.nombre,
+                    id: u.id, nombre: u.nombre,
                     iniciales: u.nombre.split(' ').map(n => n[0]).join('').toUpperCase().substring(0, 2),
                     color: 'bg-indigo-100 text-indigo-700'
                 })) : []
             }))
         }
 
-        const resUser = await fetch('http://localhost:5000/api/usuarios')
-        const jsonUser = await resUser.json()
+        const jsonUser = await AdminAPI.getUsuarios()
         if (jsonUser.status === 'success') {
             usuarios_db.value = jsonUser.data.map(u => ({
-                id: u.Id,
-                nombre: u.Nombre,
+                id: u.Id, nombre: u.Nombre,
                 iniciales: u.Nombre.split(' ').map(n => n[0]).join('').toUpperCase().substring(0, 2),
                 color: 'bg-indigo-100 text-indigo-700'
             }))
@@ -79,36 +63,17 @@ const cargarDatos = async () => {
 
 onMounted(cargarDatos)
 
-// --- ACCIONES DE UI ---
 const mostrarNotificacion = (mensaje, tipo = 'success') => {
     toast.value = { show: true, message: mensaje, type: tipo }
     clearTimeout(toastTimeout)
     toastTimeout = setTimeout(() => toast.value.show = false, 3000)
 }
 
-const abrirCrear = () => {
-    esEdicion.value = false
-    formulario.value = { ...FORM_DEFAULT }
-    mostrarModal.value = true
-}
+const abrirCrear = () => { esEdicion.value = false; formulario.value = { ...FORM_DEFAULT }; mostrarModal.value = true }
+const abrirEditar = (proyecto) => { esEdicion.value = true; formulario.value = { ...proyecto, equipo: proyecto.equipo ? [...proyecto.equipo] : [] }; mostrarModal.value = true }
 
-const abrirEditar = (proyecto) => {
-    esEdicion.value = true
-    formulario.value = { 
-        ...proyecto, 
-        equipo: proyecto.equipo ? [...proyecto.equipo] : [] 
-    }
-    mostrarModal.value = true
-}
-
-// --- LÓGICA DE API: GUARDAR ---
 const guardar = async () => {
     try {
-        const metodo = esEdicion.value ? 'PUT' : 'POST'
-        const url = esEdicion.value 
-            ? `http://localhost:5000/api/proyectos/${formulario.value.id}`
-            : 'http://localhost:5000/api/proyectos'
-        
         const payload = {
             nombre: formulario.value.nombre,
             cliente: formulario.value.cliente,
@@ -116,13 +81,11 @@ const guardar = async () => {
             usuarios_ids: formulario.value.equipo.map(u => u.id) 
         }
 
-        const res = await fetch(url, {
-            method: metodo,
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload)
-        })
+        let res
+        if (esEdicion.value) res = await AdminAPI.editarProyecto(formulario.value.id, payload)
+        else res = await AdminAPI.crearProyecto(payload)
         
-        if (res.ok) {
+        if (res.status === 'success') {
             mostrarModal.value = false
             await cargarDatos()
             mostrarNotificacion(esEdicion.value ? 'Proyecto actualizado' : 'Proyecto creado')
@@ -134,7 +97,6 @@ const guardar = async () => {
     }
 }
 
-// --- LÓGICA DE CONFIRMACIÓN (ELIMINAR Y TOGGLE) ---
 const solicitarAccion = (id, modo) => {
     confirmacion.proyectoId = id
     confirmacion.modo = modo
@@ -142,18 +104,12 @@ const solicitarAccion = (id, modo) => {
     if (modo === 'toggle') {
         const proj = proyectos.value.find(p => p.id === id) || formulario.value
         if (proj.estado === 'Activo') {
-            confirmacion.title = 'Cerrar Proyecto'
-            confirmacion.message = '¿Deseas marcar este proyecto como Cerrado? Ya no admitirá imputaciones.'
-            confirmacion.type = 'neutral'
+            confirmacion.title = 'Cerrar Proyecto'; confirmacion.message = '¿Deseas marcar este proyecto como Cerrado? Ya no admitirá imputaciones.'; confirmacion.type = 'neutral'
         } else {
-            confirmacion.title = 'Reabrir Proyecto'
-            confirmacion.message = '¿Deseas volver a activar este proyecto? Estará disponible de nuevo.'
-            confirmacion.type = 'success'
+            confirmacion.title = 'Reabrir Proyecto'; confirmacion.message = '¿Deseas volver a activar este proyecto? Estará disponible de nuevo.'; confirmacion.type = 'success'
         }
     } else {
-        confirmacion.title = 'Eliminar de la BD'
-        confirmacion.message = '¿Estás seguro? Esta acción borrará el registro físicamente de SQL Server.'
-        confirmacion.type = 'danger'
+        confirmacion.title = 'Eliminar de la BD'; confirmacion.message = '¿Estás seguro? Esta acción borrará el registro físicamente de SQL Server.'; confirmacion.type = 'danger'
     }
     confirmacion.show = true
 }
@@ -161,20 +117,15 @@ const solicitarAccion = (id, modo) => {
 const ejecutarAccionConfirmada = async () => {
     try {
         let res;
-        if (confirmacion.modo === 'eliminar') {
-            res = await fetch(`http://localhost:5000/api/proyectos/${confirmacion.proyectoId}/force`, { method: 'DELETE' });
-        } else if (confirmacion.modo === 'toggle') {
-            res = await fetch(`http://localhost:5000/api/proyectos/${confirmacion.proyectoId}/toggle`, { method: 'PUT' });
-        }
-
-        const data = await res.json();
+        if (confirmacion.modo === 'eliminar') res = await AdminAPI.eliminarProyecto(confirmacion.proyectoId)
+        else if (confirmacion.modo === 'toggle') res = await AdminAPI.toggleProyecto(confirmacion.proyectoId)
         
-        if (res.ok) {
+        if (res.status === 'success') {
             await cargarDatos();
-            mostrarModal.value = false; // Cierra el modal de edición si estaba abierto
-            mostrarNotificacion(data.message || 'Operación realizada');
+            mostrarModal.value = false;
+            mostrarNotificacion(res.message || 'Operación realizada');
         } else {
-            mostrarNotificacion(data.message || 'Error en la operación', 'error');
+            mostrarNotificacion(res.message || 'Error en la operación', 'error');
         }
     } catch (error) {
         mostrarNotificacion('Error de red', 'error');

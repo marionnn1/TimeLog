@@ -5,10 +5,10 @@ import {
     AlertTriangle, CheckCircle2, AlertCircle
 } from 'lucide-vue-next'
 import { useDataStore } from '../../stores/dataStore'
+import AdminAPI from '../../services/AdminAPI'
 
 const store = useDataStore()
 
-// --- CONFIGURACIÓN ---
 const DEFAULT_FORM = {
     id: null,
     nombre: '',
@@ -18,7 +18,6 @@ const DEFAULT_FORM = {
     activo: 1
 }
 
-// --- ESTADO ---
 const usuarios = ref([])
 const cargando = ref(true)
 
@@ -29,33 +28,16 @@ const mostrarModal = ref(false)
 const esEdicion = ref(false)
 const formulario = ref({ ...DEFAULT_FORM })
 
-const confirmacion = reactive({
-    show: false,
-    title: '',
-    message: '',
-    type: 'neutral',
-    action: null,
-    usuarioId: null 
-})
+const confirmacion = reactive({ show: false, title: '', message: '', type: 'neutral', action: null, usuarioId: null })
 
-// --- LÓGICA DE API: LEER (GET) ---
 const cargarUsuariosDesdeAPI = async () => {
     try {
         cargando.value = true
-        const respuesta = await fetch('http://127.0.0.1:5000/api/usuarios')
-        const json = await respuesta.json()
-        
+        const json = await AdminAPI.getUsuarios()
         if (json.status === 'success') {
             usuarios.value = json.data.map(u => ({
-                id: u.Id,
-                nombre: u.Nombre,
-                email: u.OidAzure,
-                rol: u.Rol,
-                sede: u.Sede,
-                activo: u.Activo 
+                id: u.Id, nombre: u.Nombre, email: u.OidAzure, rol: u.Rol, sede: u.Sede, activo: u.Activo 
             }))
-        } else {
-            console.error("Error del servidor:", json.message)
         }
     } catch (error) {
         console.error("Error de red al conectar con la API:", error)
@@ -64,22 +46,14 @@ const cargarUsuariosDesdeAPI = async () => {
     }
 }
 
-onMounted(() => {
-    cargarUsuariosDesdeAPI()
-})
+onMounted(cargarUsuariosDesdeAPI)
 
-// --- LÓGICA DE FILTRADO ---
 const usuariosFiltrados = computed(() => {
     const texto = busqueda.value.toLowerCase().trim()
     if (!texto) return usuarios.value
-
-    return usuarios.value.filter(u => 
-        u.nombre.toLowerCase().includes(texto) ||
-        u.email.toLowerCase().includes(texto)
-    )
+    return usuarios.value.filter(u => u.nombre.toLowerCase().includes(texto) || u.email.toLowerCase().includes(texto))
 })
 
-// --- GESTIÓN DE MODAL ---
 const resetForm = () => {
     formulario.value = { ...DEFAULT_FORM, sede: sedesDisponibles[0] }
 }
@@ -96,14 +70,8 @@ const abrirEditar = (usuario) => {
     mostrarModal.value = true
 }
 
-// --- LÓGICA DE API: CREAR Y EDITAR (POST/PUT) ---
 const guardar = async () => {
     try {
-        const metodo = esEdicion.value ? 'PUT' : 'POST'
-        const url = esEdicion.value 
-            ? `http://localhost:5000/api/usuarios/${formulario.value.id}`
-            : 'http://localhost:5000/api/usuarios'
-        
         const payload = {
             nombre: formulario.value.nombre,
             email: formulario.value.email,
@@ -111,15 +79,11 @@ const guardar = async () => {
             sede: formulario.value.sede
         }
 
-        const respuesta = await fetch(url, {
-            method: metodo,
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload)
-        })
+        let resultado
+        if (esEdicion.value) resultado = await AdminAPI.editarUsuario(formulario.value.id, payload)
+        else resultado = await AdminAPI.crearUsuario(payload)
         
-        const resultado = await respuesta.json()
-        
-        if (respuesta.ok && resultado.status === 'success') {
+        if (resultado.status === 'success') {
             mostrarModal.value = false
             await cargarUsuariosDesdeAPI() 
         } else {
@@ -130,7 +94,6 @@ const guardar = async () => {
     }
 }
 
-// --- LÓGICA DE CONFIRMACIÓN (ELIMINAR Y TOGGLE) ---
 const solicitarAccion = (id, modo) => {
     confirmacion.usuarioId = id
     confirmacion.action = modo
@@ -138,18 +101,12 @@ const solicitarAccion = (id, modo) => {
     if (modo === 'toggle') {
         const user = usuarios.value.find(u => u.id === id) || formulario.value
         if (user.activo === 1 || user.activo === true) {
-            confirmacion.title = 'Desactivar Acceso'
-            confirmacion.message = 'Desactivar acceso a este usuario? Perderá acceso pero sus datos se conservarán.'
-            confirmacion.type = 'neutral'
+            confirmacion.title = 'Desactivar Acceso'; confirmacion.message = '¿Desactivar acceso a este usuario? Perderá acceso pero sus datos se conservarán.'; confirmacion.type = 'neutral'
         } else {
-            confirmacion.title = 'Reactivar Acceso'
-            confirmacion.message = '¿Deseas restaurar el acceso de este usuario al sistema?'
-            confirmacion.type = 'success'
+            confirmacion.title = 'Reactivar Acceso'; confirmacion.message = '¿Deseas restaurar el acceso de este usuario al sistema?'; confirmacion.type = 'success'
         }
     } else {
-        confirmacion.title = 'Eliminar de la BD'
-        confirmacion.message = '¿Estás seguro? Esta acción borrará el registro físicamente de SQL Server.'
-        confirmacion.type = 'danger'
+        confirmacion.title = 'Eliminar de la BD'; confirmacion.message = '¿Estás seguro? Esta acción borrará el registro físicamente de SQL Server.'; confirmacion.type = 'danger'
     }
     confirmacion.show = true
 }
@@ -157,22 +114,12 @@ const solicitarAccion = (id, modo) => {
 const confirmarAccion = async () => {
     try {
         let respuesta;
+        if (confirmacion.action === 'eliminar') respuesta = await AdminAPI.eliminarUsuario(confirmacion.usuarioId)
+        else if (confirmacion.action === 'toggle') respuesta = await AdminAPI.toggleUsuario(confirmacion.usuarioId)
         
-        if (confirmacion.action === 'eliminar') {
-            respuesta = await fetch(`http://127.0.0.1:5000/api/usuarios/${confirmacion.usuarioId}`, {
-                method: 'DELETE'
-            });
-        } else if (confirmacion.action === 'toggle') {
-            respuesta = await fetch(`http://127.0.0.1:5000/api/usuarios/${confirmacion.usuarioId}/toggle`, {
-                method: 'PUT'
-            });
-        }
-        
-        if (respuesta && respuesta.ok) {
+        if (respuesta && respuesta.status === 'success') {
             await cargarUsuariosDesdeAPI(); 
-            mostrarModal.value = false; // Cierra el modal de edición si estaba abierto
-        } else {
-            console.error("Error del servidor en la operación")
+            mostrarModal.value = false; 
         }
     } catch (error) {
         console.error("Error de red en confirmarAccion:", error)
@@ -180,7 +127,6 @@ const confirmarAccion = async () => {
     confirmacion.show = false;
 }
 
-// --- ESTILOS ---
 const obtenerEstiloRol = (rol) => {
     if (rol === 'Admin' || rol === 'Administrador') return 'bg-red-50 text-red-700 border-red-200'
     if (rol === 'JP' || rol === 'Jefe de Proyecto') return 'bg-amber-50 text-amber-700 border-amber-200'

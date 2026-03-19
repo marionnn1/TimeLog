@@ -33,7 +33,6 @@ const fetchAnalyticsData = async () => {
 onMounted(fetchAnalyticsData)
 watch(mesAnalisis, fetchAnalyticsData)
 
-// Lógica de cálculo
 const mediaHorasEquipo = computed(() => {
     if (cargaEmpleados.value.length === 0) return 0
     return Math.round(totalHorasReales.value / cargaEmpleados.value.length)

@@ -6,7 +6,6 @@ import {
     FileDown, XCircle, Ban, Trash2, AlertTriangle, X
 } from 'lucide-vue-next'
 
-// Calculamos el mes actual dinámicamente en formato YYYY-MM
 const hoy = new Date()
 const mesActual = `${hoy.getFullYear()}-${String(hoy.getMonth() + 1).padStart(2, '0')}`
 
@@ -38,7 +37,6 @@ const ejecutarConfirmacion = () => {
     confirmState.value.show = false
 }
 
-// --- LLAMADAS AL BACKEND ---
 const fetchClosingData = async () => {
     isLoading.value = true
     try {
@@ -152,7 +150,6 @@ const exportarExcel = () => {
 }
 
 const notificarUsuario = (user) => {
-    // Vuelve a ser solo un mock visual
     showToast(`Recordatorio enviado a ${user.nombre}`, 'success')
 }
 </script>

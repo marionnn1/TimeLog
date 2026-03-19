@@ -1,95 +1,61 @@
-const API_URL = 'http://localhost:5000/api/manager';
+import api from './API';
+
+const BASE_PATH = '/manager';
 
 export default {
     // ANALYTICS
     async getAnalytics(mes) {
-        const res = await fetch(`${API_URL}/analytics?mes=${mes}`);
-        if (!res.ok) throw new Error('Error fetching analytics');
-        return { data: await res.json() };
+        const res = await api.get(`${BASE_PATH}/analytics?mes=${mes}`);
+        return { data: res.data };
     },
 
     // CLOSING
     async getClosingData(mes) {
-        const res = await fetch(`${API_URL}/closing?mes=${mes}`);
-        if (!res.ok) throw new Error('Error fetching closing data');
-        return { data: await res.json() };
+        const res = await api.get(`${BASE_PATH}/closing?mes=${mes}`);
+        return { data: res.data };
     },
     async toggleCierreMes(mes, accion) {
-        const res = await fetch(`${API_URL}/closing`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ mes, accion })
-        });
-        if (!res.ok) throw new Error('Error toggling closing month');
-        return { data: await res.json() };
+        const res = await api.post(`${BASE_PATH}/closing`, { mes, accion });
+        return { data: res.data };
     },
 
     // PROJECTS
     async getProjectsData() {
-        const res = await fetch(`${API_URL}/projects`);
-        if (!res.ok) throw new Error('Error fetching projects');
-        return { data: await res.json() };
+        const res = await api.get(`${BASE_PATH}/projects`);
+        return { data: res.data };
     },
     async createProject(data) {
-        const res = await fetch(`${API_URL}/projects`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(data)
-        });
-        if (!res.ok) throw new Error('Error creating project');
-        return { data: await res.json() };
+        const res = await api.post(`${BASE_PATH}/projects`, data);
+        return { data: res.data };
     },
     async updateProject(id, data) {
-        const res = await fetch(`${API_URL}/projects/${id}`, {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(data)
-        });
-        if (!res.ok) throw new Error('Error updating project');
-        return { data: await res.json() };
+        const res = await api.put(`${BASE_PATH}/projects/${id}`, data);
+        return { data: res.data };
     },
     async deleteProject(id) {
-        const res = await fetch(`${API_URL}/projects/${id}`, {
-            method: 'DELETE'
-        });
-        if (!res.ok) throw new Error('Error deleting project');
-        return { data: await res.json() };
+        const res = await api.delete(`${BASE_PATH}/projects/${id}`);
+        return { data: res.data };
     },
     async assignUserToProject(proyectoId, usuarioId) {
-        const res = await fetch(`${API_URL}/projects/${proyectoId}/assign`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ usuarioId })
-        });
-        if (!res.ok) {
-            const err = await res.json();
-            throw { response: { data: err } }; 
-        }
-        return { data: await res.json() };
+        const res = await api.post(`${BASE_PATH}/projects/${proyectoId}/assign`, { usuarioId });
+        return { data: res.data };
+    },
+    async unassignUserFromProject(proyectoId, usuarioId) {
+        const res = await api.post(`${BASE_PATH}/projects/${proyectoId}/unassign`, { usuarioId });
+        return { data: res.data };
     },
 
     // VALIDATIONS (TICKETS)
     async getValidations() {
-        const res = await fetch(`${API_URL}/validation`);
-        if (!res.ok) throw new Error('Error fetching validations');
-        return { data: await res.json() };
+        const res = await api.get(`${BASE_PATH}/validation`);
+        return { data: res.data };
     },
     async approveValidation(id, horas) {
-        const res = await fetch(`${API_URL}/validation/${id}/approve`, {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ horas })
-        });
-        if (!res.ok) throw new Error('Error approving validation');
-        return { data: await res.json() };
+        const res = await api.put(`${BASE_PATH}/validation/${id}/approve`, { horas });
+        return { data: res.data };
     },
     async rejectValidation(id, motivo) {
-        const res = await fetch(`${API_URL}/validation/${id}/reject`, {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ motivo })
-        });
-        if (!res.ok) throw new Error('Error rejecting validation');
-        return { data: await res.json() };
+        const res = await api.put(`${BASE_PATH}/validation/${id}/reject`, { motivo });
+        return { data: res.data };
     }
 };

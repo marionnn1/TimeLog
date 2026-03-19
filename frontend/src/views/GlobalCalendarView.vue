@@ -1,6 +1,8 @@
 <script setup>
 import { ref, computed, onMounted, watch } from 'vue'
 import { useDataStore } from '../stores/dataStore'
+import AbsencesAPI from '../services/AbsencesAPI'
+
 import { 
     Calendar as CalendarIcon, ChevronLeft, ChevronRight, 
     AlertTriangle, UserPlus, X, Check, Palmtree, MapPin, Briefcase,
@@ -10,7 +12,6 @@ import {
 const store = useDataStore()
 const currentUser = store.getCurrentUser() 
 
-// --- SISTEMA DE NOTIFICACIONES (TOAST) ---
 const toast = ref({ show: false, message: '', type: 'success' })
 let toastTimeout = null
 
@@ -22,7 +23,6 @@ const showToast = (message, type = 'success') => {
     }, 3000)
 }
 
-// --- SISTEMA DE CONFIRMACIÓN ---
 const confirmState = ref({ show: false, title: '', message: '', type: 'neutral', action: null })
 const solicitarConfirmacion = (title, message, type, callback) => {
     confirmState.value = { show: true, title, message, type, action: callback }
@@ -32,13 +32,11 @@ const ejecutarConfirmacion = () => {
     confirmState.value.show = false
 }
 
-// --- FECHA Y CALENDARIO ---
 const currentDate = ref(new Date())
 const year = computed(() => currentDate.value.getFullYear())
 const month = computed(() => currentDate.value.getMonth())
 const monthNames = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"]
 
-// --- CONEXIÓN DE DATOS REAL (API) ---
 const ausenciasDelMes = ref([])
 const resumenAnual = ref([])
 
@@ -46,10 +44,9 @@ const cargarAusencias = async () => {
     if (!currentUser) return
     try {
         const mesApi = month.value + 1
-        const res = await fetch(`http://localhost:5000/api/absences?mes=${mesApi}&anio=${year.value}`)
-        const json = await res.json()
-        if (json.status === 'success') {
-            ausenciasDelMes.value = json.data
+        const res = await AbsencesAPI.getAusenciasMes(mesApi, year.value)
+        if (res.status === 'success') {
+            ausenciasDelMes.value = res.data
         }
     } catch (e) {
         console.error("Error al cargar ausencias:", e)
@@ -61,7 +58,8 @@ const cargarResumenAnual = async () => {
     try {
         const promesas = []
         for(let m = 1; m <= 12; m++) {
-            promesas.push(fetch(`http://localhost:5000/api/absences?mes=${m}&anio=${year.value}`).then(r => r.json()))
+            // USAMOS EL SERVICIO
+            promesas.push(AbsencesAPI.getAusenciasMes(m, year.value))
         }
         const resultados = await Promise.all(promesas)
         
@@ -101,7 +99,6 @@ onMounted(() => {
 const getAusenciasDia = (isoDate) => ausenciasDelMes.value.filter(a => a.fecha === isoDate)
 const getMiAusencia = (isoDate) => getAusenciasDia(isoDate).find(a => a.userId === currentUser.id)
 
-// --- MODAL Y ESTILOS VISUALES ---
 const mostrarModal = ref(false)
 const form = ref({
     fechaInicio: '',
@@ -110,7 +107,6 @@ const form = ref({
     comentario: ''
 })
 
-// Estilo para MIS ausencias (Color Sólido)
 const getMiEstiloTipo = (tipo) => {
     const t = (tipo || '').toLowerCase()
     if (t.includes('vacaciones')) return 'bg-emerald-500 text-white border-emerald-600 shadow-md ring-1 ring-emerald-300'
@@ -119,7 +115,6 @@ const getMiEstiloTipo = (tipo) => {
     return 'bg-gray-700 text-white border-gray-800'
 }
 
-// Estilo para las ausencias de COMPAÑEROS (Color Claro)
 const getCompaneroEstiloTipo = (tipo) => {
     const t = (tipo || '').toLowerCase()
     if (t.includes('vacaciones')) return 'bg-emerald-50 text-emerald-700 border-emerald-200'
@@ -128,7 +123,6 @@ const getCompaneroEstiloTipo = (tipo) => {
     return 'bg-gray-50 text-gray-700 border-gray-200'
 }
 
-// Color del circulito avatar para compañeros
 const getAvatarColor = (tipo) => {
     const t = (tipo || '').toLowerCase()
     if (t.includes('vacaciones')) return 'bg-emerald-500 text-white'
@@ -149,7 +143,6 @@ const formatShortDate = (isoString) => {
     return d.toLocaleDateString('es-ES', { day: '2-digit', month: 'short' }).replace('.', '')
 }
 
-// --- CÁLCULOS CALENDARIO ---
 const daysInMonth = computed(() => {
     const days = new Date(year.value, month.value + 1, 0).getDate()
     return Array.from({ length: days }, (_, i) => {
@@ -168,7 +161,6 @@ const startPadding = computed(() => {
     return firstDay === 0 ? 6 : firstDay - 1 
 })
 
-// --- ACCIONES ---
 const abrirModal = (day) => {
     if (day.isWeekend) return
 
@@ -180,11 +172,7 @@ const abrirModal = (day) => {
             'danger',
             async () => {
                 try {
-                    await fetch('http://localhost:5000/api/absences', {
-                        method: 'DELETE',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ usuario_id: currentUser.id, fecha: day.isoDate })
-                    })
+                    await AbsencesAPI.eliminarAusencia(currentUser.id, day.isoDate)
                     showToast('Ausencia eliminada correctamente', 'success')
                     cargarAusencias()
                     cargarResumenAnual()
@@ -202,17 +190,16 @@ const abrirModal = (day) => {
 
 const procesarSolicitud = async (diasSolicitados) => {
     try {
-        const res = await fetch('http://localhost:5000/api/absences', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                usuario_id: currentUser.id,
-                fechas: diasSolicitados,
-                tipo: form.value.tipo,
-                comentario: form.value.comentario
-            })
-        })
-        if (res.ok) {
+        const payload = {
+            usuario_id: currentUser.id,
+            fechas: diasSolicitados,
+            tipo: form.value.tipo,
+            comentario: form.value.comentario
+        }
+        
+        const res = await AbsencesAPI.crearAusencia(payload)
+        
+        if (res.status === 'success') {
             mostrarModal.value = false
             showToast('Solicitud registrada con éxito', 'success')
             cargarAusencias()
