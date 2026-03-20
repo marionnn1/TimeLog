@@ -3,6 +3,7 @@ from models.time_entries import TimeEntries
 from models.projects import Projects
 from models.clients import Clients
 from models.audits import Audits
+from models.users import Users # AÑADIDO
 from sqlalchemy import func, extract
 import traceback
 from datetime import datetime, timedelta
@@ -190,4 +191,38 @@ def solicitar_correccion_imputacion(usuario_id, proyecto_id, fecha, nuevas_horas
     except Exception as e:
         print("Error en solicitar_correccion:", e)
         db.session.rollback()
+        return False
+
+
+def obtener_jornada(usuario_id):
+    try:
+        user = Users.query.get(usuario_id)
+        if not user:
+            return {"error": "Usuario no encontrado"}
+        return {
+            "tipoContrato": user.tipo_contrato or '40H',
+            "horasInviernoLJ": float(user.horas_invierno_lj) if user.horas_invierno_lj else 8.5,
+            "horasInviernoV": float(user.horas_invierno_v) if user.horas_invierno_v else 6.5,
+            "horasVerano": float(user.horas_verano) if user.horas_verano else 7.0
+        }
+    except Exception as e:
+        print(f"Error en obtener_jornada: {e}")
+        return {"error": str(e)}
+
+def actualizar_jornada(usuario_id, datos):
+    try:
+        user = Users.query.get(usuario_id)
+        if not user:
+            return False
+        
+        user.tipo_contrato = datos.get('tipoContrato', '40H')
+        user.horas_invierno_lj = datos.get('horasInviernoLJ', 8.5)
+        user.horas_invierno_v = datos.get('horasInviernoV', 6.5)
+        user.horas_verano = datos.get('horasVerano', 7.0)
+
+        db.session.commit()
+        return True
+    except Exception as e:
+        db.session.rollback()
+        print(f"Error en actualizar_jornada: {e}")
         return False

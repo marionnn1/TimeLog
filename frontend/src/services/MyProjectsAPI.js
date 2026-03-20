@@ -28,5 +28,14 @@ export default {
     async getAnaliticaMensual(usuario_id, mes, anio) {
         const res = await api.get(`/myprojects/analitica-mensual?usuario_id=${usuario_id}&mes=${mes}&anio=${anio}`)
         return res.data
+    },
+
+    async getJornada(usuario_id) {
+        const res = await api.get(`/myprojects/jornada?usuario_id=${usuario_id}`)
+        return res.data
+    },
+    async updateJornada(payload) {
+        const res = await api.put('/myprojects/jornada', payload)
+        return res.data
     }
 }

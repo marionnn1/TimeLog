@@ -6,7 +6,12 @@ import {
     Calendar, Clock, ArrowUpRight, AlertCircle, FileSpreadsheet
 } from 'lucide-vue-next'
 
-const mesAnalisis = ref('2026-02')
+const hoy = new Date()
+const anioActual = hoy.getFullYear()
+const mesActualNum = String(hoy.getMonth() + 1).padStart(2, '0')
+const mesActual = `${anioActual}-${mesActualNum}`
+
+const mesAnalisis = ref(mesActual)
 const isLoading = ref(false)
 
 const totalHorasReales = ref(0)
