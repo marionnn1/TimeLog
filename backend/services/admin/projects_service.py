@@ -10,7 +10,6 @@ from datetime import datetime
 def obtener_proyectos():
     try:
         proyectos = Projects.query.all()
-        
         resultado = []
         for p in proyectos:
             equipo = []
@@ -31,6 +30,69 @@ def obtener_proyectos():
         print(f"Error al obtener proyectos: {e}")
         return None
 
+# --- NUEVOS MÉTODOS DE CLIENTES ---
+def obtener_clientes():
+    try:
+        clientes = Clients.query.all()
+        return [{"id": c.id, "nombre": c.nombre, "codigo": c.codigo} for c in clientes]
+    except Exception as e:
+        print(f"Error al obtener clientes: {e}")
+        return None
+
+def crear_cliente(datos):
+    try:
+        nombre = datos.get('nombre')
+        if not nombre or Clients.query.filter_by(nombre=nombre).first():
+            return False
+            
+        nuevo_cliente = Clients(
+            nombre=nombre, 
+            codigo=datos.get('codigo', ''), 
+            estado=True, 
+            fecha_creacion=datetime.utcnow()
+        )
+        db.session.add(nuevo_cliente)
+        db.session.commit()
+        registrar_log(1, 'Admin', 'CREAR_CLIENTE', 'info', f"Se creó el cliente: {nombre}.")
+        return True
+    except Exception as e:
+        db.session.rollback()
+        print(f"Error crear_cliente: {e}")
+        return False
+
+def actualizar_cliente(id_cliente, datos):
+    try:
+        cliente = Clients.query.get(id_cliente)
+        if not cliente: return False
+        
+        cliente.nombre = datos.get('nombre', cliente.nombre)
+        cliente.codigo = datos.get('codigo', cliente.codigo)
+        db.session.commit()
+        registrar_log(1, 'Admin', 'ACTUALIZAR_CLIENTE', 'info', f"Se actualizó el cliente ID {id_cliente}.")
+        return True
+    except Exception as e:
+        db.session.rollback()
+        return False
+
+def eliminar_cliente(id_cliente):
+    try:
+        cliente = Clients.query.get(id_cliente)
+        if not cliente: return False
+        
+        # Validar si tiene proyectos
+        proyectos_activos = Projects.query.filter_by(cliente_id=id_cliente).count()
+        if proyectos_activos > 0:
+            return "TIENE_PROYECTOS"
+            
+        db.session.delete(cliente)
+        db.session.commit()
+        registrar_log(1, 'Admin', 'ELIMINAR_CLIENTE', 'warning', f"Se eliminó el cliente ID {id_cliente}.")
+        return True
+    except Exception as e:
+        db.session.rollback()
+        return False
+
+# --- CONTINUAN MÉTODOS DE PROYECTOS ---
 def crear_proyecto(datos):
     try:
         nombre_cliente = datos.get('cliente', 'Cliente Genérico')
@@ -41,7 +103,6 @@ def crear_proyecto(datos):
             db.session.add(cliente)
             db.session.flush()
 
-        # 2. Insertar el proyecto
         nuevo_proyecto = Projects(
             cliente_id=cliente.id,
             nombre=datos.get('nombre'),
@@ -107,31 +168,13 @@ def actualizar_proyecto(id_proyecto, datos):
         db.session.rollback()
         return False
 
-def cerrar_proyecto(id_proyecto):
-    try:
-        proyecto = Projects.query.get(id_proyecto)
-        if not proyecto: return False
-        
-        proyecto.estado = 'Cerrado'
-        proyecto.fecha_desactivacion = datetime.utcnow()
-        db.session.commit()
-        
-        registrar_log(1, 'Admin', 'CERRAR_PROYECTO', 'warning', f"Se ha cerrado el proyecto con ID: {id_proyecto}.")
-        return True
-    except Exception as e:
-        print(f"Error al cerrar proyecto: {e}")
-        db.session.rollback()
-        return False
-
 def eliminar_proyecto_fisico(id_proyecto):
     try:
         proyecto = Projects.query.get(id_proyecto)
         if not proyecto: return False
         
         db.session.execute(text("DELETE FROM Imputaciones WHERE ProyectoId = :id"), {"id": id_proyecto})
-        
         Assignments.query.filter_by(proyecto_id=id_proyecto).delete()
-        
         db.session.delete(proyecto)
         db.session.commit()
         
