@@ -34,16 +34,34 @@ def get_closing_audit(mes):
             extract("month", Absences.fecha) == mes_num,
         ).all()
 
-        # Pre-procesamos los datos
+        # Pre-procesamos los datos añadiendo un diccionario de 'proyectos'
         datos_usuarios = {
-            u.id: {"horas": 0.0, "dias_imputados": set(), "dias_ausencias": set()}
+            u.id: {
+                "horas": 0.0, 
+                "dias_imputados": set(), 
+                "dias_ausencias": set(),
+                "proyectos": {} # Agrupación de horas por Cliente y Proyecto
+            }
             for u in usuarios
         }
 
         for i in imputaciones_mes:
             if i.usuario_id in datos_usuarios and i.fecha:
-                datos_usuarios[i.usuario_id]["horas"] += float(i.horas)
+                horas_imp = float(i.horas)
+                datos_usuarios[i.usuario_id]["horas"] += horas_imp
                 datos_usuarios[i.usuario_id]["dias_imputados"].add(i.fecha.day)
+
+                # Obtener nombres de proyecto y cliente
+                p_nombre = i.proyecto.nombre if i.proyecto else "Sin Proyecto"
+                c_nombre = i.proyecto.cliente.nombre if i.proyecto and i.proyecto.cliente else "Sin Cliente"
+                
+                # Clave compuesta por Cliente y Proyecto
+                key_proy = (c_nombre, p_nombre)
+
+                # Sumar horas a ese proyecto específico
+                if key_proy not in datos_usuarios[i.usuario_id]["proyectos"]:
+                    datos_usuarios[i.usuario_id]["proyectos"][key_proy] = 0.0
+                datos_usuarios[i.usuario_id]["proyectos"][key_proy] += horas_imp
 
         for a in ausencias_mes:
             if a.usuario_id in datos_usuarios and a.fecha:
@@ -56,6 +74,12 @@ def get_closing_audit(mes):
             horas_reales = datos["horas"]
             dias_imputados = datos["dias_imputados"]
             dias_ausencias = datos["dias_ausencias"]
+            
+            # Formatear el desglose como una lista de objetos separados
+            desglose_proyectos = [
+                {"cliente": k[0], "proyecto": k[1], "horas": v} 
+                for k, v in datos["proyectos"].items()
+            ]
 
             dias_faltantes = []
             dias_laborables_totales = 0
@@ -83,6 +107,7 @@ def get_closing_audit(mes):
                     "horasReales": horas_reales,
                     "estado": estado,
                     "diasFaltantes": dias_faltantes,
+                    "desgloseProyectos": desglose_proyectos # Mandamos la lista limpia
                 }
             )
 
