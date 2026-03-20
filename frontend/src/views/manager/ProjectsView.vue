@@ -366,7 +366,7 @@ const getColorClass = (nombre) => {
                         <div class="flex flex-col flex-1 overflow-hidden">
                             <div class="flex justify-between items-center mb-3">
                                 <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
-                                    Equipo Asignado
+                                    Usuarios Asignados
                                 </span>
                                 <button @click.stop="abrirModalAsignacion(proy)" class="text-slate-300 hover:text-emerald-600 transition" title="Añadir miembro">
                                     <UserPlus class="w-4 h-4"/>

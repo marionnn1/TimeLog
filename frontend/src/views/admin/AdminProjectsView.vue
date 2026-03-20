@@ -314,7 +314,7 @@ const obtenerEquipoVisual = (proyecto) => proyecto.equipo || []
 
                                 <div class="mt-auto pt-3 border-t border-gray-100 flex flex-col flex-1 overflow-hidden">
                                     <div class="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-2 flex items-center gap-1.5 flex-shrink-0">
-                                        <Users class="w-3 h-3" /> Equipo Asignado
+                                        <Users class="w-3 h-3" /> Usuarios Asignados
                                     </div>
 
                                     <div class="flex-1 overflow-y-auto pr-1 space-y-1 scrollbar-thin max-h-[140px]">
