@@ -1,12 +1,11 @@
 from flask import Blueprint, jsonify, request
 from services.manager.analytics_service import get_analytics_data
 
-# Creamos el Blueprint para las rutas de manager_analytics
 manager_analytics_bp = Blueprint('manager_analytics', __name__, url_prefix='/api/manager/analytics')
 
-@manager_analytics_bp.route('/', methods=['GET'])
+@manager_analytics_bp.route('', methods=['GET'], strict_slashes=False)
+@manager_analytics_bp.route('/', methods=['GET'], strict_slashes=False)
 def get_analytics():
-    # Obtenemos el mes de la query string (Ej: ?mes=2026-02)
     mes = request.args.get('mes')
     
     if not mes:
