@@ -3,7 +3,7 @@ from models.time_entries import TimeEntries
 from models.projects import Projects
 from models.clients import Clients
 from models.audits import Audits
-from models.users import Users # AÑADIDO
+from models.users import Users
 from sqlalchemy import func, extract
 import traceback
 from datetime import datetime, timedelta
@@ -171,8 +171,47 @@ def obtener_calendario_mensual(usuario_id, mes, anio):
         print("Error en calendario:", e)
         return []
 
+def get_max_horas_dia_usuario(usuario_id, fecha_str):
+    usuario = Users.query.get(usuario_id)
+    if not usuario: return 8.5
+    
+    if isinstance(fecha_str, str):
+        fecha = datetime.strptime(fecha_str, "%Y-%m-%d").date()
+    else:
+        fecha = fecha_str
+        
+    mes = fecha.month
+    dia_semana = fecha.weekday()
+    if dia_semana >= 5: return 0.0 
+    
+    es_verano = (mes == 7 or mes == 8)
+    tipo = usuario.tipo_contrato or '40H'
+    
+    if tipo == '40H':
+        if es_verano: return 7.0
+        if dia_semana == 4: return 6.5
+        return 8.5
+    else:
+        if es_verano: return float(usuario.horas_verano or 7.0)
+        if dia_semana == 4: return float(usuario.horas_invierno_v or 6.5)
+        return float(usuario.horas_invierno_lj or 8.5)
+
 def solicitar_correccion_imputacion(usuario_id, proyecto_id, fecha, nuevas_horas, motivo):
     try:
+        max_horas = get_max_horas_dia_usuario(usuario_id, fecha)
+        
+        otras_imputaciones = TimeEntries.query.filter(
+            TimeEntries.usuario_id == usuario_id,
+            TimeEntries.fecha == fecha,
+            TimeEntries.proyecto_id != proyecto_id,
+            TimeEntries.estado != 'Rechazado'
+        ).all()
+        
+        horas_otros_proyectos = sum(float(i.horas) for i in otras_imputaciones)
+        
+        if (horas_otros_proyectos + float(nuevas_horas)) > max_horas:
+            return {"error": f"Límite diario superado. Tu jornada es de {max_horas}h y ya tienes {horas_otros_proyectos}h en otros proyectos."}, 400
+
         registro = TimeEntries.query.filter_by(
             usuario_id=usuario_id, proyecto_id=proyecto_id, fecha=fecha
         ).first()
@@ -180,19 +219,27 @@ def solicitar_correccion_imputacion(usuario_id, proyecto_id, fecha, nuevas_horas
         if registro:
             registro.estado = 'Pendiente'
             registro.comentario = f"[Solicita cambio a {nuevas_horas}h] - Motivo: {motivo}"
+        else:
+            nuevo_registro = TimeEntries(
+                usuario_id=usuario_id,
+                proyecto_id=proyecto_id,
+                fecha=fecha,
+                horas=0,
+                estado='Pendiente',
+                comentario=f"[Solicita añadir {nuevas_horas}h] - Motivo: {motivo}"
+            )
+            db.session.add(nuevo_registro)
             
-            detalle = f"Usuario {usuario_id} solicita cambiar a {nuevas_horas}h el proyecto {proyecto_id} en {fecha}"
-            nueva_auditoria = Audits(actor_nombre='Sistema', accion='Solicitud Corrección', gravedad='warning', detalle=detalle)
-            db.session.add(nueva_auditoria)
-            
-            db.session.commit()
-            return True
-        return False
+        detalle = f"Usuario {usuario_id} solicita imputar {nuevas_horas}h al proyecto {proyecto_id} en {fecha}"
+        nueva_auditoria = Audits(actor_nombre='Sistema', accion='Solicitud Corrección', gravedad='warning', detalle=detalle)
+        db.session.add(nueva_auditoria)
+        
+        db.session.commit()
+        return {"message": "Solicitud enviada al responsable"}, 200
     except Exception as e:
         print("Error en solicitar_correccion:", e)
         db.session.rollback()
-        return False
-
+        return {"error": str(e)}, 500
 
 def obtener_jornada(usuario_id):
     try:

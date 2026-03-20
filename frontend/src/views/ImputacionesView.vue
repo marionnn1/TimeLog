@@ -18,7 +18,8 @@ import {
   MessageSquare, 
   Send, 
   Clock,
-  ArrowRight
+  ArrowRight,
+  Plus
 } from 'lucide-vue-next'
 
 const router = useRouter()
@@ -96,11 +97,20 @@ const esFinDeSemana = (dia) => {
 }
 const esHoy = (dia) => dia === hoy.getDate() && mesActualIndex.value === hoy.getMonth() && anioActual.value === hoy.getFullYear()
 
+const esPasado = (dia) => {
+    const fecha = new Date(anioActual.value, mesActualIndex.value, dia)
+    const hoyTrunc = new Date()
+    hoyTrunc.setHours(0,0,0,0)
+    // Es pasado si la fecha es anterior a hoy, no es fin de semana y no es festivo/vacaciones
+    return fecha < hoyTrunc && !esFinDeSemana(dia) && !getTipoDia(fecha)
+}
+
 const mesAnterior = () => fechaActual.value = new Date(anioActual.value, mesActualIndex.value - 1, 1)
 const mesSiguiente = () => fechaActual.value = new Date(anioActual.value, mesActualIndex.value + 1, 1)
 const irAHoy = () => fechaActual.value = new Date()
 
 const imputaciones = ref([])
+const proyectosDisponibles = ref([])
 
 const coloresProyectos = [
     'bg-blue-50 text-blue-700 border-blue-100 hover:bg-blue-100',
@@ -111,13 +121,23 @@ const coloresProyectos = [
     'bg-indigo-50 text-indigo-700 border-indigo-100 hover:bg-indigo-100'
 ]
 
+const cargarProyectosActivos = async () => {
+    try {
+        const res = await MyProjectsAPI.getProyectosActivos()
+        if (res.status === 'success') {
+            proyectosDisponibles.value = res.data.filter(p => p.Estado === 'Activo')
+        }
+    } catch (e) {
+        console.error(e)
+    }
+}
+
 const cargarCalendario = async () => {
     const user = store.getCurrentUser()
     if (!user) return
     
     try {
         const mesReal = mesActualIndex.value + 1
-        // USAMOS EL SERVICIO
         const res = await MyProjectsAPI.getCalendarioMensual(user.id, mesReal, anioActual.value)
         
         if (res.status === 'success') {
@@ -145,6 +165,7 @@ watch([mesActualIndex, anioActual], () => {
 onMounted(() => {
     cargarCalendario()
     cargarAusenciasAPI()
+    cargarProyectosActivos()
 })
 
 const getImputacionesPorDia = (dia) => imputaciones.value.filter(imp => imp.dia === dia)
@@ -186,49 +207,61 @@ const exportarDatos = () => {
 
 const mostrarModalSolicitud = ref(false)
 const formSolicitud = ref({
-    fechaVisible: '', fechaISO: '', proyecto: '', proyecto_id: null, mensaje: '', horasActuales: 0, horasNuevas: 0
+    fechaVisible: '', fechaISO: '', proyecto: '', proyecto_id: '', mensaje: '', horasActuales: 0, horasNuevas: 0, esNuevo: false
 })
 
 const abrirSolicitud = (imputacion, dia) => {
     const fechaObj = new Date(anioActual.value, mesActualIndex.value, dia)
-    
-    if (getTipoDia(fechaObj)) {
-        showToast(`No puedes modificar horas en un día de ${getLabelDia(fechaObj)}.`, 'error')
-        return
-    }
+    if (getTipoDia(fechaObj)) return showToast(`No puedes modificar horas en un día de ${getLabelDia(fechaObj)}.`, 'error')
 
-    const fechaStr = fechaObj.toLocaleDateString('es-ES', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })
     const offset = fechaObj.getTimezoneOffset() * 60000
     const isoDate = new Date(fechaObj.getTime() - offset).toISOString().split('T')[0]
     
     formSolicitud.value = {
-        fechaVisible: fechaStr, fechaISO: isoDate, proyecto: imputacion.proyecto, proyecto_id: imputacion.proyecto_id,
-        mensaje: '', horasActuales: imputacion.horas, horasNuevas: imputacion.horas
+        fechaVisible: fechaObj.toLocaleDateString('es-ES', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }), 
+        fechaISO: isoDate, proyecto: imputacion.proyecto, proyecto_id: imputacion.proyecto_id,
+        mensaje: '', horasActuales: imputacion.horas, horasNuevas: imputacion.horas, esNuevo: false
+    }
+    mostrarModalSolicitud.value = true
+}
+
+const abrirSolicitudNueva = (dia) => {
+    const fechaObj = new Date(anioActual.value, mesActualIndex.value, dia)
+    const offset = fechaObj.getTimezoneOffset() * 60000
+    const isoDate = new Date(fechaObj.getTime() - offset).toISOString().split('T')[0]
+
+    formSolicitud.value = {
+        fechaVisible: fechaObj.toLocaleDateString('es-ES', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }), 
+        fechaISO: isoDate, proyecto: '', proyecto_id: '',
+        mensaje: '', horasActuales: 0, horasNuevas: 8, esNuevo: true // Horas por defecto sugeridas
     }
     mostrarModalSolicitud.value = true
 }
 
 const enviarSolicitudJefe = async () => {
+    if (formSolicitud.value.esNuevo && !formSolicitud.value.proyecto_id) return showToast('Debes seleccionar a qué proyecto quieres imputar', 'error')
     if (!formSolicitud.value.mensaje) return showToast('Debes escribir un motivo para la solicitud', 'error')
+    
     const user = store.getCurrentUser()
     if (!user) return;
 
     try {
         const payload = {
-            usuario_id: user.id, proyecto_id: formSolicitud.value.proyecto_id, fecha: formSolicitud.value.fechaISO,
-            nuevas_horas: formSolicitud.value.horasNuevas, motivo: formSolicitud.value.mensaje
+            usuario_id: user.id, 
+            proyecto_id: formSolicitud.value.proyecto_id, 
+            fecha: formSolicitud.value.fechaISO,
+            nuevas_horas: formSolicitud.value.horasNuevas, 
+            motivo: formSolicitud.value.mensaje
         }
         
         const res = await MyProjectsAPI.solicitarCorreccion(payload)
-        if (res.status === 'success') {
-            mostrarModalSolicitud.value = false
-            showToast('Solicitud enviada al responsable', 'success')
-            cargarCalendario() 
-        } else {
-            showToast(res.message || 'Error al enviar la solicitud', 'error')
-        }
+        
+        mostrarModalSolicitud.value = false
+        showToast(res.message || 'Solicitud enviada al responsable', 'success')
+        cargarCalendario() 
+        
     } catch (error) {
-        showToast('Fallo en la conexión con el servidor', 'error')
+        showToast(error.response?.data?.error || 'Fallo en la conexión con el servidor', 'error')
     }
 }
 </script>
@@ -279,7 +312,7 @@ const enviarSolicitudJefe = async () => {
       <div class="grid grid-cols-7 auto-rows-fr">
         <div v-for="blank in diasEnBlanco" :key="`blank-${blank}`" class="bg-gray-50/50 border-b border-r border-gray-100"></div>
         <div v-for="dia in diasDelMes" :key="dia" 
-             class="min-h-[100px] p-2 border-b border-r border-gray-100 transition relative flex flex-col gap-1"
+             class="min-h-[100px] p-2 border-b border-r border-gray-100 transition relative flex flex-col gap-1 group"
              :class="[
                esFinDeSemana(dia) ? 'bg-slate-100 cursor-default' : 'bg-white',
                getTipoDia(new Date(anioActual, mesActualIndex, dia)) === 'festivo' ? 'bg-orange-50/40' : '',
@@ -289,7 +322,15 @@ const enviarSolicitudJefe = async () => {
           <div class="flex justify-between items-start mb-2">
             <span class="text-sm font-bold w-7 h-7 flex items-center justify-center rounded-full"
                   :class="esHoy(dia) ? 'bg-primary text-white' : (esFinDeSemana(dia) ? 'text-slate-400' : 'text-dark')">{{ dia }}</span>
-            <span v-if="getTotalHoras(dia) > 0" class="text-[10px] font-bold px-2 py-0.5 rounded border bg-blue-50 text-dark border-blue-100">{{ getTotalHoras(dia) }}h</span>
+            
+            <div class="flex items-center gap-1">
+                <button v-if="esPasado(dia)" @click.stop="abrirSolicitudNueva(dia)" 
+                        class="opacity-0 group-hover:opacity-100 text-blue-600 bg-blue-50 hover:bg-blue-100 p-1 rounded-md transition-all" 
+                        title="Reclamar horas olvidadas">
+                    <Plus class="w-3.5 h-3.5" />
+                </button>
+                <span v-if="getTotalHoras(dia) > 0" class="text-[10px] font-bold px-2 py-0.5 rounded border bg-blue-50 text-dark border-blue-100">{{ getTotalHoras(dia) }}h</span>
+            </div>
           </div>
 
           <div v-if="getTipoDia(new Date(anioActual, mesActualIndex, dia))" class="flex-1 flex items-center justify-center mt-2">
@@ -306,7 +347,7 @@ const enviarSolicitudJefe = async () => {
           <div v-else-if="!esFinDeSemana(dia)">
              <div v-for="(item, idx) in getImputacionesPorDia(dia)" :key="idx" 
                   @click.stop="abrirSolicitud(item, dia)"
-                  class="text-[10px] p-1.5 rounded border-l-2 mb-1 truncate shadow-sm cursor-pointer transition transform hover:scale-105 flex justify-between items-center group"
+                  class="text-[10px] p-1.5 rounded border-l-2 mb-1 truncate shadow-sm cursor-pointer transition transform hover:scale-105 flex justify-between items-center"
                   :class="item.color">
                <span class="truncate font-semibold">{{ item.proyecto }}</span>
                <span class="font-bold opacity-80 ml-1">{{ item.horas }}h</span>
@@ -356,12 +397,21 @@ const enviarSolicitudJefe = async () => {
             </div>
             <div class="space-y-5">
                 <div class="p-3 bg-gray-50 rounded-lg border border-gray-200 text-sm">
-                    <p class="text-gray-500 font-bold mb-1 flex items-center gap-2"><CalendarIcon class="w-4 h-4"/> {{ formSolicitud.fechaVisible }}</p>
-                    <p class="text-primary font-bold flex items-center gap-2"><Briefcase class="w-4 h-4"/> {{ formSolicitud.proyecto }}</p>
+                    <p class="text-gray-500 font-bold mb-2 flex items-center gap-2"><CalendarIcon class="w-4 h-4"/> {{ formSolicitud.fechaVisible }}</p>
+                    
+                    <div v-if="formSolicitud.esNuevo" class="mt-2">
+                        <label class="block text-[10px] font-black text-gray-400 uppercase mb-1">Elige un proyecto</label>
+                        <select v-model="formSolicitud.proyecto_id" class="w-full border border-gray-300 rounded-lg p-2 font-medium text-sm text-dark outline-none focus:border-primary bg-white shadow-sm cursor-pointer">
+                            <option value="" disabled>Selecciona el proyecto...</option>
+                            <option v-for="p in proyectosDisponibles" :key="p.Id" :value="p.Id">{{ p.Nombre }} ({{ p.Cliente || 'Sin Cliente' }})</option>
+                        </select>
+                    </div>
+                    <p v-else class="text-primary font-bold flex items-center gap-2 mt-1"><Briefcase class="w-4 h-4"/> {{ formSolicitud.proyecto }}</p>
                 </div>
+
                 <div class="flex items-center justify-between gap-4">
                     <div class="flex-1 text-center">
-                        <label class="block text-[10px] font-black text-gray-400 uppercase mb-1">Horas Imputadas</label>
+                        <label class="block text-[10px] font-black text-gray-400 uppercase mb-1">Horas Actuales</label>
                         <div class="h-12 flex items-center justify-center bg-gray-100 rounded-xl border border-gray-200 text-gray-500 font-bold">{{ formSolicitud.horasActuales }}h</div>
                     </div>
                     <div class="pt-4 text-gray-300"><ArrowRight class="w-5 h-5"/></div>

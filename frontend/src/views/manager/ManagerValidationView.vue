@@ -70,7 +70,7 @@ const guardarCorreccion = async () => {
         cerrarModal()
         fetchValidations() 
     } catch (error) {
-        showToast(`Error al guardar la corrección`, 'error')
+        showToast(error.response?.data?.error || `Error al guardar la corrección`, 'error')
     }
 }
 

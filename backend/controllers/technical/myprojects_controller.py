@@ -1,11 +1,11 @@
 from flask import Blueprint, request, jsonify
-from services.technical.myprojects_service import solicitar_correccion_imputacion
 from services.technical.myprojects_service import (
     obtener_imputaciones_semana, 
     guardar_imputaciones_lote, 
     obtener_analitica_mensual,
     obtener_analitica_equipo,
     obtener_calendario_mensual,
+    solicitar_correccion_imputacion,
     obtener_jornada,
     actualizar_jornada
 )
@@ -65,7 +65,7 @@ def get_calendario():
 def solicitar_correccion():
     data = request.json
     if not data: 
-        return jsonify({"status": "error", "message": "Datos vacíos"}), 400
+        return jsonify({"error": "Datos vacíos"}), 400
 
     usuario_id = data.get('usuario_id')
     proyecto_id = data.get('proyecto_id')
@@ -74,13 +74,10 @@ def solicitar_correccion():
     motivo = data.get('motivo')
 
     if not all([usuario_id, proyecto_id, fecha, nuevas_horas is not None, motivo]):
-        return jsonify({"status": "error", "message": "Faltan datos obligatorios"}), 400
+        return jsonify({"error": "Faltan datos obligatorios"}), 400
 
-    exito = solicitar_correccion_imputacion(usuario_id, proyecto_id, fecha, nuevas_horas, motivo)
-
-    if exito:
-        return jsonify({"status": "success", "message": "Solicitud enviada al responsable"}), 200
-    return jsonify({"status": "error", "message": "Fallo al enviar la solicitud"}), 500
+    res_data, status_code = solicitar_correccion_imputacion(usuario_id, proyecto_id, fecha, nuevas_horas, motivo)
+    return jsonify(res_data), status_code
 
 @myprojects_bp.route('/api/myprojects/jornada', methods=['GET'])
 def get_user_jornada():
