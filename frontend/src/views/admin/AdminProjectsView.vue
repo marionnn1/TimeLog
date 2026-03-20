@@ -2,9 +2,13 @@
 import { ref, onMounted, reactive, computed } from 'vue'
 import { 
     FolderPlus, Pencil, Tag, X, Briefcase, Users, Check, 
-    CheckCircle2, AlertCircle, Trash2, AlertTriangle, Plus, Building2
+    CheckCircle2, AlertCircle, Trash2, AlertTriangle, Plus, Building2,
+    UserPlus
 } from 'lucide-vue-next'
+import { useDataStore } from '../../stores/dataStore'
 import AdminAPI from '../../services/AdminAPI'
+
+const store = useDataStore()
 
 const FORM_DEFAULT = { id: null, nombre: '', cliente: '', estado: 'Activo', equipo: [] }
 const CLIENTE_DEFAULT = { id: null, nombre: '', codigo: '' }
@@ -152,13 +156,13 @@ const abrirCrearDesdeCliente = (nombreCliente) => {
     mostrarModal.value = true 
 }
 
-const abrirEditarProyecto = (proyecto) => { 
+const abrirEditar = (proyecto) => { 
     esEdicion.value = true
     formulario.value = { ...proyecto, equipo: proyecto.equipo ? [...proyecto.equipo] : [] }
     mostrarModal.value = true 
 }
 
-const guardarProyecto = async () => {
+const guardar = async () => {
     try {
         const payload = {
             nombre: formulario.value.nombre,
@@ -301,7 +305,7 @@ const obtenerEquipoVisual = (proyecto) => proyecto.equipo || []
                                             </span>
 
                                             <div class="flex items-center opacity-0 group-hover:opacity-100 transition">
-                                                <button @click.stop="abrirEditarProyecto(proyecto)" class="p-1 text-gray-400 hover:text-blue-500" title="Editar"><Pencil class="w-4 h-4" /></button>
+                                                <button @click.stop="abrirEditar(proyecto)" class="p-1 text-gray-400 hover:text-blue-500" title="Editar"><Pencil class="w-4 h-4" /></button>
                                                 <button @click.stop="solicitarAccion(proyecto.id, 'eliminar')" class="p-1 text-gray-400 hover:text-red-500" title="Eliminar"><Trash2 class="w-4 h-4" /></button>
                                             </div>
                                         </div>
@@ -313,8 +317,14 @@ const obtenerEquipoVisual = (proyecto) => proyecto.equipo || []
                                 </div>
 
                                 <div class="mt-auto pt-3 border-t border-gray-100 flex flex-col flex-1 overflow-hidden">
-                                    <div class="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-2 flex items-center gap-1.5 flex-shrink-0">
-                                        <Users class="w-3 h-3" /> Usuarios Asignados
+                                    
+                                    <div class="flex justify-between items-center mb-3">
+                                        <div class="text-[10px] font-bold text-gray-400 uppercase tracking-wider flex items-center gap-1.5 flex-shrink-0">
+                                            <Users class="w-3 h-3" /> Usuarios Asignados
+                                        </div>
+                                        <button @click.stop="abrirEditar(proyecto)" class="text-gray-300 hover:text-blue-600 transition" title="Modificar equipo">
+                                            <UserPlus class="w-4 h-4"/>
+                                        </button>
                                     </div>
 
                                     <div class="flex-1 overflow-y-auto pr-1 space-y-1 scrollbar-thin max-h-[140px]">
@@ -327,8 +337,10 @@ const obtenerEquipoVisual = (proyecto) => proyecto.equipo || []
                                                 <span class="text-xs font-medium text-slate-600 truncate">{{ miembro.nombre }}</span>
                                             </div>
                                         </template>
-                                        <div v-else class="h-full flex flex-col items-center justify-center text-gray-300 italic text-xs py-4">
-                                            Sin equipo
+                                        
+                                        <div v-else class="h-full flex flex-col items-center justify-center text-gray-300 gap-2 min-h-[100px]">
+                                            <UserPlus class="w-8 h-8 opacity-20" />
+                                            <span class="text-xs italic">Sin usuarios asignados</span>
                                         </div>
                                     </div>
                                 </div>
@@ -422,7 +434,7 @@ const obtenerEquipoVisual = (proyecto) => proyecto.equipo || []
 
                 <div class="flex gap-2 pt-4 border-t border-gray-100 flex-shrink-0">
                     <button @click="mostrarModal = false" class="flex-1 py-2 border border-gray-300 text-slate-600 rounded-lg font-bold hover:bg-gray-50 transition">Cancelar</button>
-                    <button @click="guardarProyecto" class="flex-1 py-2 bg-blue-600 text-white rounded-lg font-bold hover:bg-blue-700 shadow-lg shadow-blue-200">Guardar Proyecto</button>
+                    <button @click="guardar" class="flex-1 py-2 bg-blue-600 text-white rounded-lg font-bold hover:bg-blue-700 shadow-lg shadow-blue-200">Guardar Proyecto</button>
                 </div>
             </div>
         </div>
@@ -445,7 +457,7 @@ const obtenerEquipoVisual = (proyecto) => proyecto.equipo || []
             </div>
         </div>
 
-        <div v-if="toast.show" class="fixed bottom-6 right-6 z-50 flex items-center p-4 space-x-3 text-slate-600 bg-white rounded-xl shadow-2xl border border-gray-100 animate-in slide-in-from-right">
+        <div v-if="toast.show" class="fixed bottom-6 right-6 z-[200] flex items-center p-4 space-x-3 text-slate-600 bg-white rounded-xl shadow-2xl border border-gray-100 animate-in slide-in-from-right">
             <div class="inline-flex items-center justify-center flex-shrink-0 w-8 h-8 rounded-lg" :class="toast.type === 'success' ? 'text-green-500 bg-green-100' : 'text-red-500 bg-red-100'">
                 <component :is="toast.type === 'success' ? CheckCircle2 : AlertCircle" class="w-5 h-5"/>
             </div>
