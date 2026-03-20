@@ -1,4 +1,3 @@
-# backend/services/manager/projects_service.py
 from database.db import db
 from models.projects import Projects
 from models.clients import Clients
@@ -7,68 +6,92 @@ from models.assignments import Assignments
 from datetime import datetime
 import random
 
-
 def get_all_projects_data():
     try:
-        # 1. Obtener proyectos activos (aquellos sin fecha de desactivación)
-        proyectos_db = Projects.query.filter(
-            Projects.fecha_desactivacion.is_(None)
-        ).all()
-
+        proyectos_db = Projects.query.filter(Projects.fecha_desactivacion.is_(None)).all()
         proyectos = []
         for p in proyectos_db:
             equipo = []
-
-            # 2. Aprovechamos la relación para extraer el equipo asignado y activo
             for a in p.asignaciones:
                 if a.activo and a.fecha_desactivacion is None and a.usuario:
                     nombres = a.usuario.nombre.split() if a.usuario.nombre else []
-                    iniciales = (
-                        "".join([n[0] for n in nombres[:2]]).upper()
-                        if nombres
-                        else "XX"
-                    )
+                    iniciales = "".join([n[0] for n in nombres[:2]]).upper() if nombres else "XX"
+                    equipo.append({"id": a.usuario.id, "nombre": a.usuario.nombre, "rol": a.usuario.rol, "iniciales": iniciales})
 
-                    equipo.append(
-                        {
-                            "id": a.usuario.id,
-                            "nombre": a.usuario.nombre,
-                            "rol": a.usuario.rol,
-                            "iniciales": iniciales,
-                        }
-                    )
+            proyectos.append({
+                "id": p.id,
+                "nombre": p.nombre,
+                "cliente": p.cliente.nombre if p.cliente else "Sin Cliente",
+                "idCliente": (p.cliente.codigo if p.cliente and p.cliente.codigo else ""),
+                "codigo": p.codigo,
+                "estado": True if p.estado == "Activo" else False,
+                "equipo": equipo,
+            })
 
-            proyectos.append(
-                {
-                    "id": p.id,
-                    "nombre": p.nombre,
-                    "cliente": p.cliente.nombre if p.cliente else "Sin Cliente",
-                    "idCliente": (
-                        p.cliente.codigo if p.cliente and p.cliente.codigo else ""
-                    ),
-                    "codigo": p.codigo,
-                    "estado": True if p.estado == "Activo" else False,
-                    "equipo": equipo,
-                }
-            )
-
-        # 3. Obtener usuarios disponibles para el desplegable de asignar
         usuarios_db = Users.query.filter_by(activo=True).all()
         usuarios = []
         for u in usuarios_db:
             nombres = u.nombre.split() if u.nombre else []
-            iniciales = (
-                "".join([n[0] for n in nombres[:2]]).upper() if nombres else "XX"
-            )
+            iniciales = "".join([n[0] for n in nombres[:2]]).upper() if nombres else "XX"
+            usuarios.append({"id": u.id, "nombre": u.nombre, "rol": u.rol, "iniciales": iniciales})
 
-            usuarios.append(
-                {"id": u.id, "nombre": u.nombre, "rol": u.rol, "iniciales": iniciales}
-            )
+        clientes_db = Clients.query.all()
+        clientes_list = [{"id": c.id, "nombre": c.nombre, "codigo": c.codigo} for c in clientes_db]
 
-        return {"proyectos": proyectos, "usuariosDisponibles": usuarios}, 200
+        return {"proyectos": proyectos, "usuariosDisponibles": usuarios, "clientesDisponibles": clientes_list}, 200
 
     except Exception as e:
         print(f"Error en get_all_projects_data: {e}")
+        return {"error": str(e)}, 500
+
+def save_client(data):
+    try:
+        nombre = data.get("nombre")
+        codigo = data.get("codigo")
+        if not nombre:
+            return {"error": "El nombre del cliente es obligatorio"}, 400
+
+        existente = Clients.query.filter_by(nombre=nombre).first()
+        if existente:
+            return {"error": "Este cliente ya existe en la base de datos"}, 400
+
+        nuevo_cliente = Clients(nombre=nombre, codigo=codigo)
+        db.session.add(nuevo_cliente)
+        db.session.commit()
+        return {"message": "Cliente creado correctamente"}, 200
+    except Exception as e:
+        db.session.rollback()
+        return {"error": str(e)}, 500
+
+def update_client(client_id, data):
+    try:
+        cliente = Clients.query.get(client_id)
+        if not cliente:
+            return {"error": "Cliente no encontrado"}, 404
+
+        cliente.nombre = data.get("nombre", cliente.nombre)
+        cliente.codigo = data.get("codigo", cliente.codigo)
+        db.session.commit()
+        return {"message": "Cliente actualizado correctamente"}, 200
+    except Exception as e:
+        db.session.rollback()
+        return {"error": str(e)}, 500
+
+def delete_client(client_id):
+    try:
+        cliente = Clients.query.get(client_id)
+        if not cliente:
+            return {"error": "Cliente no encontrado"}, 404
+
+        proyectos_activos = Projects.query.filter_by(cliente_id=client_id).count()
+        if proyectos_activos > 0:
+            return {"error": "No puedes eliminar un cliente que tiene proyectos asignados"}, 400
+
+        db.session.delete(cliente)
+        db.session.commit()
+        return {"message": "Cliente eliminado correctamente"}, 200
+    except Exception as e:
+        db.session.rollback()
         return {"error": str(e)}, 500
 
 
@@ -113,9 +136,7 @@ def save_project(data, project_id=None):
 
     except Exception as e:
         db.session.rollback()
-        print(f"Error en save_project: {e}")
         return {"error": str(e)}, 500
-
 
 def soft_delete_project(project_id):
     try:
@@ -126,13 +147,10 @@ def soft_delete_project(project_id):
         proyecto.estado = "Cerrado"
         proyecto.fecha_desactivacion = datetime.utcnow()
         db.session.commit()
-
         return {"message": "Proyecto eliminado"}, 200
     except Exception as e:
         db.session.rollback()
-        print(f"Error en soft_delete_project: {e}")
         return {"error": str(e)}, 500
-
 
 def assign_user(proyecto_id, usuario_id):
     try:
@@ -144,20 +162,14 @@ def assign_user(proyecto_id, usuario_id):
             return {"error": "El usuario ya está en este proyecto"}, 400
 
         nueva_asignacion = Assignments(
-            proyecto_id=proyecto_id,
-            usuario_id=usuario_id,
-            activo=True,
-            fecha_asignacion=datetime.utcnow(),
+            proyecto_id=proyecto_id, usuario_id=usuario_id, activo=True, fecha_asignacion=datetime.utcnow()
         )
         db.session.add(nueva_asignacion)
         db.session.commit()
-
         return {"message": "Usuario asignado"}, 200
     except Exception as e:
         db.session.rollback()
-        print(f"Error en assign_user: {e}")
         return {"error": str(e)}, 500
-    
     
 def unassign_user(proyecto_id, usuario_id):
     try:
@@ -171,9 +183,7 @@ def unassign_user(proyecto_id, usuario_id):
         asignacion.activo = False
         asignacion.fecha_desactivacion = datetime.utcnow()
         db.session.commit()
-
         return {"message": "Usuario quitado del proyecto"}, 200
     except Exception as e:
         db.session.rollback()
-        print(f"Error en unassign_user: {e}")
         return {"error": str(e)}, 500

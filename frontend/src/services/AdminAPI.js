@@ -14,6 +14,23 @@ export default {
         return res.data
     },
 
+    async getClientes() {
+        const res = await api.get('/clientes')
+        return res.data
+    },
+    async crearCliente(payload) {
+        const res = await api.post('/clientes', payload)
+        return res.data
+    },
+    async editarCliente(id, payload) {
+        const res = await api.put(`/clientes/${id}`, payload)
+        return res.data
+    },
+    async eliminarCliente(id) {
+        const res = await api.delete(`/clientes/${id}`)
+        return res.data
+    },
+
     async getProyectos() {
         const res = await api.get('/proyectos')
         return res.data

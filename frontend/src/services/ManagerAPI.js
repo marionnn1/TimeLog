@@ -19,7 +19,21 @@ export default {
         return { data: res.data };
     },
 
-    // PROJECTS
+    // CLIENTES
+    async createClient(data) {
+        const res = await api.post(`${BASE_PATH}/projects/clients`, data);
+        return { data: res.data };
+    },
+    async editarCliente(id, data) {
+        const res = await api.put(`${BASE_PATH}/projects/clients/${id}`, data);
+        return { data: res.data };
+    },
+    async eliminarCliente(id) {
+        const res = await api.delete(`${BASE_PATH}/projects/clients/${id}`);
+        return { data: res.data };
+    },
+
+    // PROYECTOS
     async getProjectsData() {
         const res = await api.get(`${BASE_PATH}/projects`);
         return { data: res.data };
