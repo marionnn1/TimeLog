@@ -1,9 +1,34 @@
 import re
 from database.db import db
 from models.time_entries import TimeEntries
+from models.users import Users
 from models.audits import Audits
 from datetime import datetime
 
+def get_max_horas_dia_usuario(usuario_id, fecha_str):
+    usuario = Users.query.get(usuario_id)
+    if not usuario: return 8.5
+    
+    if isinstance(fecha_str, str):
+        fecha = datetime.strptime(fecha_str, "%Y-%m-%d").date()
+    else:
+        fecha = fecha_str
+        
+    mes = fecha.month
+    dia_semana = fecha.weekday()
+    if dia_semana >= 5: return 0.0 
+    
+    es_verano = (mes == 7 or mes == 8)
+    tipo = usuario.tipo_contrato or '40H'
+    
+    if tipo == '40H':
+        if es_verano: return 7.0
+        if dia_semana == 4: return 6.5
+        return 8.5
+    else:
+        if es_verano: return float(usuario.horas_verano or 7.0)
+        if dia_semana == 4: return float(usuario.horas_invierno_v or 6.5)
+        return float(usuario.horas_invierno_lj or 8.5)
 
 def get_pending_validations():
     try:
@@ -14,24 +39,16 @@ def get_pending_validations():
             usuario_nombre = s.usuario.nombre if s.usuario else "Desconocido"
 
             nombres = usuario_nombre.split()
-            avatar = (
-                (nombres[0][0] + (nombres[1][0] if len(nombres) > 1 else "")).upper()
-                if nombres
-                else "XX"
-            )
+            avatar = (nombres[0][0] + (nombres[1][0] if len(nombres) > 1 else "")).upper() if nombres else "XX"
 
             proyecto_nombre = s.proyecto.nombre if s.proyecto else "Sin Proyecto"
-            cliente_nombre = (
-                s.proyecto.cliente.nombre
-                if s.proyecto and s.proyecto.cliente
-                else "Interno"
-            )
+            cliente_nombre = s.proyecto.cliente.nombre if s.proyecto and s.proyecto.cliente else "Interno"
 
             comentario_raw = s.comentario or ""
-            horas_solicitadas = float(s.horas) 
+            horas_solicitadas = float(s.horas) if s.horas is not None else 0.0
             motivo_limpio = comentario_raw
 
-            match = re.search(r'\[Solicita cambio a ([\d\.]+)h\] - Motivo: (.*)', comentario_raw)
+            match = re.search(r'\[Solicita.*?([\d\.]+)h\]\s*-\s*Motivo:\s*(.*)', comentario_raw)
             if match:
                 try:
                     horas_solicitadas = float(match.group(1))
@@ -39,26 +56,22 @@ def get_pending_validations():
                 except ValueError:
                     pass
 
-            solicitudes.append(
-                {
-                    "id": s.id,
-                    "usuario": usuario_nombre,
-                    "avatar": avatar,
-                    "fecha": s.fecha.strftime("%Y-%m-%d") if s.fecha else "",
-                    "proyecto": proyecto_nombre,
-                    "cliente": cliente_nombre,
-                    "horasActuales": float(s.horas),
-                    "horasSolicitadas": horas_solicitadas, 
-                    "motivo": motivo_limpio or "Sin motivo especificado",
-                    "estado": "pendiente",
-                }
-            )
-
+            solicitudes.append({
+                "id": s.id,
+                "usuario": usuario_nombre,
+                "avatar": avatar,
+                "fecha": s.fecha.strftime("%Y-%m-%d") if s.fecha else "",
+                "proyecto": proyecto_nombre,
+                "cliente": cliente_nombre,
+                "horasActuales": float(s.horas) if s.horas is not None else 0.0,
+                "horasSolicitadas": horas_solicitadas, 
+                "motivo": motivo_limpio or "Sin motivo especificado",
+                "estado": "pendiente",
+            })
         return solicitudes, 200
     except Exception as e:
         print(f"Error al obtener validaciones pendientes: {e}")
         return {"error": str(e)}, 500
-
 
 def approve_validation(imputacion_id, nuevas_horas):
     try:
@@ -66,9 +79,27 @@ def approve_validation(imputacion_id, nuevas_horas):
         if not imputacion:
             return {"error": "Imputación no encontrada"}, 404
 
+        usuario_id = imputacion.usuario_id
+        fecha = imputacion.fecha
+
+        max_horas = get_max_horas_dia_usuario(usuario_id, fecha)
+        
+        otras_imputaciones = TimeEntries.query.filter(
+            TimeEntries.usuario_id == usuario_id,
+            TimeEntries.fecha == fecha,
+            TimeEntries.id != imputacion_id,
+            TimeEntries.estado != 'Rechazado'
+        ).all()
+        
+        horas_otros_proyectos = sum(float(i.horas) for i in otras_imputaciones)
+        
+        if (horas_otros_proyectos + float(nuevas_horas)) > max_horas:
+            return {"error": f"No se puede aprobar. El total diario superaría su límite de {max_horas}h (Ya tiene {horas_otros_proyectos}h en otros proyectos)."}, 400
+
         imputacion.horas = nuevas_horas
         imputacion.estado = "Aprobado"
         imputacion.fecha_validacion = datetime.utcnow()
+        imputacion.comentario = ""
 
         db.session.commit()
         return {"message": "Solicitud aprobada y corregida"}, 200
@@ -77,22 +108,20 @@ def approve_validation(imputacion_id, nuevas_horas):
         print(f"Error al aprobar validación: {e}")
         return {"error": str(e)}, 500
 
-
 def reject_validation(imputacion_id, motivo_rechazo):
     try:
         imputacion = TimeEntries.query.get(imputacion_id)
         if not imputacion:
             return {"error": "Imputación no encontrada"}, 404
 
-        imputacion.estado = "Rechazado"
+        if float(imputacion.horas) == 0.0:
+            db.session.delete(imputacion)
+        else:
+            imputacion.estado = "Rechazado"
+            imputacion.comentario = f"[Rechazado] {motivo_rechazo}"
 
         detalle_log = f"Solicitud {imputacion_id} rechazada. Motivo: {motivo_rechazo}"
-        nuevo_log = Audits(
-            actor_nombre="Manager",
-            accion="Rechazo Solicitud",
-            gravedad="warning",
-            detalle=detalle_log,
-        )
+        nuevo_log = Audits(actor_nombre="Manager", accion="Rechazo Solicitud", gravedad="warning", detalle=detalle_log)
         db.session.add(nuevo_log)
 
         db.session.commit()
