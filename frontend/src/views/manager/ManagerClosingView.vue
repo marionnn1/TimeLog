@@ -122,35 +122,69 @@ const reabrirMes = () => {
 }
 
 const exportarExcel = () => {   
-    const headers = ['ID', 'Nombre', 'Rol', 'Horas Reales', 'Estado', 'Dias Faltantes']
-    const rows = auditoriaUsuarios.value.map(u => [
-        u.id,
-        u.nombre,
-        u.rol,
-        u.horasReales,
-        u.estado,
-        u.diasFaltantes.join(', ') 
-    ])
+    // Formato estructurado y claro por columnas
+    const headers = [
+        'ID Empleado', 
+        'Nombre Empleado', 
+        'Rol', 
+        'Estado Periodo', 
+        'Días Faltantes', 
+        'Horas Totales Mes', 
+        'Cliente', 
+        'Proyecto', 
+        'Horas Proyecto'
+    ]
+    
+    const rows = []
+
+    auditoriaUsuarios.value.forEach(u => {
+        // Datos base del usuario que se repetirán si tiene varios proyectos
+        const baseData = [
+            u.id,
+            `"${u.nombre}"`,
+            `"${u.rol}"`,
+            `"${u.estado}"`,
+            `"${u.diasFaltantes.join(', ')}"`,
+            u.horasReales
+        ]
+
+        // Si el usuario tiene imputaciones en proyectos, creamos una fila por cada proyecto
+        if (u.desgloseProyectos && u.desgloseProyectos.length > 0) {
+            u.desgloseProyectos.forEach(p => {
+                rows.push([
+                    ...baseData,
+                    `"${p.cliente}"`,
+                    `"${p.proyecto}"`,
+                    p.horas
+                ])
+            })
+        } else {
+            // Si no tiene imputaciones, dejamos las columnas de proyecto vacías
+            rows.push([
+                ...baseData,
+                '""',
+                '""',
+                0
+            ])
+        }
+    })
 
     const csvContent = [
         headers.join(';'),
         ...rows.map(row => row.join(';'))
     ].join('\n')
 
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
+    // El \uFEFF (BOM) fuerza a Excel a reconocer que el archivo es UTF-8, arreglando los acentos
+    const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' })
     const url = URL.createObjectURL(blob)
     const link = document.createElement('a')
     link.setAttribute('href', url)
-    link.setAttribute('download', `auditoria_cierre_${fechaCierre.value}.csv`)
+    link.setAttribute('download', `Cierre_Mensual_${fechaCierre.value}.csv`)
     document.body.appendChild(link)
 
     link.click() 
     document.body.removeChild(link) 
-    showToast('Archivo CSV descargado', 'success')
-}
-
-const notificarUsuario = (user) => {
-    showToast(`Recordatorio enviado a ${user.nombre}`, 'success')
+    showToast('Reporte descargado correctamente', 'success')
 }
 </script>
 
@@ -240,7 +274,6 @@ const notificarUsuario = (user) => {
                             <th class="px-6 py-4 font-bold text-center">Horas Reales</th>
                             <th class="px-6 py-4 font-bold w-1/3">Días Pendientes</th>
                             <th class="px-6 py-4 font-bold text-center">Estado</th>
-                            <th class="px-6 py-4 font-bold text-right" v-if="!mesCerrado">Acción</th>
                         </tr>
                     </thead>
                     <tbody class="text-sm divide-y divide-gray-50">
@@ -302,14 +335,6 @@ const notificarUsuario = (user) => {
                                 <span v-else class="badge bg-gray-50 text-gray-400 border-gray-200">
                                     Sin actividad
                                 </span>
-                            </td>
-
-                            <td class="px-6 py-4 text-right" v-if="!mesCerrado">
-                                <button v-if="user.estado === 'incompleto'" @click="notificarUsuario(user)"
-                                    class="text-xs font-bold text-blue-600 hover:text-blue-800 hover:bg-blue-50 px-3 py-1.5 rounded transition border border-transparent hover:border-blue-100 ml-auto">
-                                    Notificar
-                                </button>
-                                <span v-else class="text-gray-300 text-xs">-</span>
                             </td>
 
                         </tr>
