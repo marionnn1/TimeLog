@@ -122,6 +122,20 @@ const cargarProyectosParaModal = async () => {
     }
 }
 
+const proyectosAgrupadosParaModal = computed(() => {
+    const grupos = {}
+    proyectosRealDB.value.forEach(p => {
+        const cliente = p.Cliente || 'Sin Cliente asignado' 
+        if (!grupos[cliente]) grupos[cliente] = []
+        grupos[cliente].push(p)
+    })
+    
+    return Object.keys(grupos).sort().map(cliente => ({
+        cliente,
+        proyectos: grupos[cliente].sort((a, b) => a.Nombre.localeCompare(b.Nombre))
+    }))
+})
+
 const cargarHorasDesdeAPI = async () => {
     const user = store.getCurrentUser()
     if (!user) return
@@ -175,7 +189,6 @@ const guardarCambios = async () => {
     }
     
     try {
-        // USAMOS EL SERVICIO
         const res = await MyProjectsAPI.guardarImputaciones(payload)
         if (res.status === 'success') {
             showToast('Imputaciones guardadas correctamente', 'success')
@@ -217,19 +230,15 @@ const getMaxHorasDia = (index) => {
     if (tiposDiasSemana.value[index]) return 0 
     if (date.getDay() === 0 || date.getDay() === 6) return 0
     
-    // Regla 1: Verano (Julio y Agosto) -> Máximo 7h TODOS los días laborables (incluyendo viernes)
-    if (esJornadaVerano(date)) {
-        return Math.min(horasDiarias.value, 7.0);
-    }
+    if (esJornadaVerano(date)) return Math.min(horasDiarias.value, 7.0);
 
-    // Regla 2: Resto del año (Invierno) -> L-J lo que marque la jornada, Viernes máximo 6.5h (si la jornada es > 7h)
     let maxHoras = horasDiarias.value;
     if (date.getDay() === 5 && horasDiarias.value > 7) {
         maxHoras = Math.min(maxHoras, 6.5);
     }
-
     return maxHoras;
 }
+
 const getMaxHorasSemana = () => {
     return diasSemana.value.reduce((total, _, i) => total + getMaxHorasDia(i), 0)
 }
@@ -281,20 +290,24 @@ const hayErrores = computed(() => {
 
 const abrirModal = () => { nuevoRegistro.value = { proyectoId: undefined }; mostrarModal.value = true }
 const cerrarModal = () => { mostrarModal.value = false }
+
 const confirmarAnadirLinea = () => {
+    if(!nuevoRegistro.value.proyectoId) return showToast('Por favor, selecciona un proyecto de la lista', 'error')
+
     const p = proyectosRealDB.value.find(x => x.Id === nuevoRegistro.value.proyectoId)
     if (!p) return showToast('Selecciona un proyecto válido', 'error')
     if (filas.value.find(f => f.id === p.Id)) return showToast('El proyecto ya está en la lista', 'error')
     
     filas.value.push({ 
         id: p.Id, 
-        cliente: p.ClienteNombre || 'Cliente', 
+        cliente: p.Cliente || 'Sin Cliente asignado', 
         proyecto: p.Nombre, 
         horas: [0, 0, 0, 0, 0, 0, 0], 
         seleccionado: false 
     })
     cerrarModal()
 }
+
 const borrarLineas = () => {
     filas.value = filas.value.filter(f => !f.seleccionado)
     showToast('Líneas eliminadas de la vista', 'success')
@@ -399,7 +412,7 @@ onUnmounted(() => document.removeEventListener('click', handleClickOutside))
                 </div>
             </div>
 
-            <div class="overflow-x-auto flex-1 relative">
+            <div class="overflow-x-auto flex-1 relative scrollbar-thin">
                 <div v-if="cargando" class="absolute inset-0 z-10 flex items-center justify-center bg-white/40"><Loader2 class="w-10 h-10 text-primary animate-spin" /></div>
                 <table class="w-full text-left border-collapse">
                     <thead>
@@ -470,25 +483,52 @@ onUnmounted(() => document.removeEventListener('click', handleClickOutside))
         </div>
 
         <div v-if="mostrarModal" class="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4">
-            <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden animate-in zoom-in duration-200">
-                <div class="bg-slate-50 border-b px-6 py-4 flex justify-between items-center">
+            <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden animate-in zoom-in duration-200 flex flex-col max-h-[85vh]">
+                <div class="bg-slate-50 border-b px-6 py-4 flex justify-between items-center shrink-0">
                     <h3 class="text-lg font-bold text-slate-800">Añadir Proyecto</h3>
-                    <button @click="cerrarModal" class="text-gray-400 hover:text-red-500"><X class="w-5 h-5" /></button>
+                    <button @click="cerrarModal" class="text-gray-400 hover:text-red-500 transition-colors"><X class="w-5 h-5" /></button>
                 </div>
-                <div class="p-6 space-y-4">
-                    <div>
-                        <label class="text-[10px] font-black uppercase text-slate-400 tracking-widest">Proyecto Asignado (Base de Datos)</label>
-                        <select v-model="nuevoRegistro.proyectoId" class="w-full border-2 border-slate-100 rounded-xl p-3 mt-2 outline-none focus:border-primary transition bg-slate-50">
-                            <option :value="undefined" disabled>Selecciona un proyecto activo...</option>
-                            <option v-for="p in proyectosRealDB" :key="p.Id" :value="p.Id">
-                                {{ p.Nombre }} - ({{ p.ClienteNombre }})
-                            </option>
-                        </select>
+                
+                <div class="p-6 flex-1 overflow-hidden flex flex-col">
+                    <label class="text-[10px] font-black uppercase text-slate-400 tracking-widest mb-3 block shrink-0">
+                        Selecciona tu proyecto asignado
+                    </label>
+                    
+                    <div class="flex-1 overflow-y-auto border border-gray-200 rounded-xl bg-white shadow-inner scrollbar-thin relative">
+                        <div v-if="proyectosRealDB.length === 0" class="p-8 text-center flex flex-col items-center justify-center text-gray-400">
+                            <Loader2 v-if="cargando" class="w-6 h-6 animate-spin mb-2" />
+                            <span v-if="!cargando" class="text-sm">No tienes proyectos asignados.</span>
+                        </div>
+
+                        <template v-for="grupo in proyectosAgrupadosParaModal" :key="grupo.cliente">
+                            <div class="bg-slate-100/90 px-4 py-2.5 text-[10px] font-bold text-slate-500 uppercase tracking-widest sticky top-0 backdrop-blur-sm border-b border-gray-200 flex items-center gap-2 z-10">
+                                <Building2 class="w-3.5 h-3.5 text-slate-400" /> {{ grupo.cliente }}
+                            </div>
+                            <div
+                                v-for="p in grupo.proyectos"
+                                :key="p.Id"
+                                @click="nuevoRegistro.proyectoId = p.Id"
+                                class="px-4 py-3 cursor-pointer border-b border-gray-50 last:border-b-0 hover:bg-blue-50/50 transition-colors flex items-center justify-between group"
+                                :class="nuevoRegistro.proyectoId === p.Id ? 'bg-blue-50' : ''"
+                            >
+                                <div class="flex items-center gap-3">
+                                    <div class="w-4 h-4 rounded-full border flex items-center justify-center transition-colors"
+                                         :class="nuevoRegistro.proyectoId === p.Id ? 'border-primary bg-primary' : 'border-gray-300 group-hover:border-blue-400'">
+                                        <Check v-if="nuevoRegistro.proyectoId === p.Id" class="w-3 h-3 text-white" stroke-width="3"/>
+                                    </div>
+                                    <span class="text-sm font-medium transition-colors" 
+                                          :class="nuevoRegistro.proyectoId === p.Id ? 'text-primary font-bold' : 'text-gray-700 group-hover:text-blue-800'">
+                                        {{ p.Nombre }}
+                                    </span>
+                                </div>
+                            </div>
+                        </template>
                     </div>
                 </div>
-                <div class="px-6 py-4 bg-gray-50 border-t flex justify-end gap-3">
-                    <button @click="cerrarModal" class="px-4 py-2 text-sm font-bold text-slate-400 uppercase tracking-widest">Cancelar</button>
-                    <button @click="confirmarAnadirLinea" class="bg-primary text-white px-6 py-2 rounded-xl font-bold uppercase tracking-widest text-xs">Añadir a la Tabla</button>
+
+                <div class="px-6 py-4 bg-gray-50 border-t flex justify-end gap-3 shrink-0">
+                    <button @click="cerrarModal" class="px-4 py-2 text-sm font-bold text-slate-400 uppercase tracking-widest hover:text-slate-600">Cancelar</button>
+                    <button @click="confirmarAnadirLinea" class="bg-primary text-white px-6 py-2 rounded-xl font-bold uppercase tracking-widest text-xs hover:bg-blue-700 shadow-md transition-all">Añadir a la Tabla</button>
                 </div>
             </div>
         </div>
