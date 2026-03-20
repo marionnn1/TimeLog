@@ -7,11 +7,12 @@ import AbsencesAPI from '../services/AbsencesAPI'
 
 import {
     ChevronLeft, ChevronRight, Plus, Trash2, Save, Building2, Info, X, RotateCcw, 
-    Clock, ChevronDown, Check, AlertCircle, CheckCircle2, Loader2
+    Check, AlertCircle, CheckCircle2, Loader2, Wand2, Settings2, Briefcase
 } from 'lucide-vue-next'
 
 const route = useRoute()
 const store = useDataStore() 
+const user = store.getCurrentUser()
 
 const toast = ref({ show: false, message: '', type: 'success' })
 let toastTimeout = null
@@ -25,37 +26,80 @@ const showToast = (message, type = 'success') => {
     }, 3000)
 }
 
-const horasDiarias = ref(8.5) 
-const mostrarSelectorJornada = ref(false)
-
-const opcionesHoras = computed(() => {
-    const opts = []
-    for (let h = 8.5; h >= 4; h -= 0.5) {
-        opts.push({ 
-            value: h, 
-            label: `${h}h / día`,
-            desc: h === 8.5 ? 'Estándar (Viernes 6.5h)' : 'Jornada lineal L-V' 
-        })
-    }
-    return opts
+const configJornada = ref({
+    tipoContrato: '40H',
+    horasNormal: [8.5, 8.5, 8.5, 8.5, 6.5],
+    horasVerano: [7.0, 7.0, 7.0, 7.0, 7.0]
 })
 
-const seleccionarHoras = (valor) => {
-    horasDiarias.value = valor
-    mostrarSelectorJornada.value = false
-}
+const configJornadaTemp = ref(null)
+const mostrarModalJornada = ref(false)
 
-const selectorRef = ref(null)
-const handleClickOutside = (event) => {
-    if (selectorRef.value && !selectorRef.value.contains(event.target)) {
-        mostrarSelectorJornada.value = false
+const cargarJornadaBD = async () => {
+    if (!user) return
+    try {
+        const res = await MyProjectsAPI.getJornada(user.id)
+        if (res.status === 'success' && res.data) {
+            const local = localStorage.getItem(`jornada_custom_${user.id}`)
+            if (local) {
+                const parsed = JSON.parse(local)
+                if (parsed.tipoContrato === (res.data.tipoContrato || '40H')) {
+                    configJornada.value = parsed
+                    return
+                }
+            }
+            
+            configJornada.value = {
+                tipoContrato: res.data.tipoContrato || '40H',
+                horasNormal: [
+                    res.data.horasInviernoLJ || 8.5,
+                    res.data.horasInviernoLJ || 8.5,
+                    res.data.horasInviernoLJ || 8.5,
+                    res.data.horasInviernoLJ || 8.5,
+                    res.data.horasInviernoV || 6.5
+                ],
+                horasVerano: Array(5).fill(res.data.horasVerano || 7.0)
+            }
+        }
+    } catch (e) {
+        console.error("No se pudo cargar la jornada, usando por defecto.", e)
     }
 }
+
+const abrirModalJornada = () => {
+    configJornadaTemp.value = JSON.parse(JSON.stringify(configJornada.value))
+    mostrarModalJornada.value = true
+}
+
+const guardarConfigJornada = async () => {
+    if (!user) return
+    configJornada.value = JSON.parse(JSON.stringify(configJornadaTemp.value))
+    
+    localStorage.setItem(`jornada_custom_${user.id}`, JSON.stringify(configJornada.value))
+
+    try {
+        const payload = {
+            usuario_id: user.id,
+            tipoContrato: configJornada.value.tipoContrato,
+            horasInviernoLJ: configJornada.value.horasNormal[0], 
+            horasInviernoV: configJornada.value.horasNormal[4],  
+            horasVerano: configJornada.value.horasVerano[0]      
+        }
+        const res = await MyProjectsAPI.updateJornada(payload)
+        if(res.status === 'success') {
+            mostrarModalJornada.value = false
+            showToast('Jornada guardada', 'success')
+            cargarHorasDesdeAPI()
+        }
+    } catch (e) {
+        showToast('Error al guardar', 'error')
+    }
+}
+
 
 const ausenciasPersonales = ref([])
 
 const cargarAusenciasAPI = async () => {
-    const user = store.getCurrentUser()
     if (!user) return
     try {
         const m1 = diasSemana.value[0].getMonth() + 1
@@ -109,9 +153,6 @@ const esPasoInvalido = (valor) => {
 }
 
 const cargarProyectosParaModal = async () => {
-    const user = store.getCurrentUser();
-    if (!user) return;
-
     try {
         const res = await MyProjectsAPI.getProyectosActivos()
         if (res.status === 'success') {
@@ -137,7 +178,6 @@ const proyectosAgrupadosParaModal = computed(() => {
 })
 
 const cargarHorasDesdeAPI = async () => {
-    const user = store.getCurrentUser()
     if (!user) return
     const lunesStr = lunesActual.value.toISOString().split('T')[0]
     try {
@@ -180,7 +220,6 @@ const guardarCambios = async () => {
         f.horas = f.horas.map((h, i) => tiposDiasSemana.value[i] ? 0 : h)
     })
 
-    const user = store.getCurrentUser()
     const fechasSemana = diasSemana.value.map(d => d.toISOString().split('T')[0])
     const payload = {
         usuario_id: user.id,
@@ -207,6 +246,7 @@ const getLunesSemana = (fecha) => {
     const diff = d.getDate() - dia + (dia === 0 ? -6 : 1)
     return new Date(d.setDate(diff))
 }
+
 const lunesActual = computed(() => getLunesSemana(fechaActual.value))
 const diasSemana = computed(() => {
     const dias = []
@@ -228,15 +268,21 @@ const esJornadaVerano = (date) => { const mes = date.getMonth(); return mes === 
 const getMaxHorasDia = (index) => {
     const date = diasSemana.value[index]
     if (tiposDiasSemana.value[index]) return 0 
-    if (date.getDay() === 0 || date.getDay() === 6) return 0
     
-    if (esJornadaVerano(date)) return Math.min(horasDiarias.value, 7.0);
+    const day = date.getDay() 
+    if (day === 0 || day === 6) return 0
+    
+    const isVerano = esJornadaVerano(date)
+    const dayIndex = day - 1 
 
-    let maxHoras = horasDiarias.value;
-    if (date.getDay() === 5 && horasDiarias.value > 7) {
-        maxHoras = Math.min(maxHoras, 6.5);
+    if (configJornada.value.tipoContrato === '40H') {
+        if (isVerano) return 7.0;
+        if (day === 5) return 6.5;
+        return 8.5;
+    } else {
+        if (isVerano) return configJornada.value.horasVerano[dayIndex];
+        return configJornada.value.horasNormal[dayIndex];
     }
-    return maxHoras;
 }
 
 const getMaxHorasSemana = () => {
@@ -288,6 +334,19 @@ const hayErrores = computed(() => {
     return excedeHoras || tieneDecimalesMal;
 })
 
+const autocompletarFila = (fila) => {
+    for (let i = 0; i < 7; i++) {
+        if (esEditable(i)) {
+            const maxDia = getMaxHorasDia(i)
+            const horasOtrasFilas = filas.value.filter(f => f.id !== fila.id).reduce((acc, f) => acc + (parseFloat(f.horas[i]) || 0), 0)
+            const horasDisponibles = Math.max(0, maxDia - horasOtrasFilas)
+
+            fila.horas[i] = horasDisponibles
+        }
+    }
+    showToast('Horas rellenadas según tu contrato', 'success')
+}
+
 const abrirModal = () => { nuevoRegistro.value = { proyectoId: undefined }; mostrarModal.value = true }
 const cerrarModal = () => { mostrarModal.value = false }
 
@@ -314,12 +373,11 @@ const borrarLineas = () => {
 }
 
 onMounted(() => {
-    document.addEventListener('click', handleClickOutside)
+    cargarJornadaBD()
     cargarHorasDesdeAPI()
     cargarProyectosParaModal()
     cargarAusenciasAPI()
 })
-onUnmounted(() => document.removeEventListener('click', handleClickOutside))
 </script>
 
 <template>
@@ -333,31 +391,13 @@ onUnmounted(() => document.removeEventListener('click', handleClickOutside))
                     </span>
                 </div>
                 <div class="flex gap-4 items-center">
-                    <div class="relative" ref="selectorRef">
-                        <button @click="mostrarSelectorJornada = !mostrarSelectorJornada" 
-                                class="flex items-center gap-3 bg-white border border-gray-200 rounded-xl px-4 py-2.5 shadow-sm hover:shadow-md transition-all group min-w-[180px] justify-between">
-                            <div class="flex items-center gap-3">
-                                <Clock class="w-4 h-4 text-blue-600" />
-                                <div class="flex flex-col items-start text-left leading-none">
-                                    <span class="text-[10px] text-gray-400 font-bold uppercase mb-0.5">Jornada</span>
-                                    <span class="text-sm font-bold text-gray-700">{{ horasDiarias }}h / día</span>
-                                </div>
-                            </div>
-                            <ChevronDown class="w-4 h-4 text-gray-400" :class="mostrarSelectorJornada ? 'rotate-180' : ''"/>
-                        </button>
-                        <div v-if="mostrarSelectorJornada" class="absolute top-full right-0 mt-2 w-64 bg-white rounded-xl shadow-xl border z-50 overflow-hidden">
-                            <div v-for="opcion in opcionesHoras" :key="opcion.value" @click="seleccionarHoras(opcion.value)"
-                                 class="px-4 py-3 hover:bg-slate-50 cursor-pointer flex items-center gap-3 border-b last:border-0 transition-colors">
-                                <div class="w-4 h-4 rounded-full border flex items-center justify-center" :class="horasDiarias === opcion.value ? 'bg-blue-600 border-blue-600' : 'border-gray-300'">
-                                    <Check v-if="horasDiarias === opcion.value" class="w-2.5 h-2.5 text-white" stroke-width="3" />
-                                </div>
-                                <div class="flex flex-col">
-                                    <span class="text-sm font-bold text-gray-700">{{ opcion.label }}</span>
-                                    <span class="text-xs text-gray-400">{{ opcion.desc }}</span>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
+                    
+                    <button @click="abrirModalJornada" 
+                            class="flex items-center gap-2 bg-white border border-gray-200 rounded-xl px-4 py-2 shadow-sm hover:shadow-md hover:border-blue-300 transition-all text-sm font-bold text-gray-700">
+                        <Settings2 class="w-4 h-4 text-primary" /> 
+                        Contrato: <span class="text-primary font-black uppercase">{{ configJornada.tipoContrato === '40H' ? 'Completa' : 'Personalizada' }}</span>
+                    </button>
+                    
                     <div class="h-8 w-px bg-gray-200 mx-2"></div>
                     <div class="flex items-center bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
                         <button @click="semanaAnterior" class="p-2 hover:bg-gray-50 text-gray-600 border-r"><ChevronLeft class="w-5 h-5" /></button>
@@ -428,10 +468,19 @@ onUnmounted(() => document.removeEventListener('click', handleClickOutside))
                     </thead>
                     <tbody class="text-sm text-gray-700 divide-y divide-gray-50">
                         <tr v-if="filas.length === 0 && !cargando"><td colspan="11" class="px-6 py-12 text-center text-gray-400 italic">No hay imputaciones esta semana. Pulsa "Añadir Línea" para comenzar.</td></tr>
+                        
                         <tr v-for="fila in filas" :key="fila.id" class="hover:bg-blue-50/20 transition group">
                             <td class="p-3 text-center"><input type="checkbox" v-model="fila.seleccionado" class="rounded border-gray-300 text-primary"></td>
                             <td class="p-2"><div class="flex items-center gap-2 border border-transparent rounded px-2 py-1"><Building2 class="w-3 h-3 text-gray-400" /><span class="text-xs font-medium">{{ fila.cliente }}</span></div></td>
-                            <td class="p-2"><span class="text-xs font-bold text-slate-700 px-2">{{ fila.proyecto }}</span></td>
+                            
+                            <td class="p-2 relative group/cell">
+                                <div class="flex items-center justify-between pr-2">
+                                    <span class="text-xs font-bold text-slate-700 px-2">{{ fila.proyecto }}</span>
+                                    <button @click="autocompletarFila(fila)" class="opacity-0 group-hover/cell:opacity-100 p-1.5 text-blue-600 hover:bg-blue-100 rounded-lg transition-all" title="Autocompletar semana (Varita mágica)">
+                                        <Wand2 class="w-4 h-4" />
+                                    </button>
+                                </div>
+                            </td>
                             
                             <td v-for="(hora, index) in fila.horas" :key="index" class="p-1 text-center relative" :class="[esFinDeSemana(diasSemana[index]) ? 'bg-slate-50' : '']">
                                 
@@ -482,6 +531,64 @@ onUnmounted(() => document.removeEventListener('click', handleClickOutside))
             </div>
         </div>
 
+        <div v-if="mostrarModalJornada" class="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4">
+            <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden animate-in zoom-in duration-200 flex flex-col max-h-[85vh]">
+                <div class="bg-slate-50 border-b px-6 py-4 flex justify-between items-center shrink-0">
+                    <h3 class="text-lg font-bold text-slate-800 flex items-center gap-2"><Clock class="w-5 h-5 text-primary"/> Configuración de Jornada</h3>
+                    <button @click="mostrarModalJornada = false" class="text-gray-400 hover:text-red-500 transition-colors"><X class="w-5 h-5" /></button>
+                </div>
+                
+                <div class="p-6 flex-1 overflow-y-auto space-y-6">
+                    <div class="flex bg-gray-100 p-1 rounded-xl">
+                        <button @click="configJornadaTemp.tipoContrato = '40H'" :class="configJornadaTemp.tipoContrato === '40H' ? 'bg-white shadow text-primary font-bold' : 'text-gray-500 hover:text-gray-700'" class="flex-1 py-2 rounded-lg text-sm transition-all">Jornada Completa</button>
+                        <button @click="configJornadaTemp.tipoContrato = 'Personalizada'" :class="configJornadaTemp.tipoContrato === 'Personalizada' ? 'bg-white shadow text-primary font-bold' : 'text-gray-500 hover:text-gray-700'" class="flex-1 py-2 rounded-lg text-sm transition-all">Personalizada</button>
+                    </div>
+
+                    <div v-if="configJornadaTemp.tipoContrato === '40H'" class="bg-blue-50 border border-blue-100 rounded-xl p-4 text-sm text-blue-800 space-y-2">
+                        <p><strong>Jornada Completa:</strong></p>
+                        <ul class="list-disc pl-4 space-y-1 text-blue-700">
+                            <li>Lunes a Jueves: <strong>8.5h</strong></li>
+                            <li>Viernes: <strong>6.5h</strong></li>
+                            <li>Verano (Julio - Agosto): <strong>7.0h</strong> diarias</li>
+                        </ul>
+                    </div>
+
+                    <div v-else class="space-y-5">
+                        <p class="text-xs text-gray-500 leading-relaxed">Configura las horas exactas para cada día según tu contrato personalizado.</p>
+                        
+                        <div>
+                            <label class="text-[10px] font-black uppercase text-slate-400 tracking-widest mb-3 block shrink-0">
+                                Jornada Normal (Lunes a Viernes)
+                            </label>
+                            <div class="grid grid-cols-5 gap-2">
+                                <div class="text-center" v-for="(diaLabel, idx) in ['Lun', 'Mar', 'Mié', 'Jue', 'Vie']" :key="'n'+idx">
+                                    <label class="text-xs text-gray-500 mb-1 block">{{ diaLabel }}</label>
+                                    <input type="number" step="0.5" min="0" max="24" v-model.number="configJornadaTemp.horasNormal[idx]" class="w-full text-center border border-gray-300 rounded-lg p-2 text-sm font-bold outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all">
+                                </div>
+                            </div>
+                        </div>
+
+                        <div>
+                            <label class="text-[10px] font-black uppercase text-slate-400 tracking-widest mb-3 block shrink-0">
+                                Jornada de Verano (Julio y Agosto)
+                            </label>
+                            <div class="grid grid-cols-5 gap-2">
+                                <div class="text-center" v-for="(diaLabel, idx) in ['Lun', 'Mar', 'Mié', 'Jue', 'Vie']" :key="'v'+idx">
+                                    <label class="text-xs text-gray-500 mb-1 block">{{ diaLabel }}</label>
+                                    <input type="number" step="0.5" min="0" max="24" v-model.number="configJornadaTemp.horasVerano[idx]" class="w-full text-center border border-gray-300 rounded-lg p-2 text-sm font-bold outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all">
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="px-6 py-4 bg-gray-50 border-t flex justify-end gap-3 shrink-0">
+                    <button @click="mostrarModalJornada = false" class="px-4 py-2 text-sm font-bold text-slate-400 uppercase tracking-widest hover:text-slate-600">Cancelar</button>
+                    <button @click="guardarConfigJornada" class="bg-primary text-white px-6 py-2 rounded-xl font-bold uppercase tracking-widest text-xs hover:bg-blue-700 shadow-md transition-all">Guardar</button>
+                </div>
+            </div>
+        </div>
+
         <div v-if="mostrarModal" class="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4">
             <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden animate-in zoom-in duration-200 flex flex-col max-h-[85vh]">
                 <div class="bg-slate-50 border-b px-6 py-4 flex justify-between items-center shrink-0">
@@ -502,7 +609,7 @@ onUnmounted(() => document.removeEventListener('click', handleClickOutside))
 
                         <template v-for="grupo in proyectosAgrupadosParaModal" :key="grupo.cliente">
                             <div class="bg-slate-100/90 px-4 py-2.5 text-[10px] font-bold text-slate-500 uppercase tracking-widest sticky top-0 backdrop-blur-sm border-b border-gray-200 flex items-center gap-2 z-10">
-                                <Building2 class="w-3.5 h-3.5 text-slate-400" /> {{ grupo.cliente }}
+                                <Briefcase class="w-3.5 h-3.5 text-slate-400" /> {{ grupo.cliente }}
                             </div>
                             <div
                                 v-for="p in grupo.proyectos"

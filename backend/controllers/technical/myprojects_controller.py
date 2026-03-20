@@ -5,7 +5,9 @@ from services.technical.myprojects_service import (
     guardar_imputaciones_lote, 
     obtener_analitica_mensual,
     obtener_analitica_equipo,
-    obtener_calendario_mensual
+    obtener_calendario_mensual,
+    obtener_jornada,
+    actualizar_jornada
 )
 from datetime import datetime
 
@@ -79,3 +81,27 @@ def solicitar_correccion():
     if exito:
         return jsonify({"status": "success", "message": "Solicitud enviada al responsable"}), 200
     return jsonify({"status": "error", "message": "Fallo al enviar la solicitud"}), 500
+
+@myprojects_bp.route('/api/myprojects/jornada', methods=['GET'])
+def get_user_jornada():
+    u_id = request.args.get('usuario_id')
+    if not u_id:
+        return jsonify({"status": "error", "message": "Falta usuario_id"}), 400
+        
+    data = obtener_jornada(u_id)
+    if "error" in data:
+        return jsonify({"status": "error", "message": data["error"]}), 404
+    return jsonify({"status": "success", "data": data})
+
+@myprojects_bp.route('/api/myprojects/jornada', methods=['PUT'])
+def update_user_jornada():
+    data = request.json
+    if not data or 'usuario_id' not in data:
+        return jsonify({"status": "error", "message": "Datos inválidos"}), 400
+        
+    u_id = data.get('usuario_id')
+    exito = actualizar_jornada(u_id, data)
+    
+    if exito:
+        return jsonify({"status": "success", "message": "Jornada actualizada"}), 200
+    return jsonify({"status": "error", "message": "Error al actualizar jornada"}), 500
