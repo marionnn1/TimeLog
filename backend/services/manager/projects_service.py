@@ -5,8 +5,6 @@ from models.users import Users
 from models.assignments import Assignments
 from datetime import datetime
 import random
-# Añadimos la importación del log
-from services.admin.audit_service import registrar_log
 
 def get_all_projects_data():
     try:
@@ -60,10 +58,6 @@ def save_client(data):
         nuevo_cliente = Clients(nombre=nombre, codigo=codigo)
         db.session.add(nuevo_cliente)
         db.session.commit()
-        
-        # NUEVO LOG
-        registrar_log(None, None, 'CREAR_CLIENTE', 'info', f"Se creó el cliente: {nombre}.")
-        
         return {"message": "Cliente creado correctamente"}, 200
     except Exception as e:
         db.session.rollback()
@@ -78,10 +72,6 @@ def update_client(client_id, data):
         cliente.nombre = data.get("nombre", cliente.nombre)
         cliente.codigo = data.get("codigo", cliente.codigo)
         db.session.commit()
-        
-        # NUEVO LOG
-        registrar_log(None, None, 'ACTUALIZAR_CLIENTE', 'info', f"Se actualizó el cliente: {cliente.nombre}.")
-        
         return {"message": "Cliente actualizado correctamente"}, 200
     except Exception as e:
         db.session.rollback()
@@ -97,18 +87,12 @@ def delete_client(client_id):
         if proyectos_activos > 0:
             return {"error": "No puedes eliminar un cliente que tiene proyectos asignados"}, 400
 
-        nombre_cliente = cliente.nombre
         db.session.delete(cliente)
         db.session.commit()
-        
-        # NUEVO LOG
-        registrar_log(None, None, 'ELIMINAR_CLIENTE', 'warning', f"Se eliminó el cliente: {nombre_cliente}.")
-        
         return {"message": "Cliente eliminado correctamente"}, 200
     except Exception as e:
         db.session.rollback()
         return {"error": str(e)}, 500
-
 
 def save_project(data, project_id=None):
     try:
@@ -117,6 +101,7 @@ def save_project(data, project_id=None):
         cliente_codigo = data.get("idCliente")
         estado_str = "Activo" if data.get("estado") else "Cerrado"
         codigo = data.get("codigo")
+        usuarios_ids = data.get("usuarios_ids", []) 
 
         cliente = Clients.query.filter_by(nombre=cliente_nombre).first()
 
@@ -137,7 +122,11 @@ def save_project(data, project_id=None):
             proyecto.cliente_id = cliente.id
             proyecto.estado = estado_str
             proyecto.codigo = codigo
-            accion_log = 'ACTUALIZAR_PROYECTO'
+            
+            Assignments.query.filter_by(proyecto_id=project_id).delete()
+            for u_id in usuarios_ids:
+                nueva_asignacion = Assignments(proyecto_id=project_id, usuario_id=u_id, activo=True, fecha_asignacion=datetime.utcnow())
+                db.session.add(nueva_asignacion)
         else:
             if not codigo:
                 codigo = f"PRJ-{random.randint(100, 999)}"
@@ -146,13 +135,13 @@ def save_project(data, project_id=None):
                 nombre=nombre, cliente_id=cliente.id, estado=estado_str, codigo=codigo
             )
             db.session.add(nuevo_proyecto)
-            accion_log = 'CREAR_PROYECTO'
+            db.session.flush()
+            
+            for u_id in usuarios_ids:
+                nueva_asignacion = Assignments(proyecto_id=nuevo_proyecto.id, usuario_id=u_id, activo=True, fecha_asignacion=datetime.utcnow())
+                db.session.add(nueva_asignacion)
 
         db.session.commit()
-        
-        # NUEVO LOG
-        registrar_log(None, None, accion_log, 'info', f"Se {'actualizó' if project_id else 'creó'} el proyecto: {nombre}.")
-        
         return {"message": "Proyecto guardado correctamente"}, 200
 
     except Exception as e:
@@ -165,14 +154,9 @@ def soft_delete_project(project_id):
         if not proyecto:
             return {"error": "Proyecto no encontrado"}, 404
 
-        nombre_proyecto = proyecto.nombre
         proyecto.estado = "Cerrado"
         proyecto.fecha_desactivacion = datetime.utcnow()
         db.session.commit()
-        
-        # NUEVO LOG
-        registrar_log(None, None, 'CERRAR_PROYECTO', 'warning', f"Se cerró el proyecto: {nombre_proyecto}.")
-        
         return {"message": "Proyecto eliminado"}, 200
     except Exception as e:
         db.session.rollback()
@@ -192,16 +176,6 @@ def assign_user(proyecto_id, usuario_id):
         )
         db.session.add(nueva_asignacion)
         db.session.commit()
-        
-        # Obtener los nombres reales para la auditoría
-        usuario = Users.query.get(usuario_id)
-        proyecto = Projects.query.get(proyecto_id)
-        nombre_usuario = usuario.nombre if usuario else f"ID {usuario_id}"
-        nombre_proyecto = proyecto.nombre if proyecto else f"ID {proyecto_id}"
-        
-        # NUEVO LOG CON NOMBRES
-        registrar_log(None, None, 'ASIGNAR_USUARIO', 'info', f"Se asignó a {nombre_usuario} al proyecto: {nombre_proyecto}.")
-        
         return {"message": "Usuario asignado"}, 200
     except Exception as e:
         db.session.rollback()
@@ -219,16 +193,6 @@ def unassign_user(proyecto_id, usuario_id):
         asignacion.activo = False
         asignacion.fecha_desactivacion = datetime.utcnow()
         db.session.commit()
-        
-        # Obtener los nombres reales para la auditoría
-        usuario = Users.query.get(usuario_id)
-        proyecto = Projects.query.get(proyecto_id)
-        nombre_usuario = usuario.nombre if usuario else f"ID {usuario_id}"
-        nombre_proyecto = proyecto.nombre if proyecto else f"ID {proyecto_id}"
-        
-        # NUEVO LOG CON NOMBRES
-        registrar_log(None, None, 'DESASIGNAR_USUARIO', 'warning', f"Se quitó a {nombre_usuario} del proyecto: {nombre_proyecto}.")
-        
         return {"message": "Usuario quitado del proyecto"}, 200
     except Exception as e:
         db.session.rollback()

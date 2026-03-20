@@ -48,15 +48,14 @@ const fetchProjects = async () => {
 
 onMounted(() => { fetchProjects() })
 
-const mostrarModalAsignar = ref(false)
 const mostrarModalProyecto = ref(false) 
 const mostrarModalCliente = ref(false) 
 
 const esEdicion = ref(false)
-const esEdicionCliente = ref(false) // Control para saber si creamos o editamos un cliente
+const esEdicionCliente = ref(false)
 
-const asignacionData = ref({ proyectoId: null, nombreProyecto: '', usuarioId: '' })
-const proyectoForm = ref({ id: null, nombre: '', cliente: '', idCliente: '', codigo: '', estado: true }) 
+// Modificado: Ahora incluye "equipo" por defecto
+const proyectoForm = ref({ id: null, nombre: '', cliente: '', idCliente: '', codigo: '', estado: true, equipo: [] }) 
 const clienteForm = ref({ id: null, nombre: '', codigo: '' }) 
 
 const busqueda = ref('')
@@ -96,6 +95,14 @@ const proyectosAgrupados = computed(() => {
         return obj
     }, {})
 })
+
+// === LÓGICA DEL GRID DE EQUIPO ===
+const toggleMiembroEquipo = (usuario) => {
+    const index = proyectoForm.value.equipo.findIndex(u => u.id === usuario.id)
+    if (index >= 0) proyectoForm.value.equipo.splice(index, 1)
+    else proyectoForm.value.equipo.push(usuario)
+}
+const esMiembroSeleccionado = (userId) => proyectoForm.value.equipo.some(u => u.id === userId)
 
 // === GESTIÓN CLIENTES ===
 const abrirCrearCliente = () => {
@@ -147,23 +154,23 @@ const solicitarEliminarCliente = (clienteId) => {
     })
 }
 
-
 // === GESTIÓN PROYECTOS ===
 const abrirCrearProyecto = () => {
     esEdicion.value = false
-    proyectoForm.value = { id: null, nombre: '', cliente: '', idCliente: '', codigo: '', estado: true }
+    proyectoForm.value = { id: null, nombre: '', cliente: '', idCliente: '', codigo: '', estado: true, equipo: [] }
     mostrarModalProyecto.value = true
 }
 
 const abrirCrearProyectoDesdeCliente = (nombreCliente) => {
     esEdicion.value = false
-    proyectoForm.value = { id: null, nombre: '', cliente: nombreCliente, idCliente: '', codigo: '', estado: true }
+    proyectoForm.value = { id: null, nombre: '', cliente: nombreCliente, idCliente: '', codigo: '', estado: true, equipo: [] }
     mostrarModalProyecto.value = true
 }
 
 const abrirEditarProyecto = (proy) => {
     esEdicion.value = true
-    proyectoForm.value = { ...proy }
+    // Copiamos el equipo existente
+    proyectoForm.value = { ...proy, equipo: proy.equipo ? [...proy.equipo] : [] }
     mostrarModalProyecto.value = true
 }
 
@@ -174,11 +181,22 @@ const guardarProyecto = async () => {
     }
 
     try {
+        // Añadimos los ids del equipo al payload
+        const payload = {
+            id: proyectoForm.value.id,
+            nombre: proyectoForm.value.nombre,
+            cliente: proyectoForm.value.cliente,
+            idCliente: proyectoForm.value.idCliente,
+            codigo: proyectoForm.value.codigo,
+            estado: proyectoForm.value.estado,
+            usuarios_ids: proyectoForm.value.equipo.map(u => u.id)
+        }
+
         if (esEdicion.value) {
-            await ManagerAPI.updateProject(proyectoForm.value.id, proyectoForm.value)
+            await ManagerAPI.updateProject(payload.id, payload)
             showToast("Proyecto actualizado", "success")
         } else {
-            await ManagerAPI.createProject(proyectoForm.value)
+            await ManagerAPI.createProject(payload)
             showToast("Proyecto creado", "success")
         }
         mostrarModalProyecto.value = false
@@ -198,26 +216,7 @@ const eliminarProyecto = (id) => {
     })
 }
 
-const abrirModalAsignacion = (proyecto) => {
-    asignacionData.value = { proyectoId: proyecto.id, nombreProyecto: proyecto.nombre, usuarioId: '' }
-    mostrarModalAsignar.value = true
-}
-
-const confirmarAsignacion = async () => {
-    if (!asignacionData.value.usuarioId) {
-        showToast("Selecciona un empleado", "error")
-        return
-    }
-    try {
-        await ManagerAPI.assignUserToProject(asignacionData.value.proyectoId, asignacionData.value.usuarioId)
-        showToast("Usuario asignado", "success")
-        mostrarModalAsignar.value = false
-        fetchProjects() 
-    } catch (error) {
-        showToast(error.response?.data?.error || "Error al asignar", "error")
-    }
-}
-
+// Mantengo la función por si quitas al empleado desde la crucecita pequeña del proyecto
 const desasignarUsuario = (proyectoId, usuarioId, nombreUsuario) => {
     solicitarConfirmacion('Desasignar Empleado', `¿Quitar a ${nombreUsuario} de este proyecto?`, 'danger', 'desasignar', async () => {
         try {
@@ -368,7 +367,7 @@ const getColorClass = (nombre) => {
                                 <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
                                     Usuarios Asignados
                                 </span>
-                                <button @click.stop="abrirModalAsignacion(proy)" class="text-slate-300 hover:text-emerald-600 transition" title="Añadir miembro">
+                                <button @click.stop="abrirEditarProyecto(proy)" class="text-slate-300 hover:text-[#26AA9B] transition" title="Modificar equipo">
                                     <UserPlus class="w-4 h-4"/>
                                 </button>
                             </div>
@@ -393,7 +392,7 @@ const getColorClass = (nombre) => {
 
                                 <div v-else class="h-full flex flex-col items-center justify-center text-slate-300 gap-2 min-h-[100px]">
                                     <UserPlus class="w-8 h-8 opacity-20" />
-                                    <span class="text-xs italic">Sin equipo asignado</span>
+                                    <span class="text-xs italic">Sin usuarios asignados</span>
                                 </div>
                             </div>
                         </div>
@@ -436,67 +435,39 @@ const getColorClass = (nombre) => {
             </div>
         </div>
 
-        <div v-if="mostrarModalAsignar" class="fixed inset-0 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-            <div class="bg-white w-full max-w-sm rounded-2xl shadow-2xl p-6 animate-in zoom-in-95">
-                <div class="flex justify-between items-start mb-4">
-                    <div>
-                        <h3 class="text-lg font-bold text-slate-800">Asignar a Proyecto</h3>
-                        <p class="text-sm text-slate-500 truncate w-64">{{ asignacionData.nombreProyecto }}</p>
-                    </div>
-                    <button @click="mostrarModalAsignar=false" class="text-slate-400 hover:text-slate-600">
-                        <X class="w-5 h-5"/>
-                    </button>
-                </div>
-
-                <div class="space-y-4">
-                    <div>
-                        <label class="block text-xs font-bold text-slate-500 uppercase mb-2">Empleado</label>
-                        <select v-model="asignacionData.usuarioId" class="w-full p-3 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500">
-                            <option value="" disabled>Seleccionar...</option>
-                            <option v-for="u in usuariosDisponibles" :key="u.id" :value="u.id">{{ u.nombre }}</option>
-                        </select>
-                    </div>
-                    <button @click="confirmarAsignacion" class="w-full btn-primary py-3 justify-center">
-                        Confirmar Asignación
-                    </button>
-                </div>
-            </div>
-        </div>
-
         <div v-if="mostrarModalProyecto" class="fixed inset-0 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-            <div class="bg-white w-full max-w-md rounded-2xl shadow-2xl p-6 animate-in zoom-in-95 max-h-[90vh] overflow-y-auto">
-                <div class="flex justify-between items-start mb-6">
+            <div class="bg-white w-full max-w-md rounded-2xl shadow-2xl p-6 animate-in zoom-in-95 max-h-[90vh] overflow-y-auto flex flex-col">
+                <div class="flex justify-between items-start mb-6 shrink-0">
                     <div>
                         <h3 class="text-xl font-bold text-slate-800">{{ esEdicion ? 'Editar Proyecto' : 'Nuevo Proyecto' }}</h3>
-                        <p class="text-sm text-slate-500">Añade un proyecto a un cliente.</p>
+                        <p class="text-sm text-slate-500">Configura el proyecto y su equipo.</p>
                     </div>
                     <button @click="mostrarModalProyecto=false" class="text-slate-400 hover:text-slate-600">
                         <X class="w-6 h-6"/>
                     </button>
                 </div>
 
-                <div class="space-y-4">
+                <div class="space-y-5 overflow-y-auto pr-1 flex-1">
                     
                     <div class="grid grid-cols-2 gap-4">
                         <div class="col-span-2">
                             <label class="block text-xs font-bold text-slate-500 uppercase mb-2">Cliente Destino</label>
-                            <select v-model="proyectoForm.cliente" class="w-full p-3 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 cursor-pointer">
+                            <select v-model="proyectoForm.cliente" class="w-full p-3 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#26AA9B]/20 focus:border-[#26AA9B] cursor-pointer">
                                 <option value="" disabled>Seleccionar cliente...</option>
                                 <option v-for="c in clientesDisponibles" :key="c.id" :value="c.nombre">{{ c.nombre }}</option>
                             </select>
-                            <p class="text-[10px] text-slate-400 mt-1">Si el cliente no existe, créalo antes con "Nuevo Cliente".</p>
                         </div>
 
                         <div class="col-span-2">
                             <label class="block text-xs font-bold text-slate-500 uppercase mb-2">Nombre del Proyecto</label>
                             <input v-model="proyectoForm.nombre" type="text" placeholder="Ej: Migración Cloud" 
-                                   class="w-full p-3 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500">
+                                   class="w-full p-3 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#26AA9B]/20 focus:border-[#26AA9B]">
                         </div>
 
                         <div class="col-span-2">
                             <label class="block text-xs font-bold text-slate-500 uppercase mb-2">ID Proyecto / Código</label>
                             <input v-model="proyectoForm.codigo" type="text" placeholder="Ej: PRJ-001 (Opcional)" 
-                                class="w-full p-3 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500">
+                                class="w-full p-3 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#26AA9B]/20 focus:border-[#26AA9B]">
                         </div>
                     </div>
 
@@ -516,12 +487,33 @@ const getColorClass = (nombre) => {
                          </div>
                     </div>
 
-                    <div class="pt-2">
-                        <button @click="guardarProyecto" class="w-full btn-primary py-3 justify-center flex items-center gap-2">
-                            <Save class="w-4 h-4"/>
-                            {{ esEdicion ? 'Guardar Cambios' : 'Crear Proyecto' }}
-                        </button>
+                    <div>
+                        <label class="block text-xs font-bold text-slate-500 uppercase mb-2">Asignar Equipo</label>
+                        <div class="grid grid-cols-2 gap-2">
+                            <div v-for="user in usuariosDisponibles" :key="user.id" 
+                                @click="toggleMiembroEquipo(user)"
+                                class="flex items-center gap-2 p-2 rounded-lg border cursor-pointer transition select-none"
+                                :class="esMiembroSeleccionado(user.id) ? 'bg-[#E8F5F3] border-[#26AA9B] shadow-sm' : 'bg-white border-slate-200 hover:border-slate-300'">
+                                
+                                <div class="w-4 h-4 rounded border flex items-center justify-center transition"
+                                    :class="esMiembroSeleccionado(user.id) ? 'bg-[#26AA9B] border-[#26AA9B]' : 'bg-white border-slate-300'">
+                                    <Check v-if="esMiembroSeleccionado(user.id)" class="w-3 h-3 text-white" />
+                                </div>
+                                <div class="h-6 w-6 rounded-full flex items-center justify-center text-[9px] font-bold shrink-0" :class="getColorClass(user.nombre)">
+                                    {{ user.iniciales }}
+                                </div>
+                                <span class="text-[11px] font-bold truncate" :class="esMiembroSeleccionado(user.id) ? 'text-[#26AA9B]' : 'text-slate-600'">{{ user.nombre }}</span>
+                            </div>
+                        </div>
                     </div>
+                </div>
+
+                <div class="pt-4 border-t border-slate-100 shrink-0 flex gap-3 mt-2">
+                    <button @click="mostrarModalProyecto = false" class="btn-secondary flex-1 justify-center">Cancelar</button>
+                    <button @click="guardarProyecto" class="flex-1 btn-primary py-3 justify-center flex items-center gap-2">
+                        <Save class="w-4 h-4"/>
+                        {{ esEdicion ? 'Guardar Cambios' : 'Crear Proyecto' }}
+                    </button>
                 </div>
             </div>
         </div>
@@ -549,12 +541,12 @@ const getColorClass = (nombre) => {
         </div>
 
         <transition enter-active-class="transform ease-out duration-300 transition" enter-from-class="translate-y-2 opacity-0 sm:translate-y-0 sm:translate-x-2" enter-to-class="translate-y-0 opacity-100 sm:translate-x-0" leave-active-class="transition ease-in duration-100" leave-from-class="opacity-100" leave-to-class="opacity-0">
-            <div v-if="toast.show" class="fixed bottom-6 right-6 z-50 flex items-center w-full max-w-xs p-4 space-x-3 text-gray-500 bg-white rounded-lg shadow-lg border border-gray-100" role="alert">
+            <div v-if="toast.show" class="fixed bottom-6 right-6 z-[200] flex items-center w-full max-w-xs p-4 space-x-3 text-slate-600 bg-white rounded-lg shadow-lg border border-slate-100" role="alert">
                 <div class="inline-flex items-center justify-center flex-shrink-0 w-8 h-8 rounded-lg" :class="toast.type === 'success' ? 'text-green-500 bg-green-100' : 'text-red-500 bg-red-100'">
                     <component :is="toast.type === 'success' ? CheckCircle2 : AlertCircle" class="w-5 h-5"/>
                 </div>
-                <div class="ml-3 text-sm font-bold text-gray-800">{{ toast.message }}</div>
-                <button @click="toast.show = false" type="button" class="ml-auto -mx-1.5 -my-1.5 bg-white text-gray-400 hover:text-gray-900 rounded-lg focus:ring-2 focus:ring-gray-300 p-1.5 hover:bg-gray-100 inline-flex h-8 w-8 items-center justify-center">
+                <div class="ml-3 text-sm font-bold text-slate-800">{{ toast.message }}</div>
+                <button @click="toast.show = false" type="button" class="ml-auto -mx-1.5 -my-1.5 bg-white text-slate-400 hover:text-slate-900 rounded-lg focus:ring-2 focus:ring-slate-300 p-1.5 hover:bg-slate-100 inline-flex h-8 w-8 items-center justify-center">
                     <X class="w-4 h-4"/>
                 </button>
             </div>
