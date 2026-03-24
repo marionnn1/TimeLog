@@ -3,8 +3,10 @@ import { ref, computed, watch, onMounted } from 'vue'
 import ManagerAPI from '../../services/ManagerAPI'
 import {
     Lock, Unlock, Search, Calendar, AlertCircle, CheckCircle2,
-    FileDown, XCircle, Ban, Trash2, AlertTriangle, X
+    FileDown, XCircle, Ban
 } from 'lucide-vue-next'
+import ConfirmModal from '../../components/common/ConfirmModal.vue'
+import ToastNotification from '../../components/common/ToastNotification.vue'
 
 const hoy = new Date()
 const mesActual = `${hoy.getFullYear()}-${String(hoy.getMonth() + 1).padStart(2, '0')}`
@@ -21,9 +23,7 @@ let toastTimeout = null
 const showToast = (message, type = 'success') => {
     toast.value = { show: true, message, type }
     if (toastTimeout) clearTimeout(toastTimeout)
-    toastTimeout = setTimeout(() => {
-        toast.value.show = false
-    }, 3000)
+    toastTimeout = setTimeout(() => { toast.value.show = false }, 3000)
 }
 
 const confirmState = ref({ show: false, title: '', message: '', type: 'neutral', action: null })
@@ -44,7 +44,6 @@ const fetchClosingData = async () => {
         mesCerrado.value = response.data.mesCerrado
         auditoriaUsuarios.value = response.data.usuarios || []
     } catch (error) {
-        console.error("Error obteniendo datos de cierre:", error)
         showToast("Error al conectar con el servidor", "error")
         auditoriaUsuarios.value = []
     } finally {
@@ -52,13 +51,8 @@ const fetchClosingData = async () => {
     }
 }
 
-onMounted(() => {
-    fetchClosingData()
-})
-
-watch(fechaCierre, () => {
-    fetchClosingData()
-})
+onMounted(() => { fetchClosingData() })
+watch(fechaCierre, () => { fetchClosingData() })
 
 const usuariosFiltrados = computed(() => {
     return auditoriaUsuarios.value.filter(u =>
@@ -74,7 +68,6 @@ const resumenEstado = computed(() => {
     const total = auditoriaUsuarios.value.length
     const incompletos = auditoriaUsuarios.value.filter(u => u.estado === 'incompleto').length
     const vacios = auditoriaUsuarios.value.filter(u => u.estado === 'vacio').length
-
     return { total, incompletos, vacios, completos: total - incompletos - vacios }
 })
 
@@ -92,7 +85,7 @@ const ejecutarCierre = () => {
     if (!puedeCerrarMes.value) {
         solicitarConfirmacion(
             'Cierre Forzoso',
-            'Hay usuarios con días pendientes de imputar. ¿Estás seguro de que quieres forzar el cierre del mes? Esto bloqueará futuras imputaciones.',
+            'Hay usuarios con días pendientes de imputar. ¿Forzar el cierre del mes? Esto bloqueará futuras imputaciones.',
             'warning',
             () => procesarCierreToggle('cerrar')
         )
@@ -102,7 +95,7 @@ const ejecutarCierre = () => {
     if (resumenEstado.value.vacios === resumenEstado.value.total) {
         solicitarConfirmacion(
             'Mes Vacío',
-            'El mes parece no tener actividad registrada. ¿Cerrar igualmente?',
+            'El mes no tiene actividad registrada. ¿Cerrar igualmente?',
             'neutral',
             () => procesarCierreToggle('cerrar')
         )
@@ -115,73 +108,32 @@ const ejecutarCierre = () => {
 const reabrirMes = () => {
     solicitarConfirmacion(
         'Reabrir Mes',
-        '¿Estás seguro de que quieres reabrir este periodo? Los usuarios podrán volver a editar sus imputaciones.',
+        '¿Quieres reabrir este periodo? Los usuarios podrán volver a editar sus imputaciones.',
         'neutral',
         () => procesarCierreToggle('reabrir')
     )
 }
 
 const exportarExcel = () => {   
-    // Formato estructurado y claro por columnas
-    const headers = [
-        'ID Empleado', 
-        'Nombre Empleado', 
-        'Rol', 
-        'Estado Periodo', 
-        'Días Faltantes', 
-        'Horas Totales Mes', 
-        'Cliente', 
-        'Proyecto', 
-        'Horas Proyecto'
-    ]
-    
+    const headers = ['ID Empleado', 'Nombre Empleado', 'Rol', 'Estado Periodo', 'Días Faltantes', 'Horas Totales Mes', 'Cliente', 'Proyecto', 'Horas Proyecto']
     const rows = []
 
     auditoriaUsuarios.value.forEach(u => {
-        // Datos base del usuario que se repetirán si tiene varios proyectos
-        const baseData = [
-            u.id,
-            `"${u.nombre}"`,
-            `"${u.rol}"`,
-            `"${u.estado}"`,
-            `"${u.diasFaltantes.join(', ')}"`,
-            u.horasReales
-        ]
-
-        // Si el usuario tiene imputaciones en proyectos, creamos una fila por cada proyecto
+        const baseData = [ u.id, `"${u.nombre}"`, `"${u.rol}"`, `"${u.estado}"`, `"${u.diasFaltantes.join(', ')}"`, u.horasReales ]
         if (u.desgloseProyectos && u.desgloseProyectos.length > 0) {
-            u.desgloseProyectos.forEach(p => {
-                rows.push([
-                    ...baseData,
-                    `"${p.cliente}"`,
-                    `"${p.proyecto}"`,
-                    p.horas
-                ])
-            })
+            u.desgloseProyectos.forEach(p => { rows.push([ ...baseData, `"${p.cliente}"`, `"${p.proyecto}"`, p.horas ]) })
         } else {
-            // Si no tiene imputaciones, dejamos las columnas de proyecto vacías
-            rows.push([
-                ...baseData,
-                '""',
-                '""',
-                0
-            ])
+            rows.push([ ...baseData, '""', '""', 0 ])
         }
     })
 
-    const csvContent = [
-        headers.join(';'),
-        ...rows.map(row => row.join(';'))
-    ].join('\n')
-
-    // El \uFEFF (BOM) fuerza a Excel a reconocer que el archivo es UTF-8, arreglando los acentos
+    const csvContent = [headers.join(';'), ...rows.map(row => row.join(';'))].join('\n')
     const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' })
     const url = URL.createObjectURL(blob)
     const link = document.createElement('a')
     link.setAttribute('href', url)
     link.setAttribute('download', `Cierre_Mensual_${fechaCierre.value}.csv`)
     document.body.appendChild(link)
-
     link.click() 
     document.body.removeChild(link) 
     showToast('Reporte descargado correctamente', 'success')
@@ -343,39 +295,21 @@ const exportarExcel = () => {
             </div>
         </div>
 
-        <div v-if="confirmState.show" class="fixed inset-0 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center z-[60] p-4">
-            <div class="bg-white w-full max-w-sm rounded-xl shadow-2xl p-6 animate-in zoom-in-95">
-                <div class="flex flex-col items-center text-center gap-3">
-                    <div class="w-12 h-12 rounded-full flex items-center justify-center mb-2"
-                         :class="confirmState.type === 'warning' ? 'bg-amber-100 text-amber-600' : 'bg-slate-100 text-slate-600'">
-                        <component :is="confirmState.type === 'warning' ? AlertTriangle : CheckCircle2" class="w-6 h-6" />
-                    </div>
-                    <h3 class="text-lg font-bold text-slate-900">{{ confirmState.title }}</h3>
-                    <p class="text-sm text-slate-500 leading-relaxed">{{ confirmState.message }}</p>
-                    
-                    <div class="flex gap-3 w-full mt-4">
-                        <button @click="confirmState.show = false" class="btn-secondary flex-1 justify-center">Cancelar</button>
-                        <button @click="ejecutarConfirmacion" 
-                                class="flex-1 justify-center btn-primary"
-                                :class="confirmState.type === 'warning' ? 'bg-amber-600 hover:bg-amber-700' : 'bg-slate-700 hover:bg-slate-800'">
-                            Confirmar
-                        </button>
-                    </div>
-                </div>
-            </div>
-        </div>
+        <ConfirmModal 
+            :show="confirmState.show"
+            :title="confirmState.title"
+            :message="confirmState.message"
+            :type="confirmState.type"
+            @confirm="ejecutarConfirmacion"
+            @cancel="confirmState.show = false"
+        />
 
-        <transition enter-active-class="transform ease-out duration-300 transition" enter-from-class="translate-y-2 opacity-0 sm:translate-y-0 sm:translate-x-2" enter-to-class="translate-y-0 opacity-100 sm:translate-x-0" leave-active-class="transition ease-in duration-100" leave-from-class="opacity-100" leave-to-class="opacity-0">
-            <div v-if="toast.show" class="absolute bottom-6 right-6 z-50 flex items-center w-full max-w-xs p-4 space-x-3 text-gray-500 bg-white rounded-lg shadow-lg border border-gray-100" role="alert">
-                <div class="inline-flex items-center justify-center flex-shrink-0 w-8 h-8 rounded-lg" :class="toast.type === 'success' ? 'text-green-500 bg-green-100' : 'text-red-500 bg-red-100'">
-                    <component :is="toast.type === 'success' ? CheckCircle2 : AlertCircle" class="w-5 h-5"/>
-                </div>
-                <div class="ml-3 text-sm font-bold text-gray-800">{{ toast.message }}</div>
-                <button @click="toast.show = false" type="button" class="ml-auto -mx-1.5 -my-1.5 bg-white text-gray-400 hover:text-gray-900 rounded-lg focus:ring-2 focus:ring-gray-300 p-1.5 hover:bg-gray-100 inline-flex h-8 w-8 items-center justify-center">
-                    <X class="w-4 h-4"/>
-                </button>
-            </div>
-        </transition>
+        <ToastNotification
+            :show="toast.show"
+            :message="toast.message"
+            :type="toast.type"
+            @close="toast.show = false"
+        />
 
     </div>
 </template>

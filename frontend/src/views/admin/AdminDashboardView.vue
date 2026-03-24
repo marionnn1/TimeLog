@@ -3,6 +3,7 @@ import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { Users, FolderOpen, Ticket, Activity, X, Send, Download } from 'lucide-vue-next'
 import AdminAPI from '../../services/AdminAPI'
+import ToastNotification from '@/components/common/ToastNotification.vue'
 
 const router = useRouter()
 
@@ -16,12 +17,21 @@ const stats = ref({
 const mostrarModalComunicado = ref(false)
 const comunicado = ref({ titulo: '', mensaje: '' })
 
+// Lógica de Toasts
+const toast = ref({ show: false, message: '', type: 'success' })
+let toastTimeout = null
+const showToast = (message, type = 'success') => {
+    toast.value = { show: true, message, type }
+    if (toastTimeout) clearTimeout(toastTimeout)
+    toastTimeout = setTimeout(() => { toast.value.show = false }, 3000)
+}
+
 const cargarEstadisticas = async () => {
     try {
         const json = await AdminAPI.getDashboardStats()
         if (json.status === 'success') stats.value = json.data
     } catch (error) {
-        console.error("Error crítico al cargar el dashboard.", error)
+        showToast("Error crítico al cargar el dashboard.", "error")
     }
 }
 
@@ -32,7 +42,7 @@ const exportarCSV = async () => {
         const json = await AdminAPI.getAuditoria()
         if (json.status === 'success') {
             const logs = json.data
-            if (logs.length === 0) return alert("No hay registros en la auditoría para exportar.")
+            if (logs.length === 0) return showToast("No hay registros en la auditoría para exportar.", "error")
 
             const cabeceras = ['ID', 'Fecha', 'Actor', 'Acción', 'Gravedad', 'Detalle']
             const filas = logs.map(log => [
@@ -48,18 +58,21 @@ const exportarCSV = async () => {
             document.body.appendChild(link)
             link.click()
             document.body.removeChild(link)
+            
+            showToast("Logs exportados correctamente", "success")
         }
     } catch (error) {
-        console.error("Error al exportar:", error)
-        alert("Ocurrió un error al intentar exportar los logs.")
+        showToast("Ocurrió un error al intentar exportar los logs.", "error")
     }
 }
 
 const enviarComunicado = () => {
-    console.log("Enviando comunicado:", comunicado.value)
+    if(!comunicado.value.titulo || !comunicado.value.mensaje) {
+        return showToast("Rellena todos los campos del comunicado", "error")
+    }
     mostrarModalComunicado.value = false
     comunicado.value = { titulo: '', mensaje: '' }
-    alert("Comunicado enviado al equipo.")
+    showToast("Comunicado enviado al equipo.", "success")
 }
 
 const ejecutarAccion = (idAccion) => {
@@ -191,5 +204,11 @@ const accionesRapidas = [
         </div>
     </div>
 
+    <ToastNotification
+        :show="toast.show"
+        :message="toast.message"
+        :type="toast.type"
+        @close="toast.show = false"
+    />
   </div>
 </template>

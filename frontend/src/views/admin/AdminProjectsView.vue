@@ -2,11 +2,12 @@
 import { ref, onMounted, reactive, computed } from 'vue'
 import { 
     FolderPlus, Pencil, Tag, X, Briefcase, Users, Check, 
-    CheckCircle2, AlertCircle, Trash2, AlertTriangle, Plus, Building2,
-    UserPlus
+    Trash2, Plus, Building2, UserPlus
 } from 'lucide-vue-next'
 import { useDataStore } from '../../stores/dataStore'
 import AdminAPI from '../../services/AdminAPI'
+import ConfirmModal from '../../components/common/ConfirmModal.vue'
+import ToastNotification from '../../components/common/ToastNotification.vue'
 
 const store = useDataStore()
 
@@ -367,7 +368,7 @@ const obtenerEquipoVisual = (proyecto) => proyecto.equipo || []
                         <label class="block text-sm font-bold text-slate-700 mb-1">Código ID (Opcional)</label>
                         <input v-model="clienteForm.codigo" type="text" placeholder="Ej: CLI-001" class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 outline-none">
                     </div>
-                    <button @click="guardarCliente" class="w-full py-2.5 bg-slate-800 text-white rounded-lg font-bold hover:bg-slate-700 shadow mt-2">
+                    <button @click="guardarCliente" class="w-full py-2.5 bg-slate-800 text-white rounded-lg font-bold hover:bg-slate-700 shadow mt-2 transition">
                         Guardar
                     </button>
                 </div>
@@ -434,35 +435,26 @@ const obtenerEquipoVisual = (proyecto) => proyecto.equipo || []
 
                 <div class="flex gap-2 pt-4 border-t border-gray-100 flex-shrink-0">
                     <button @click="mostrarModal = false" class="flex-1 py-2 border border-gray-300 text-slate-600 rounded-lg font-bold hover:bg-gray-50 transition">Cancelar</button>
-                    <button @click="guardar" class="flex-1 py-2 bg-blue-600 text-white rounded-lg font-bold hover:bg-blue-700 shadow-lg shadow-blue-200">Guardar Proyecto</button>
+                    <button @click="guardar" class="flex-1 py-2 bg-blue-600 text-white rounded-lg font-bold hover:bg-blue-700 shadow-lg shadow-blue-200 transition">Guardar Proyecto</button>
                 </div>
             </div>
         </div>
 
-        <div v-if="confirmacion.show" class="fixed inset-0 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center z-[60] p-4">
-            <div class="bg-white w-full max-w-sm rounded-xl shadow-2xl p-6 text-center animate-in zoom-in-95">
-                <div class="w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-4"
-                     :class="confirmacion.type === 'danger' ? 'bg-red-100 text-red-600' : (confirmacion.type === 'success' ? 'bg-emerald-100 text-emerald-600' : 'bg-amber-100 text-amber-600')">
-                    <component :is="confirmacion.type === 'danger' ? Trash2 : (confirmacion.type === 'success' ? Check : AlertTriangle)" class="w-6 h-6" />
-                </div>
-                <h3 class="text-lg font-bold text-slate-900">{{ confirmacion.title }}</h3>
-                <p class="text-sm text-slate-500 mt-2">{{ confirmacion.message }}</p>
-                <div class="flex gap-3 mt-6">
-                    <button @click="confirmacion.show = false" class="flex-1 py-2 border border-gray-300 text-slate-600 rounded-lg font-bold hover:bg-gray-50 transition">Cancelar</button>
-                    <button @click="ejecutarAccionConfirmada" class="flex-1 py-2 text-white rounded-lg font-bold transition shadow-md"
-                            :class="confirmacion.type === 'danger' ? 'bg-red-600 hover:bg-red-700' : (confirmacion.type === 'success' ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-amber-600 hover:bg-amber-700')">
-                        Confirmar
-                    </button>
-                </div>
-            </div>
-        </div>
+        <ConfirmModal 
+            :show="confirmacion.show"
+            :title="confirmacion.title"
+            :message="confirmacion.message"
+            :type="confirmacion.type"
+            @confirm="ejecutarAccionConfirmada"
+            @cancel="confirmacion.show = false"
+        />
 
-        <div v-if="toast.show" class="fixed bottom-6 right-6 z-[200] flex items-center p-4 space-x-3 text-slate-600 bg-white rounded-xl shadow-2xl border border-gray-100 animate-in slide-in-from-right">
-            <div class="inline-flex items-center justify-center flex-shrink-0 w-8 h-8 rounded-lg" :class="toast.type === 'success' ? 'text-green-500 bg-green-100' : 'text-red-500 bg-red-100'">
-                <component :is="toast.type === 'success' ? CheckCircle2 : AlertCircle" class="w-5 h-5"/>
-            </div>
-            <div class="ml-3 text-sm font-bold text-slate-800">{{ toast.message }}</div>
-        </div>
+        <ToastNotification
+            :show="toast.show"
+            :message="toast.message"
+            :type="toast.type"
+            @close="toast.show = false"
+        />
 
     </div>
 </template>

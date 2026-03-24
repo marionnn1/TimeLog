@@ -3,8 +3,10 @@ import { ref, onMounted } from 'vue'
 import ManagerAPI from '../../services/ManagerAPI'
 import { 
     AlertOctagon, Check, X, FileEdit, MessageSquare, Calendar, Clock, Save,
-    CheckCircle2, AlertCircle, Trash2, AlertTriangle, ArrowRight
+    ArrowRight
 } from 'lucide-vue-next'
+import ConfirmModal from '../../components/common/ConfirmModal.vue'
+import ToastNotification from '../../components/common/ToastNotification.vue'
 
 const solicitudes = ref([])
 const isLoading = ref(false)
@@ -15,19 +17,17 @@ let toastTimeout = null
 const showToast = (message, type = 'success') => {
     toast.value = { show: true, message, type }
     if (toastTimeout) clearTimeout(toastTimeout)
-    toastTimeout = setTimeout(() => {
-        toast.value.show = false
-    }, 3000)
+    toastTimeout = setTimeout(() => { toast.value.show = false }, 3000)
 }
 
-const confirmState = ref({ show: false, title: '', message: '', type: 'neutral', action: null, inputMode: false, inputValue: '' })
+const confirmState = ref({ show: false, title: '', message: '', type: 'neutral', action: null, inputMode: false })
 
 const solicitarConfirmacion = (title, message, type, callback, inputMode = false) => {
-    confirmState.value = { show: true, title, message, type, action: callback, inputMode, inputValue: '' }
+    confirmState.value = { show: true, title, message, type, action: callback, inputMode }
 }
 
-const ejecutarConfirmacion = () => {
-    if (confirmState.value.action) confirmState.value.action(confirmState.value.inputValue)
+const ejecutarConfirmacion = (valorInput) => {
+    if (confirmState.value.action) confirmState.value.action(valorInput)
     confirmState.value.show = false
 }
 
@@ -37,16 +37,13 @@ const fetchValidations = async () => {
         const response = await ManagerAPI.getValidations()
         solicitudes.value = response.data || []
     } catch (error) {
-        console.error("Error obteniendo validaciones:", error)
         showToast("Error al cargar las solicitudes", "error")
     } finally {
         isLoading.value = false
     }
 }
 
-onMounted(() => {
-    fetchValidations()
-})
+onMounted(() => { fetchValidations() })
 
 const solicitudSeleccionada = ref(null)
 const horasEditadas = ref(0)
@@ -80,7 +77,7 @@ const rechazarSolicitud = (id) => {
         'Por favor, indica el motivo del rechazo para notificar al usuario:',
         'danger',
         async (motivo) => {
-            if (motivo) {
+            if (motivo && motivo.trim() !== '') {
                 try {
                     await ManagerAPI.rejectValidation(id, motivo)
                     showToast("Solicitud rechazada y notificada.", "success")
@@ -176,7 +173,6 @@ const rechazarSolicitud = (id) => {
 
     <div v-if="mostrarModal" class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4">
         <div class="bg-white rounded-xl shadow-2xl w-full max-w-md overflow-hidden animate-in fade-in zoom-in duration-200">
-            
             <div class="bg-primary px-6 py-4 flex justify-between items-center">
                 <h3 class="text-lg font-bold text-white flex items-center gap-2">
                     <FileEdit class="w-5 h-5"/> Corregir Imputación
@@ -186,7 +182,7 @@ const rechazarSolicitud = (id) => {
 
             <div v-if="solicitudSeleccionada" class="p-6 space-y-4">
                 <div class="bg-gray-50 p-3 rounded border border-gray-200 text-sm space-y-1">
-                    <p><span class="font-bold text-gray-500 w--20 inline-block">Usuario:</span> {{ solicitudSeleccionada.usuario }}</p>
+                    <p><span class="font-bold text-gray-500 w-20 inline-block">Usuario:</span> {{ solicitudSeleccionada.usuario }}</p>
                     <p><span class="font-bold text-gray-500 w-20 inline-block">Proyecto:</span> {{ solicitudSeleccionada.proyecto }}</p>
                     <p><span class="font-bold text-gray-500 w-20 inline-block">Fecha:</span> {{ solicitudSeleccionada.fecha }}</p>
                 </div>
@@ -199,7 +195,7 @@ const rechazarSolicitud = (id) => {
                         <span class="text-sm text-gray-500">Horas</span>
                     </div>
                     <p class="text-xs text-gray-400 mt-2">
-                        Al guardar, se actualizará el registro del usuario con estas horas y se marcará la solicitud como resuelta.
+                        Al guardar, se actualizará el registro con estas horas y se marcará como resuelta.
                     </p>
                 </div>
             </div>
@@ -213,43 +209,23 @@ const rechazarSolicitud = (id) => {
         </div>
     </div>
 
-    <div v-if="confirmState.show" class="fixed inset-0 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center z-[60] p-4">
-        <div class="bg-white w-full max-w-sm rounded-xl shadow-2xl p-6 animate-in zoom-in-95">
-            <div class="flex flex-col items-center text-center gap-3">
-                <div class="w-12 h-12 rounded-full flex items-center justify-center mb-2"
-                     :class="confirmState.type === 'danger' ? 'bg-red-100 text-red-600' : 'bg-amber-100 text-amber-600'">
-                    <component :is="confirmState.type === 'danger' ? Trash2 : AlertTriangle" class="w-6 h-6" />
-                </div>
-                <h3 class="text-lg font-bold text-slate-900">{{ confirmState.title }}</h3>
-                <p class="text-sm text-slate-500 leading-relaxed">{{ confirmState.message }}</p>
-                
-                <div v-if="confirmState.inputMode" class="w-full mt-2">
-                    <input v-model="confirmState.inputValue" type="text" placeholder="Motivo..." class="input-std w-full" autofocus>
-                </div>
+    <ConfirmModal 
+        :show="confirmState.show"
+        :title="confirmState.title"
+        :message="confirmState.message"
+        :type="confirmState.type"
+        :inputMode="confirmState.inputMode"
+        inputPlaceholder="Motivo del rechazo..."
+        @confirm="ejecutarConfirmacion"
+        @cancel="confirmState.show = false"
+    />
 
-                <div class="flex gap-3 w-full mt-4">
-                    <button @click="confirmState.show = false" class="btn-secondary flex-1 justify-center">Cancelar</button>
-                    <button @click="ejecutarConfirmacion" 
-                            class="flex-1 justify-center btn-primary"
-                            :class="confirmState.type === 'danger' ? 'bg-red-600 hover:bg-red-700' : 'bg-amber-600 hover:bg-amber-700'">
-                        Confirmar
-                    </button>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <transition enter-active-class="transform ease-out duration-300 transition" enter-from-class="translate-y-2 opacity-0 sm:translate-y-0 sm:translate-x-2" enter-to-class="translate-y-0 opacity-100 sm:translate-x-0" leave-active-class="transition ease-in duration-100" leave-from-class="opacity-100" leave-to-class="opacity-0">
-        <div v-if="toast.show" class="absolute bottom-6 right-6 z-50 flex items-center w-full max-w-xs p-4 space-x-3 text-gray-500 bg-white rounded-lg shadow-lg border border-gray-100" role="alert">
-            <div class="inline-flex items-center justify-center flex-shrink-0 w-8 h-8 rounded-lg" :class="toast.type === 'success' ? 'text-green-500 bg-green-100' : 'text-red-500 bg-red-100'">
-                <component :is="toast.type === 'success' ? CheckCircle2 : AlertCircle" class="w-5 h-5"/>
-            </div>
-            <div class="ml-3 text-sm font-bold text-gray-800">{{ toast.message }}</div>
-            <button @click="toast.show = false" type="button" class="ml-auto -mx-1.5 -my-1.5 bg-white text-gray-400 hover:text-gray-900 rounded-lg focus:ring-2 focus:ring-gray-300 p-1.5 hover:bg-gray-100 inline-flex h-8 w-8 items-center justify-center">
-                <X class="w-4 h-4"/>
-            </button>
-        </div>
-    </transition>
+    <ToastNotification
+        :show="toast.show"
+        :message="toast.message"
+        :type="toast.type"
+        @close="toast.show = false"
+    />
 
   </div>
 </template>
