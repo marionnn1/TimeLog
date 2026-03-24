@@ -2,11 +2,20 @@
 import { ref, computed, onMounted } from 'vue'
 import { History, Search, ShieldAlert, Loader2 } from 'lucide-vue-next'
 import AdminAPI from '../../services/AdminAPI'
+import ToastNotification from '@/components/common/ToastNotification.vue'
 
 const logs = ref([])
 const cargando = ref(true)
 const busqueda = ref('')
 const filtroGravedad = ref('todos')
+
+const toast = ref({ show: false, message: '', type: 'success' })
+let toastTimeout = null
+const showToast = (message, type = 'success') => {
+    toast.value = { show: true, message, type }
+    if (toastTimeout) clearTimeout(toastTimeout)
+    toastTimeout = setTimeout(() => { toast.value.show = false }, 3000)
+}
 
 const cargarLogs = async () => {
     try {
@@ -14,9 +23,11 @@ const cargarLogs = async () => {
         const json = await AdminAPI.getAuditoria()
         if (json.status === 'success') {
             logs.value = json.data
+        } else {
+            showToast("No se pudieron cargar los logs de auditoría", "error")
         }
     } catch (error) {
-        console.error('Error al cargar logs:', error)
+        showToast("Error de conexión al cargar el historial", "error")
     } finally {
         cargando.value = false
     }
@@ -44,7 +55,7 @@ const obtenerEstiloBadge = (gravedad) => {
 </script>
 
 <template>
-    <div class="h-full flex flex-col font-sans bg-gray-50 p-6 gap-6 overflow-y-auto">
+    <div class="h-full flex flex-col font-sans bg-gray-50 p-6 gap-6 overflow-y-auto relative">
         <div>
             <h1 class="text-2xl font-bold text-[#232D4B] flex items-center gap-2">
                 <History class="w-6 h-6 text-[#26AA9B]" /> Auditoría e Historial
@@ -94,5 +105,12 @@ const obtenerEstiloBadge = (gravedad) => {
                 </div>
             </div>
         </div>
+
+        <ToastNotification
+            :show="toast.show"
+            :message="toast.message"
+            :type="toast.type"
+            @close="toast.show = false"
+        />
     </div>
 </template>

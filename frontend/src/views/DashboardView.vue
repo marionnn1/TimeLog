@@ -4,6 +4,7 @@ import { useRoute } from 'vue-router'
 import { useDataStore } from '../stores/dataStore' 
 import MyProjectsAPI from '../services/MyProjectsAPI'
 import AbsencesAPI from '../services/AbsencesAPI'
+import ToastNotification from '../components/common/ToastNotification.vue'
 
 import {
     ChevronLeft, ChevronRight, Plus, Trash2, Save, Building2, Info, X, RotateCcw, 
@@ -640,14 +641,12 @@ onMounted(() => {
             </div>
         </div>
 
-        <transition enter-active-class="transform transition" enter-from-class="translate-y-2 opacity-0" enter-to-class="translate-y-0 opacity-100" leave-active-class="transition" leave-from-class="opacity-100" leave-to-class="opacity-0">
-            <div v-if="toast.show" class="fixed bottom-6 right-6 z-[200] flex items-center p-4 bg-white rounded-2xl shadow-2xl border border-slate-100 min-w-[300px]">
-                <div class="w-10 h-10 rounded-xl flex items-center justify-center mr-4" :class="toast.type === 'success' ? 'bg-green-100 text-green-600' : 'bg-red-100 text-red-600'">
-                    <component :is="toast.type === 'success' ? CheckCircle2 : AlertCircle" class="w-6 h-6"/>
-                </div>
-                <div class="text-sm font-bold text-slate-800">{{ toast.message }}</div>
-            </div>
-        </transition>
+        <ToastNotification
+            :show="toast.show"
+            :message="toast.message"
+            :type="toast.type"
+            @close="toast.show = false"
+        />
     </div>
 </template>
 

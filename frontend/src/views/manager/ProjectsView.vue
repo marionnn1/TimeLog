@@ -6,6 +6,8 @@ import {
     Briefcase, UserPlus, Tag, Hash, Save, Building2,
     CheckCircle2, AlertCircle, AlertTriangle
 } from 'lucide-vue-next'
+import ConfirmModal from '../../components/common/ConfirmModal.vue'
+import ToastNotification from '../../components/common/ToastNotification.vue'
 
 const proyectos = ref([])
 const usuariosDisponibles = ref([])
@@ -54,7 +56,6 @@ const mostrarModalCliente = ref(false)
 const esEdicion = ref(false)
 const esEdicionCliente = ref(false)
 
-// Modificado: Ahora incluye "equipo" por defecto
 const proyectoForm = ref({ id: null, nombre: '', cliente: '', idCliente: '', codigo: '', estado: true, equipo: [] }) 
 const clienteForm = ref({ id: null, nombre: '', codigo: '' }) 
 
@@ -96,7 +97,6 @@ const proyectosAgrupados = computed(() => {
     }, {})
 })
 
-// === LÓGICA DEL GRID DE EQUIPO ===
 const toggleMiembroEquipo = (usuario) => {
     const index = proyectoForm.value.equipo.findIndex(u => u.id === usuario.id)
     if (index >= 0) proyectoForm.value.equipo.splice(index, 1)
@@ -104,7 +104,6 @@ const toggleMiembroEquipo = (usuario) => {
 }
 const esMiembroSeleccionado = (userId) => proyectoForm.value.equipo.some(u => u.id === userId)
 
-// === GESTIÓN CLIENTES ===
 const abrirCrearCliente = () => {
     esEdicionCliente.value = false
     clienteForm.value = { id: null, nombre: '', codigo: '' }
@@ -154,7 +153,6 @@ const solicitarEliminarCliente = (clienteId) => {
     })
 }
 
-// === GESTIÓN PROYECTOS ===
 const abrirCrearProyecto = () => {
     esEdicion.value = false
     proyectoForm.value = { id: null, nombre: '', cliente: '', idCliente: '', codigo: '', estado: true, equipo: [] }
@@ -169,7 +167,6 @@ const abrirCrearProyectoDesdeCliente = (nombreCliente) => {
 
 const abrirEditarProyecto = (proy) => {
     esEdicion.value = true
-    // Copiamos el equipo existente
     proyectoForm.value = { ...proy, equipo: proy.equipo ? [...proy.equipo] : [] }
     mostrarModalProyecto.value = true
 }
@@ -181,7 +178,6 @@ const guardarProyecto = async () => {
     }
 
     try {
-        // Añadimos los ids del equipo al payload
         const payload = {
             id: proyectoForm.value.id,
             nombre: proyectoForm.value.nombre,
@@ -216,7 +212,6 @@ const eliminarProyecto = (id) => {
     })
 }
 
-// Mantengo la función por si quitas al empleado desde la crucecita pequeña del proyecto
 const desasignarUsuario = (proyectoId, usuarioId, nombreUsuario) => {
     solicitarConfirmacion('Desasignar Empleado', `¿Quitar a ${nombreUsuario} de este proyecto?`, 'danger', 'desasignar', async () => {
         try {
@@ -518,39 +513,21 @@ const getColorClass = (nombre) => {
             </div>
         </div>
 
-        <div v-if="confirmState.show" class="fixed inset-0 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center z-[60] p-4">
-            <div class="bg-white w-full max-w-sm rounded-xl shadow-2xl p-6 animate-in zoom-in-95">
-                <div class="flex flex-col items-center text-center gap-3">
-                    <div class="w-12 h-12 rounded-full flex items-center justify-center mb-2"
-                         :class="confirmState.type === 'danger' ? 'bg-red-100 text-red-600' : 'bg-amber-100 text-amber-600'">
-                        <component :is="confirmState.type === 'danger' ? Trash2 : AlertTriangle" class="w-6 h-6" />
-                    </div>
-                    <h3 class="text-lg font-bold text-slate-900">{{ confirmState.title }}</h3>
-                    <p class="text-sm text-slate-500 leading-relaxed">{{ confirmState.message }}</p>
-                    
-                    <div class="flex gap-3 w-full mt-4">
-                        <button @click="confirmState.show = false" class="btn-secondary flex-1 justify-center">Cancelar</button>
-                        <button @click="ejecutarConfirmacion" 
-                                class="flex-1 justify-center btn-primary"
-                                :class="confirmState.type === 'danger' ? 'bg-red-600 hover:bg-red-700' : 'bg-amber-600 hover:bg-amber-700'">
-                            Confirmar
-                        </button>
-                    </div>
-                </div>
-            </div>
-        </div>
+        <ConfirmModal
+            :show="confirmState.show"
+            :title="confirmState.title"
+            :message="confirmState.message"
+            :type="confirmState.type"
+            @confirm="ejecutarConfirmacion"
+            @cancel="confirmState.show = false"
+        />
 
-        <transition enter-active-class="transform ease-out duration-300 transition" enter-from-class="translate-y-2 opacity-0 sm:translate-y-0 sm:translate-x-2" enter-to-class="translate-y-0 opacity-100 sm:translate-x-0" leave-active-class="transition ease-in duration-100" leave-from-class="opacity-100" leave-to-class="opacity-0">
-            <div v-if="toast.show" class="fixed bottom-6 right-6 z-[200] flex items-center w-full max-w-xs p-4 space-x-3 text-slate-600 bg-white rounded-lg shadow-lg border border-slate-100" role="alert">
-                <div class="inline-flex items-center justify-center flex-shrink-0 w-8 h-8 rounded-lg" :class="toast.type === 'success' ? 'text-green-500 bg-green-100' : 'text-red-500 bg-red-100'">
-                    <component :is="toast.type === 'success' ? CheckCircle2 : AlertCircle" class="w-5 h-5"/>
-                </div>
-                <div class="ml-3 text-sm font-bold text-slate-800">{{ toast.message }}</div>
-                <button @click="toast.show = false" type="button" class="ml-auto -mx-1.5 -my-1.5 bg-white text-slate-400 hover:text-slate-900 rounded-lg focus:ring-2 focus:ring-slate-300 p-1.5 hover:bg-slate-100 inline-flex h-8 w-8 items-center justify-center">
-                    <X class="w-4 h-4"/>
-                </button>
-            </div>
-        </transition>
+        <ToastNotification
+            :show="toast.show"
+            :message="toast.message"
+            :type="toast.type"
+            @close="toast.show = false"
+        />
 
     </div>
 </template>

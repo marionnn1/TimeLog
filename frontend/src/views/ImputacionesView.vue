@@ -21,6 +21,7 @@ import {
   ArrowRight,
   Plus
 } from 'lucide-vue-next'
+import ToastNotification from '../components/common/ToastNotification.vue'
 
 const router = useRouter()
 const store = useDataStore()
@@ -101,7 +102,6 @@ const esPasado = (dia) => {
     const fecha = new Date(anioActual.value, mesActualIndex.value, dia)
     const hoyTrunc = new Date()
     hoyTrunc.setHours(0,0,0,0)
-    // Es pasado si la fecha es anterior a hoy, no es fin de semana y no es festivo/vacaciones
     return fecha < hoyTrunc && !esFinDeSemana(dia) && !getTipoDia(fecha)
 }
 
@@ -233,7 +233,7 @@ const abrirSolicitudNueva = (dia) => {
     formSolicitud.value = {
         fechaVisible: fechaObj.toLocaleDateString('es-ES', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }), 
         fechaISO: isoDate, proyecto: '', proyecto_id: '',
-        mensaje: '', horasActuales: 0, horasNuevas: 8, esNuevo: true // Horas por defecto sugeridas
+        mensaje: '', horasActuales: 0, horasNuevas: 8, esNuevo: true 
     }
     mostrarModalSolicitud.value = true
 }
@@ -435,15 +435,12 @@ const enviarSolicitudJefe = async () => {
         </div>
     </div>
 
-    <transition enter-active-class="transform ease-out duration-300 transition" enter-from-class="translate-y-2 opacity-0 sm:translate-y-0 sm:translate-x-2" enter-to-class="translate-y-0 opacity-100 sm:translate-x-0" leave-active-class="transition ease-in duration-100" leave-from-class="opacity-100" leave-to-class="opacity-0">
-        <div v-if="toast.show" class="absolute bottom-6 right-6 z-50 flex items-center w-full max-w-xs p-4 space-x-3 text-gray-500 bg-white rounded-lg shadow-lg border border-gray-100" role="alert">
-            <div class="inline-flex items-center justify-center flex-shrink-0 w-8 h-8 rounded-lg" :class="toast.type === 'success' ? 'text-green-500 bg-green-100' : 'text-red-500 bg-red-100'">
-                <component :is="toast.type === 'success' ? CheckCircle2 : AlertCircle" class="w-5 h-5"/>
-            </div>
-            <div class="ml-3 text-sm font-bold text-gray-800">{{ toast.message }}</div>
-            <button @click="toast.show = false" type="button" class="ml-auto -mx-1.5 -my-1.5 bg-white text-gray-400 hover:text-gray-900 rounded-lg focus:ring-2 focus:ring-gray-300 p-1.5 hover:bg-gray-100 inline-flex h-8 w-8 items-center justify-center"><X class="w-4 h-4"/></button>
-        </div>
-    </transition>
+    <ToastNotification
+        :show="toast.show"
+        :message="toast.message"
+        :type="toast.type"
+        @close="toast.show = false"
+    />
   </div>
 </template>
 

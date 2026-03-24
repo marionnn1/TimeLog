@@ -8,6 +8,8 @@ import {
     AlertTriangle, UserPlus, X, Check, Palmtree, MapPin, Briefcase,
     AlertCircle, CheckCircle2, Trash2, Users
 } from 'lucide-vue-next'
+import ConfirmModal from '../components/common/ConfirmModal.vue'
+import ToastNotification from '../components/common/ToastNotification.vue'
 
 const store = useDataStore()
 const currentUser = store.getCurrentUser() 
@@ -58,7 +60,6 @@ const cargarResumenAnual = async () => {
     try {
         const promesas = []
         for(let m = 1; m <= 12; m++) {
-            // USAMOS EL SERVICIO
             promesas.push(AbsencesAPI.getAusenciasMes(m, year.value))
         }
         const resultados = await Promise.all(promesas)
@@ -438,39 +439,21 @@ const nextMonth = () => currentDate.value = new Date(year.value, month.value + 1
         </div>
     </div>
 
-    <div v-if="confirmState.show" class="fixed inset-0 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center z-[60] p-4">
-        <div class="bg-white w-full max-w-sm rounded-xl shadow-2xl p-6 animate-in zoom-in-95">
-            <div class="flex flex-col items-center text-center gap-3">
-                <div class="w-12 h-12 rounded-full flex items-center justify-center mb-2"
-                     :class="confirmState.type === 'danger' ? 'bg-red-100 text-red-600' : 'bg-amber-100 text-amber-600'">
-                    <component :is="confirmState.type === 'danger' ? Trash2 : AlertTriangle" class="w-6 h-6" />
-                </div>
-                <h3 class="text-lg font-bold text-slate-900">{{ confirmState.title }}</h3>
-                <p class="text-sm text-slate-500 leading-relaxed">{{ confirmState.message }}</p>
-                
-                <div class="flex gap-3 w-full mt-4">
-                    <button @click="confirmState.show = false" class="px-4 py-2 bg-slate-100 text-slate-600 rounded-lg font-bold flex-1 hover:bg-slate-200 transition">Cancelar</button>
-                    <button @click="ejecutarConfirmacion" 
-                            class="px-4 py-2 text-white rounded-lg font-bold flex-1 transition shadow-sm"
-                            :class="confirmState.type === 'danger' ? 'bg-red-600 hover:bg-red-700' : 'bg-amber-600 hover:bg-amber-700'">
-                        Confirmar
-                    </button>
-                </div>
-            </div>
-        </div>
-    </div>
+    <ConfirmModal 
+        :show="confirmState.show"
+        :title="confirmState.title"
+        :message="confirmState.message"
+        :type="confirmState.type"
+        @confirm="ejecutarConfirmacion"
+        @cancel="confirmState.show = false"
+    />
 
-    <transition enter-active-class="transform ease-out duration-300 transition" enter-from-class="translate-y-2 opacity-0 sm:translate-y-0 sm:translate-x-2" enter-to-class="translate-y-0 opacity-100 sm:translate-x-0" leave-active-class="transition ease-in duration-100" leave-from-class="opacity-100" leave-to-class="opacity-0">
-        <div v-if="toast.show" class="absolute bottom-6 right-6 z-50 flex items-center w-full max-w-xs p-4 space-x-3 text-gray-500 bg-white rounded-lg shadow-lg border border-gray-100">
-            <div class="inline-flex items-center justify-center flex-shrink-0 w-8 h-8 rounded-lg" :class="toast.type === 'success' ? 'text-emerald-500 bg-emerald-100' : 'text-red-500 bg-red-100'">
-                <component :is="toast.type === 'success' ? CheckCircle2 : AlertCircle" class="w-5 h-5"/>
-            </div>
-            <div class="ml-3 text-sm font-bold text-gray-800">{{ toast.message }}</div>
-            <button @click="toast.show = false" class="ml-auto -mx-1.5 -my-1.5 bg-white text-gray-400 hover:text-gray-900 rounded-lg focus:ring-2 focus:ring-gray-300 p-1.5 hover:bg-gray-100 inline-flex h-8 w-8 items-center justify-center">
-                <X class="w-4 h-4"/>
-            </button>
-        </div>
-    </transition>
+    <ToastNotification
+        :show="toast.show"
+        :message="toast.message"
+        :type="toast.type"
+        @close="toast.show = false"
+    />
 
   </div>
 </template>

@@ -6,6 +6,8 @@ import {
 } from 'lucide-vue-next'
 import { useDataStore } from '../../stores/dataStore'
 import AdminAPI from '../../services/AdminAPI'
+import ConfirmModal from '../../components/common/ConfirmModal.vue'
+import ToastNotification from '../../components/common/ToastNotification.vue'
 
 const store = useDataStore()
 
@@ -21,7 +23,7 @@ const DEFAULT_FORM = {
 const usuarios = ref([])
 const cargando = ref(true)
 
-const sedesDisponibles = store.getSedes()
+const sedesDisponibles = ['Madrid', 'Barcelona', 'Tarragona', 'Sevilla', 'Bilbao', 'Remoto']
 const busqueda = ref('')
 
 const mostrarModal = ref(false)
@@ -29,6 +31,16 @@ const esEdicion = ref(false)
 const formulario = ref({ ...DEFAULT_FORM })
 
 const confirmacion = reactive({ show: false, title: '', message: '', type: 'neutral', action: null, usuarioId: null })
+
+const toast = ref({ show: false, message: '', type: 'success' })
+let toastTimeout = null
+
+const showToast = (message, type = 'success') => {
+    toast.value = { show: true, message, type }
+    if (toastTimeout) clearTimeout(toastTimeout)
+    toastTimeout = setTimeout(() => { toast.value.show = false }, 3000)
+}
+
 
 const cargarUsuariosDesdeAPI = async () => {
     try {
@@ -40,7 +52,7 @@ const cargarUsuariosDesdeAPI = async () => {
             }))
         }
     } catch (error) {
-        console.error("Error de red al conectar con la API:", error)
+        showToast("Error de red al conectar con la API", "error")
     } finally {
         cargando.value = false
     }
@@ -86,11 +98,12 @@ const guardar = async () => {
         if (resultado.status === 'success') {
             mostrarModal.value = false
             await cargarUsuariosDesdeAPI() 
+            showToast(esEdicion.value ? "Usuario actualizado correctamente" : "Usuario creado correctamente", "success")
         } else {
-            console.error("Error del servidor:", resultado.message)
+            showToast(resultado.message || "Error del servidor", "error")
         }
     } catch (error) {
-        console.error("Error de red al intentar guardar:", error)
+        showToast("Error de red al intentar guardar", "error")
     }
 }
 
@@ -101,12 +114,18 @@ const solicitarAccion = (id, modo) => {
     if (modo === 'toggle') {
         const user = usuarios.value.find(u => u.id === id) || formulario.value
         if (user.activo === 1 || user.activo === true) {
-            confirmacion.title = 'Desactivar Acceso'; confirmacion.message = '¿Desactivar acceso a este usuario? Perderá acceso pero sus datos se conservarán.'; confirmacion.type = 'neutral'
+            confirmacion.title = 'Desactivar Acceso'
+            confirmacion.message = '¿Desactivar acceso a este usuario? Perderá acceso pero sus datos se conservarán.'
+            confirmacion.type = 'neutral'
         } else {
-            confirmacion.title = 'Reactivar Acceso'; confirmacion.message = '¿Deseas restaurar el acceso de este usuario al sistema?'; confirmacion.type = 'success'
+            confirmacion.title = 'Reactivar Acceso'
+            confirmacion.message = '¿Deseas restaurar el acceso de este usuario al sistema?'
+            confirmacion.type = 'success'
         }
     } else {
-        confirmacion.title = 'Eliminar de la BD'; confirmacion.message = '¿Estás seguro? Esta acción borrará el registro físicamente de SQL Server.'; confirmacion.type = 'danger'
+        confirmacion.title = 'Eliminar de la BD'
+        confirmacion.message = '¿Estás seguro? Esta acción borrará el registro físicamente de SQL Server.'
+        confirmacion.type = 'danger'
     }
     confirmacion.show = true
 }
@@ -120,9 +139,12 @@ const confirmarAccion = async () => {
         if (respuesta && respuesta.status === 'success') {
             await cargarUsuariosDesdeAPI(); 
             mostrarModal.value = false; 
+            showToast("Acción realizada con éxito", "success")
+        } else {
+            showToast(respuesta?.message || "Error al ejecutar la acción", "error")
         }
     } catch (error) {
-        console.error("Error de red en confirmarAccion:", error)
+        showToast("Error de red al confirmar la acción", "error")
     }
     confirmacion.show = false;
 }
@@ -270,29 +292,21 @@ const obtenerEstiloRol = (rol) => {
         </div>
     </div>
 
-    <div v-if="confirmacion.show" class="fixed inset-0 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center z-[60] p-4">
-        <div class="bg-white w-full max-w-sm rounded-xl shadow-2xl p-6 animate-in zoom-in-95">
-            <div class="flex flex-col items-center text-center gap-3">
-                <div class="w-12 h-12 rounded-full flex items-center justify-center mb-2"
-                     :class="confirmacion.type === 'danger' ? 'bg-red-100 text-red-600' : (confirmacion.type === 'success' ? 'bg-emerald-100 text-emerald-600' : 'bg-slate-100 text-slate-600')">
-                    <component :is="confirmacion.type === 'danger' ? Trash2 : (confirmacion.type === 'success' ? CheckCircle2 : AlertTriangle)" class="w-6 h-6" />
-                </div>
-                <h3 class="text-lg font-bold text-slate-900">{{ confirmacion.title }}</h3>
-                <p class="text-sm text-slate-500 leading-relaxed">{{ confirmacion.message }}</p>
-                
-                <div class="flex gap-3 w-full mt-4">
-                    <button @click="confirmacion.show = false" class="btn-secondary flex-1 py-2 border border-gray-300 text-slate-600 rounded-lg font-bold hover:bg-gray-50 transition justify-center">
-                        Cancelar
-                    </button>
-                    <button @click="confirmarAccion" 
-                            class="flex-1 py-2 text-white rounded-lg font-bold transition shadow-md justify-center"
-                            :class="confirmacion.type === 'danger' ? 'bg-red-600 hover:bg-red-700' : (confirmacion.type === 'success' ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-slate-700 hover:bg-slate-800')">
-                        Confirmar
-                    </button>
-                </div>
-            </div>
-        </div>
-    </div>
+    <ConfirmModal 
+        :show="confirmacion.show"
+        :title="confirmacion.title"
+        :message="confirmacion.message"
+        :type="confirmacion.type"
+        @confirm="confirmarAccion"
+        @cancel="confirmacion.show = false"
+    />
+
+    <ToastNotification
+        :show="toast.show"
+        :message="toast.message"
+        :type="toast.type"
+        @close="toast.show = false"
+    />
 
   </div>
 </template>

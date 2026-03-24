@@ -2,9 +2,9 @@
 import { ref, computed, onMounted, watch } from 'vue'
 import ManagerAPI from '../../services/ManagerAPI'
 import {
-    PieChart, BarChart3, Users, Activity, Download,
-    Calendar, Clock, ArrowUpRight, AlertCircle, FileSpreadsheet
+    Users, Activity, FileSpreadsheet
 } from 'lucide-vue-next'
+import ToastNotification from '../../components/common/ToastNotification.vue'
 
 const hoy = new Date()
 const anioActual = hoy.getFullYear()
@@ -19,6 +19,13 @@ const proyectosStats = ref([])
 const cargaEmpleados = ref([])
 
 const toast = ref({ show: false, message: '', type: 'success' })
+let toastTimeout = null
+
+const showToast = (message, type = 'success') => {
+    toast.value = { show: true, message, type }
+    if (toastTimeout) clearTimeout(toastTimeout)
+    toastTimeout = setTimeout(() => { toast.value.show = false }, 3000)
+}
 
 const fetchAnalyticsData = async () => {
     isLoading.value = true
@@ -49,11 +56,6 @@ const getBarColor = (horas) => {
     if (horas > 160) return 'bg-rose-500'
     if (horas < 80) return 'bg-amber-400'
     return 'bg-emerald-500'
-}
-
-const showToast = (message, type = 'success') => {
-    toast.value = { show: true, message, type }
-    setTimeout(() => toast.value.show = false, 3000)
 }
 
 const exportarReporte = () => {
@@ -127,8 +129,12 @@ const exportarReporte = () => {
             </div>
         </div>
 
-        <div v-if="toast.show" class="fixed bottom-6 right-6 bg-slate-800 text-white px-6 py-3 rounded-lg shadow-xl font-bold animate-in slide-in-from-right">
-            {{ toast.message }}
-        </div>
+        <ToastNotification
+            :show="toast.show"
+            :message="toast.message"
+            :type="toast.type"
+            @close="toast.show = false"
+        />
+
     </div>
 </template>
