@@ -7,7 +7,8 @@ from services.technical.myprojects_service import (
     obtener_calendario_mensual,
     solicitar_correccion_imputacion,
     obtener_jornada,
-    actualizar_jornada
+    actualizar_jornada,
+    obtener_proyectos_asignados
 )
 from datetime import datetime
 
@@ -102,3 +103,12 @@ def update_user_jornada():
     if exito:
         return jsonify({"status": "success", "message": "Jornada actualizada"}), 200
     return jsonify({"status": "error", "message": "Error al actualizar jornada"}), 500
+
+@myprojects_bp.route('/api/myprojects/asignados', methods=['GET'])
+def get_proyectos_asignados_endpoint():
+    u_id = request.args.get('usuario_id')
+    if not u_id:
+        return jsonify({"status": "error", "message": "Falta usuario_id"}), 400
+        
+    data = obtener_proyectos_asignados(u_id)
+    return jsonify({"status": "success", "data": data})

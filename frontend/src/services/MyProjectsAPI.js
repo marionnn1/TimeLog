@@ -30,6 +30,11 @@ export default {
         return res.data
     },
 
+    async getProyectosAsignados(usuarioId) {
+        const res = await api.get(`/myprojects/asignados?usuario_id=${usuarioId}`);
+        return res.data;
+    },
+
     async getJornada(usuario_id) {
         const res = await api.get(`/myprojects/jornada?usuario_id=${usuario_id}`)
         return res.data

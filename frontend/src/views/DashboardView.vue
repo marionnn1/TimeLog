@@ -97,7 +97,6 @@ const guardarConfigJornada = async () => {
     }
 }
 
-
 const ausenciasPersonales = ref([])
 
 const cargarAusenciasAPI = async () => {
@@ -154,13 +153,14 @@ const esPasoInvalido = (valor) => {
 }
 
 const cargarProyectosParaModal = async () => {
+    if (!user) return
     try {
-        const res = await MyProjectsAPI.getProyectosActivos()
+        const res = await MyProjectsAPI.getProyectosAsignados(user.id)
         if (res.status === 'success') {
-            proyectosRealDB.value = res.data.filter(p => p.Estado === 'Activo')
+            proyectosRealDB.value = res.data
         }
     } catch (e) {
-        console.error("Error al obtener proyectos maestros", e)
+        console.error("Error al obtener proyectos asignados", e)
     }
 }
 
@@ -369,8 +369,26 @@ const confirmarAnadirLinea = () => {
 }
 
 const borrarLineas = () => {
-    filas.value = filas.value.filter(f => !f.seleccionado)
-    showToast('Líneas eliminadas de la vista', 'success')
+    const seleccionadas = filas.value.filter(f => f.seleccionado)
+    
+    if (seleccionadas.length === 0) {
+        return showToast('Selecciona al menos una línea para borrar', 'error')
+    }
+    const conHoras = seleccionadas.filter(f => totalFila(f) > 0)
+    const vacias = seleccionadas.filter(f => totalFila(f) === 0)
+
+    if (conHoras.length > 0) {
+        showToast('No puedes quitar proyectos con horas. Ponlas a 0 y guarda los cambios primero.', 'error')
+        conHoras.forEach(f => f.seleccionado = false)
+    }
+
+    if (vacias.length > 0) {
+        filas.value = filas.value.filter(f => !vacias.includes(f))
+        
+        if (conHoras.length === 0) {
+            showToast('Líneas eliminadas de la vista', 'success')
+        }
+    }
 }
 
 onMounted(() => {
