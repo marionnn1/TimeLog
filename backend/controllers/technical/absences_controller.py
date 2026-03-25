@@ -1,5 +1,5 @@
 from flask import Blueprint, request, jsonify
-from services.technical.absences_service import obtener_ausencias_mes, guardar_ausencias, eliminar_ausencia
+from services.technical.absences_service import obtener_ausencias_mes, guardar_ausencias, eliminar_ausencias
 from datetime import datetime
 
 absences_bp = Blueprint('absences', __name__)
@@ -28,6 +28,5 @@ def create_ausencias():
 def delete_ausencia():
     d = request.json
     if not d: return jsonify({"status": "error"}), 400
-    
-    exito = eliminar_ausencia(d.get('usuario_id'), d.get('fecha'))
+    exito = eliminar_ausencias(d.get('usuario_id'), d.get('fechas'))
     return jsonify({"status": "success" if exito else "error"}), 200 if exito else 500

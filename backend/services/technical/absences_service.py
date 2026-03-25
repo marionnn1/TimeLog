@@ -66,25 +66,33 @@ def guardar_ausencias(usuario_id, fechas, tipo, comentario=""):
         db.session.rollback()
         return False
 
-def eliminar_ausencia(usuario_id, fecha):
+def eliminar_ausencias(usuario_id, fechas):
     try:
+        from models.users import Users
+        from models.audits import Audits
+        
         usuario = Users.query.get(usuario_id)
         usuario_nombre = usuario.nombre if usuario else "Desconocido"
         
-        fecha_obj = datetime.strptime(fecha, "%Y-%m-%d").date() if isinstance(fecha, str) else fecha
-        
-        ausencia = Absences.query.filter_by(usuario_id=usuario_id, fecha=fecha_obj).first()
-        if ausencia:
-            tipo = ausencia.tipo
-            db.session.delete(ausencia)
+        fechas_eliminadas = []
+
+        for fecha in fechas:
+            fecha_obj = datetime.strptime(fecha, "%Y-%m-%d").date() if isinstance(fecha, str) else fecha
             
-            detalle = f"El usuario {usuario_nombre} eliminó su ausencia ({tipo}) del día {fecha_obj}"
+            ausencia = Absences.query.filter_by(usuario_id=usuario_id, fecha=fecha_obj).first()
+            if ausencia:
+                tipo = ausencia.tipo
+                db.session.delete(ausencia)
+                fechas_eliminadas.append(str(fecha_obj))
+                
+        if fechas_eliminadas:
+            detalle = f"El usuario {usuario_nombre} eliminó {len(fechas_eliminadas)} días de ausencia ({tipo}): {', '.join(fechas_eliminadas)}"
             nueva_auditoria = Audits(actor_id=usuario_id, actor_nombre=usuario_nombre, accion='Eliminar Ausencia', gravedad='info', detalle=detalle)
             db.session.add(nueva_auditoria)
             
-            db.session.commit()
+        db.session.commit()
         return True
     except Exception as e:
-        print(f"Error al eliminar ausencia: {e}")
+        print(f"Error al eliminar ausencias: {e}")
         db.session.rollback()
         return False

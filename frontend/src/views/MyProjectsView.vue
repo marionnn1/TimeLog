@@ -3,7 +3,7 @@
     import { useDataStore } from '../stores/dataStore'
     import MyProjectsAPI from '../services/MyProjectsAPI'
     import {
-        Calendar, Clock, LayoutGrid, Loader2, FolderKanban, BarChart, Download, Briefcase
+        Calendar, Clock, LayoutGrid, Loader2, FolderKanban, BarChart, FileText, Briefcase
     } from 'lucide-vue-next'
 
     const store = useDataStore()
@@ -106,23 +106,28 @@
                 </div>
 
                 <div class="flex flex-wrap items-center gap-3">
-                    <div class="flex items-center gap-2 bg-white px-2 py-1.5 rounded-lg border border-slate-200 shadow-sm">
-                        <Calendar class="w-4 h-4 text-slate-400 ml-2" />
+                    <div class="flex items-center gap-1 bg-white px-3 py-2 rounded-lg border border-slate-200 shadow-sm">
+                        <Calendar class="w-4 h-4 text-slate-400 mr-1" />
+                        
                         <select v-model="mesSeleccionado"
-                            class="bg-transparent font-semibold text-sm text-slate-700 outline-none px-2 cursor-pointer">
+                            class="bg-transparent font-bold text-sm text-slate-700 outline-none border-none focus:ring-0 focus:border-transparent cursor-pointer appearance-none pr-5 relative"
+                            style="background-image: url('data:image/svg+xml;utf8,<svg fill=%22none%22 stroke=%22%2394a3b8%22 viewBox=%220 0 24 24%22 xmlns=%22http://www.w3.org/2000/svg%22><path stroke-linecap=%22round%22 stroke-linejoin=%22round%22 stroke-width=%222%22 d=%22M19 9l-7 7-7-7%22></path></svg>'); background-repeat: no-repeat; background-position: right center; background-size: 12px;">
                             <option v-for="m in meses" :key="m.v" :value="m.v">{{ m.n }}</option>
                         </select>
-                        <div class="w-px h-4 bg-slate-200"></div>
+                        
+                        <div class="w-px h-4 bg-slate-200 mx-1"></div>
+                        
                         <select v-model="anioSeleccionado"
-                            class="bg-transparent font-semibold text-sm text-slate-700 outline-none px-2 cursor-pointer">
+                            class="bg-transparent font-bold text-sm text-slate-700 outline-none border-none focus:ring-0 focus:border-transparent cursor-pointer appearance-none pr-5 relative"
+                            style="background-image: url('data:image/svg+xml;utf8,<svg fill=%22none%22 stroke=%22%2394a3b8%22 viewBox=%220 0 24 24%22 xmlns=%22http://www.w3.org/2000/svg%22><path stroke-linecap=%22round%22 stroke-linejoin=%22round%22 stroke-width=%222%22 d=%22M19 9l-7 7-7-7%22></path></svg>'); background-repeat: no-repeat; background-position: right center; background-size: 12px;">
                             <option :value="2026">2026</option>
                             <option :value="2025">2025</option>
                         </select>
                     </div>
 
                     <button @click="exportarCSV" :disabled="!datos || datos.proyectos.length === 0"
-                        class="flex items-center gap-2 bg-white px-4 py-2 rounded-lg border border-slate-200 shadow-sm text-sm font-bold text-slate-600 hover:text-primary hover:border-primary transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
-                        <Download class="w-4 h-4" /> Exportar CSV
+                        class="btn-secondary disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2">
+                        <FileText class="w-4 h-4" /> Exportar
                     </button>
                 </div>
             </div>

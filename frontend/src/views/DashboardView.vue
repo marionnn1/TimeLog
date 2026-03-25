@@ -319,6 +319,7 @@ const textoBotonCentral = computed(() => {
 
 const handleFocus = (event) => { if (event.target.value == 0) event.target.value = '' }
 const handleBlur = (event, fila, index) => { if (event.target.value === '') fila.horas[index] = 0 }
+
 const totalFila = (fila) => fila.horas.reduce((acc, h) => acc + (parseFloat(h) || 0), 0)
 const totalDia = (index) => filas.value.reduce((acc, f) => acc + (parseFloat(f.horas[index]) || 0), 0)
 const totalSemanal = computed(() => filas.value.reduce((acc, f) => acc + totalFila(f), 0))
@@ -336,16 +337,22 @@ const hayErrores = computed(() => {
 })
 
 const autocompletarFila = (fila) => {
-    for (let i = 0; i < 7; i++) {
-        if (esEditable(i)) {
-            const maxDia = getMaxHorasDia(i)
-            const horasOtrasFilas = filas.value.filter(f => f.id !== fila.id).reduce((acc, f) => acc + (parseFloat(f.horas[i]) || 0), 0)
-            const horasDisponibles = Math.max(0, maxDia - horasOtrasFilas)
+    const indexHoy = diasSemana.value.findIndex(d => esHoy(d))
 
-            fila.horas[i] = horasDisponibles
-        }
+    if (indexHoy === -1) {
+        return showToast('El día de hoy no está en esta semana. Vuelve a la semana actual.', 'error')
     }
-    showToast('Horas rellenadas según tu contrato', 'success')
+
+    if (esEditable(indexHoy)) {
+        const maxDia = getMaxHorasDia(indexHoy)
+        const horasOtrasFilas = filas.value.filter(f => f.id !== fila.id).reduce((acc, f) => acc + (parseFloat(f.horas[indexHoy]) || 0), 0)
+        const horasDisponibles = Math.max(0, maxDia - horasOtrasFilas)
+
+        fila.horas[indexHoy] = horasDisponibles
+        showToast('Horas de hoy rellenadas según tu contrato', 'success')
+    } else {
+        showToast('El día de hoy no es un día laborable o ya está cerrado', 'error')
+    }
 }
 
 const abrirModal = () => { nuevoRegistro.value = { proyectoId: undefined }; mostrarModal.value = true }
@@ -374,6 +381,7 @@ const borrarLineas = () => {
     if (seleccionadas.length === 0) {
         return showToast('Selecciona al menos una línea para borrar', 'error')
     }
+
     const conHoras = seleccionadas.filter(f => totalFila(f) > 0)
     const vacias = seleccionadas.filter(f => totalFila(f) === 0)
 
@@ -384,7 +392,6 @@ const borrarLineas = () => {
 
     if (vacias.length > 0) {
         filas.value = filas.value.filter(f => !vacias.includes(f))
-        
         if (conHoras.length === 0) {
             showToast('Líneas eliminadas de la vista', 'success')
         }
@@ -466,19 +473,19 @@ onMounted(() => {
                         <Trash2 class="w-3 h-3" /> Borrar
                     </button>
                     <button @click="abrirModal" class="btn-primary flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold bg-primary text-white hover:shadow-lg transition">
-                        <Plus class="w-4 h-4" /> Añadir Línea
+                        <Plus class="w-4 h-4" /> Añadir Proyecto
                     </button>
                 </div>
             </div>
 
             <div class="overflow-x-auto flex-1 relative scrollbar-thin">
                 <div v-if="cargando" class="absolute inset-0 z-10 flex items-center justify-center bg-white/40"><Loader2 class="w-10 h-10 text-primary animate-spin" /></div>
-                <table class="w-full text-left border-collapse">
+                <table class="w-full text-left border-collapse min-w-max">
                     <thead>
                         <tr class="bg-white text-xs uppercase tracking-wider border-b-2 border-gray-100 text-dark">
                             <th class="p-3 w-8 text-center"></th>
-                            <th class="p-3 font-bold w-1/4">Cliente</th>
-                            <th class="p-3 font-bold w-1/3">Proyecto</th>
+                            <th class="p-3 font-bold min-w-[150px]">Cliente</th>
+                            <th class="p-3 font-bold min-w-[200px]">Proyecto</th>
                             <th v-for="(fecha, i) in diasSemana" :key="i" class="p-2 text-center w-14" :class="[esFinDeSemana(fecha) ? 'bg-slate-50 text-gray-400' : '', excedeLimiteDiario(i) ? 'bg-red-50 text-red-600 font-bold' : '']">
                                 <div class="flex flex-col items-center"><span>{{ nombresDias[i] }}</span><span class="text-[10px] opacity-60 font-medium">{{ fecha.getDate() }}</span></div>
                             </th>
@@ -495,7 +502,7 @@ onMounted(() => {
                             <td class="p-2 relative group/cell">
                                 <div class="flex items-center justify-between pr-2">
                                     <span class="text-xs font-bold text-slate-700 px-2">{{ fila.proyecto }}</span>
-                                    <button @click="autocompletarFila(fila)" class="opacity-0 group-hover/cell:opacity-100 p-1.5 text-blue-600 hover:bg-blue-100 rounded-lg transition-all" title="Autocompletar semana (Varita mágica)">
+                                    <button @click="autocompletarFila(fila)" class="opacity-0 group-hover/cell:opacity-100 p-1.5 text-blue-600 hover:bg-blue-100 rounded-lg transition-all" title="Autocompletar hoy (Varita mágica)">
                                         <Wand2 class="w-4 h-4" />
                                     </button>
                                 </div>

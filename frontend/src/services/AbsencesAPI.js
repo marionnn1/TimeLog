@@ -11,10 +11,8 @@ export default {
         return res.data
     },
 
-    async eliminarAusencia(usuario_id, fecha) {
-        const res = await api.delete('/absences', {
-            data: { usuario_id, fecha } 
-        })
-        return res.data
+    async eliminarAusencia(userId, fechas) {
+        const res = await api.delete(`/absences`, { data: { usuario_id: userId, fechas } });
+        return res.data;
     }
 }

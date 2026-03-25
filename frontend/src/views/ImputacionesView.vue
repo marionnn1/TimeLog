@@ -347,7 +347,7 @@ const enviarSolicitudJefe = async () => {
           <div v-else-if="!esFinDeSemana(dia)" class="flex-1 overflow-y-auto scrollbar-thin pr-1">
              <div v-for="(item, idx) in getImputacionesPorDia(dia)" :key="idx" 
                   @click.stop="abrirSolicitud(item, dia)"
-                  class="text-[10px] p-1.5 rounded border-l-2 mb-1 truncate shadow-sm cursor-pointer transition transform hover:scale-105 flex justify-between items-center"
+                  class="text-[10px] p-1.5 rounded border-l-2 mb-1 truncate shadow-sm cursor-pointer transition-all hover:brightness-95 hover:shadow-md flex justify-between items-center"
                   :class="item.color">
                <span class="truncate font-semibold">{{ item.proyecto }}</span>
                <span class="font-bold opacity-80 ml-1">{{ item.horas }}h</span>

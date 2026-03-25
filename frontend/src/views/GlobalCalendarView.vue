@@ -5,7 +5,7 @@ import AbsencesAPI from '../services/AbsencesAPI'
 
 import { 
     Calendar as CalendarIcon, ChevronLeft, ChevronRight, 
-    AlertTriangle, UserPlus, X, Check, Palmtree, MapPin, Briefcase,
+    AlertTriangle, Plus, X, Check, Palmtree, MapPin, Briefcase,
     AlertCircle, CheckCircle2, Trash2, Users
 } from 'lucide-vue-next'
 import ConfirmModal from '../components/common/ConfirmModal.vue'
@@ -101,6 +101,8 @@ const getAusenciasDia = (isoDate) => ausenciasDelMes.value.filter(a => a.fecha =
 const getMiAusencia = (isoDate) => getAusenciasDia(isoDate).find(a => a.userId === currentUser.id)
 
 const mostrarModal = ref(false)
+const tabActiva = ref('solicitar') 
+
 const form = ref({
     fechaInicio: '',
     fechaFin: '',
@@ -166,26 +168,15 @@ const abrirModal = (day) => {
     if (day.isWeekend) return
 
     const existing = getMiAusencia(day.isoDate)
-    if (existing) {
-        solicitarConfirmacion(
-            'Eliminar Ausencia',
-            `¿Estás seguro de eliminar tu ${existing.tipo} del día ${day.dayNum}?`,
-            'danger',
-            async () => {
-                try {
-                    await AbsencesAPI.eliminarAusencia(currentUser.id, day.isoDate)
-                    showToast('Ausencia eliminada correctamente', 'success')
-                    cargarAusencias()
-                    cargarResumenAnual()
-                } catch(e) {
-                    showToast('Error al eliminar', 'error')
-                }
-            }
-        )
-        return
-    }
 
-    form.value = { fechaInicio: day.isoDate, fechaFin: day.isoDate, tipo: 'vacaciones', comentario: '' }
+    if (existing) {
+        tabActiva.value = 'eliminar'
+        form.value = { fechaInicio: day.isoDate, fechaFin: day.isoDate, tipo: existing.tipo, comentario: '' }
+    } else {
+        tabActiva.value = 'solicitar'
+        form.value = { fechaInicio: day.isoDate, fechaFin: day.isoDate, tipo: 'vacaciones', comentario: '' }
+    }
+    
     mostrarModal.value = true
 }
 
@@ -248,6 +239,45 @@ const confirmarSolicitud = () => {
     }
 
     procesarSolicitud(diasSolicitados)
+}
+
+const confirmarEliminacion = async () => {
+    const start = new Date(form.value.fechaInicio)
+    const end = new Date(form.value.fechaFin)
+    const diasAEliminar = []
+
+    for(let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
+        if (d.getDay() !== 0 && d.getDay() !== 6) {
+            const offset = d.getTimezoneOffset() * 60000
+            const iso = new Date(d.getTime() - offset).toISOString().split('T')[0]
+            
+            if (getMiAusencia(iso)) {
+                diasAEliminar.push(iso)
+            }
+        }
+    }
+
+    if (diasAEliminar.length === 0) {
+        showToast("No tienes ausencias registradas en este rango de fechas.", "warning")
+        return
+    }
+
+    solicitarConfirmacion(
+        'Eliminar Ausencias',
+        `Vas a cancelar ${diasAEliminar.length} día(s) de tus ausencias. ¿Estás seguro?`,
+        'danger',
+        async () => {
+            try {
+                await AbsencesAPI.eliminarAusencia(currentUser.id, diasAEliminar)
+                mostrarModal.value = false
+                showToast('Ausencias eliminadas correctamente', 'success')
+                cargarAusencias()
+                cargarResumenAnual()
+            } catch(e) {
+                showToast('Error al conectar con el servidor', 'error')
+            }
+        }
+    )
 }
 
 const prevMonth = () => currentDate.value = new Date(year.value, month.value - 1, 1)
@@ -340,7 +370,7 @@ const nextMonth = () => currentDate.value = new Date(year.value, month.value + 1
                 <div v-if="!day.isWeekend && !getMiAusencia(day.isoDate)" 
                      class="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity bg-slate-50/30">
                     <div class="bg-white rounded-full p-2 shadow-sm border border-slate-200 text-slate-400">
-                        <UserPlus class="w-5 h-5" />
+                        <Plus class="w-5 h-5 text-primary" />
                     </div>
                 </div>
 
@@ -385,12 +415,25 @@ const nextMonth = () => currentDate.value = new Date(year.value, month.value + 1
     <div v-if="mostrarModal" class="fixed inset-0 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center z-50 p-4">
         <div class="bg-white w-full max-w-md rounded-2xl shadow-2xl p-6 animate-in zoom-in-95">
             
-            <div class="flex justify-between items-center mb-6">
-                <h3 class="text-xl font-bold text-slate-800">Solicitar Días</h3>
+            <div class="flex justify-between items-center mb-4">
+                <h3 class="text-xl font-bold text-slate-800">Gestión de Ausencias</h3>
                 <button @click="mostrarModal=false" class="text-slate-400 hover:text-slate-600"><X class="w-6 h-6"/></button>
             </div>
 
-            <div class="space-y-6">
+            <div class="flex bg-slate-100 p-1 rounded-xl mb-6">
+                <button @click="tabActiva = 'solicitar'" 
+                        class="flex-1 py-2 rounded-lg text-sm font-bold transition-all" 
+                        :class="tabActiva === 'solicitar' ? 'bg-white shadow-sm text-primary' : 'text-slate-500 hover:text-slate-700'">
+                    Solicitar Días
+                </button>
+                <button @click="tabActiva = 'eliminar'" 
+                        class="flex-1 py-2 rounded-lg text-sm font-bold transition-all" 
+                        :class="tabActiva === 'eliminar' ? 'bg-white shadow-sm text-rose-600' : 'text-slate-500 hover:text-slate-700'">
+                    Cancelar Días
+                </button>
+            </div>
+
+            <div v-if="tabActiva === 'solicitar'" class="space-y-6">
                 <div class="grid grid-cols-2 gap-4">
                     <div>
                         <label class="block text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-2">Desde</label>
@@ -432,10 +475,32 @@ const nextMonth = () => currentDate.value = new Date(year.value, month.value + 1
                            class="w-full bg-white border border-slate-200 text-slate-800 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-primary outline-none">
                 </div>
 
-                <button @click="confirmarSolicitud" class="w-full btn-primary py-3 justify-center text-base bg-primary text-white font-bold rounded-lg hover:bg-emerald-600 transition flex items-center">
+                <button @click="confirmarSolicitud" class="w-full btn-primary py-3 justify-center text-base bg-primary text-white font-bold rounded-lg hover:bg-blue-700 shadow-md transition flex items-center">
                     <Check class="w-5 h-5 mr-2"/> Confirmar Solicitud
                 </button>
             </div>
+
+            <div v-else class="space-y-6">
+                <p class="text-sm text-slate-500 bg-rose-50 p-3 rounded-lg border border-rose-100 text-rose-800">
+                    Selecciona el rango de fechas en las que deseas <b>cancelar</b> tus ausencias. Solo se borrarán los días en los que tengas algo registrado.
+                </p>
+
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-2">Desde</label>
+                        <input type="date" v-model="form.fechaInicio" class="w-full bg-slate-50 border border-slate-200 text-slate-800 rounded-lg px-3 py-2 font-bold focus:ring-2 focus:ring-rose-500 outline-none">
+                    </div>
+                    <div>
+                        <label class="block text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-2">Hasta</label>
+                        <input type="date" v-model="form.fechaFin" class="w-full bg-slate-50 border border-slate-200 text-slate-800 rounded-lg px-3 py-2 font-bold focus:ring-2 focus:ring-rose-500 outline-none">
+                    </div>
+                </div>
+
+                <button @click="confirmarEliminacion" class="w-full btn-primary py-3 justify-center text-base bg-rose-500 text-white font-bold rounded-lg hover:bg-rose-600 shadow-md transition flex items-center">
+                    <Trash2 class="w-5 h-5 mr-2"/> Confirmar Eliminación
+                </button>
+            </div>
+
         </div>
     </div>
 
