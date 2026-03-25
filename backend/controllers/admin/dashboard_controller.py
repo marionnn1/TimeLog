@@ -1,10 +1,10 @@
-from flask import Blueprint, jsonify
+from flask import Blueprint
 from services.admin.dashboard_service import obtener_estadisticas
+from utils.responses import success_response
+
 dashboard_bp = Blueprint('dashboard', __name__)
 
 @dashboard_bp.route('/api/dashboard/stats', methods=['GET'])
 def get_stats():
     stats = obtener_estadisticas()
-    if stats is not None:
-        return jsonify({"status": "success", "data": stats}), 200
-    return jsonify({"status": "error", "message": "Error al cargar estadísticas"}), 500
+    return success_response(data=stats, message="Estadísticas cargadas correctamente")

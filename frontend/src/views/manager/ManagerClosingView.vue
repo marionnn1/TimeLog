@@ -41,8 +41,13 @@ const fetchClosingData = async () => {
     isLoading.value = true
     try {
         const response = await ManagerAPI.getClosingData(fechaCierre.value)
-        mesCerrado.value = response.data.mesCerrado
-        auditoriaUsuarios.value = response.data.usuarios || []
+        const json = response.data
+
+
+        const data = json.status === 'success' ? json.data : json
+
+        mesCerrado.value = data.mesCerrado
+        auditoriaUsuarios.value = data.usuarios || []
     } catch (error) {
         showToast("Error al conectar con el servidor", "error")
         auditoriaUsuarios.value = []
@@ -91,7 +96,7 @@ const ejecutarCierre = () => {
         )
         return
     }
-    
+
     if (resumenEstado.value.vacios === resumenEstado.value.total) {
         solicitarConfirmacion(
             'Mes Vacío',
@@ -101,7 +106,7 @@ const ejecutarCierre = () => {
         )
         return
     }
-    
+
     procesarCierreToggle('cerrar')
 }
 
@@ -114,16 +119,16 @@ const reabrirMes = () => {
     )
 }
 
-const exportarExcel = () => {   
+const exportarExcel = () => {
     const headers = ['ID Empleado', 'Nombre Empleado', 'Rol', 'Estado Periodo', 'Días Faltantes', 'Horas Totales Mes', 'Cliente', 'Proyecto', 'Horas Proyecto']
     const rows = []
 
     auditoriaUsuarios.value.forEach(u => {
-        const baseData = [ u.id, `"${u.nombre}"`, `"${u.rol}"`, `"${u.estado}"`, `"${u.diasFaltantes.join(', ')}"`, u.horasReales ]
+        const baseData = [u.id, `"${u.nombre}"`, `"${u.rol}"`, `"${u.estado}"`, `"${u.diasFaltantes.join(', ')}"`, u.horasReales]
         if (u.desgloseProyectos && u.desgloseProyectos.length > 0) {
-            u.desgloseProyectos.forEach(p => { rows.push([ ...baseData, `"${p.cliente}"`, `"${p.proyecto}"`, p.horas ]) })
+            u.desgloseProyectos.forEach(p => { rows.push([...baseData, `"${p.cliente}"`, `"${p.proyecto}"`, p.horas]) })
         } else {
-            rows.push([ ...baseData, '""', '""', 0 ])
+            rows.push([...baseData, '""', '""', 0])
         }
     })
 
@@ -134,8 +139,8 @@ const exportarExcel = () => {
     link.setAttribute('href', url)
     link.setAttribute('download', `Cierre_Mensual_${fechaCierre.value}.csv`)
     document.body.appendChild(link)
-    link.click() 
-    document.body.removeChild(link) 
+    link.click()
+    document.body.removeChild(link)
     showToast('Reporte descargado correctamente', 'success')
 }
 </script>
@@ -295,21 +300,10 @@ const exportarExcel = () => {
             </div>
         </div>
 
-        <ConfirmModal 
-            :show="confirmState.show"
-            :title="confirmState.title"
-            :message="confirmState.message"
-            :type="confirmState.type"
-            @confirm="ejecutarConfirmacion"
-            @cancel="confirmState.show = false"
-        />
+        <ConfirmModal :show="confirmState.show" :title="confirmState.title" :message="confirmState.message"
+            :type="confirmState.type" @confirm="ejecutarConfirmacion" @cancel="confirmState.show = false" />
 
-        <ToastNotification
-            :show="toast.show"
-            :message="toast.message"
-            :type="toast.type"
-            @close="toast.show = false"
-        />
+        <ToastNotification :show="toast.show" :message="toast.message" :type="toast.type" @close="toast.show = false" />
 
     </div>
 </template>

@@ -23,7 +23,13 @@ const showToast = (message, type = 'success') => {
 const fetchTickets = async () => {
     isLoading.value = true
     try {
-        solicitudes.value = await AdminAPI.getTickets()
+        const json = await AdminAPI.getTickets()
+        // Nos aseguramos de leer la propiedad .data de nuestro success_response
+        if (json.status === 'success') {
+            solicitudes.value = json.data
+        } else {
+            solicitudes.value = json || [] // Fallback viejo
+        }
     } catch (error) {
         showToast("Error al cargar las solicitudes", "error")
     } finally {

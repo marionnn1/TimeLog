@@ -35,7 +35,12 @@ const fetchValidations = async () => {
     isLoading.value = true
     try {
         const response = await ManagerAPI.getValidations()
-        solicitudes.value = response.data || []
+        const json = response.data
+        if (json.status === 'success') {
+            solicitudes.value = json.data
+        } else {
+            solicitudes.value = json || []
+        }
     } catch (error) {
         showToast("Error al cargar las solicitudes", "error")
     } finally {
@@ -229,3 +234,14 @@ const rechazarSolicitud = (id) => {
 
   </div>
 </template>
+
+<style scoped>
+input::-webkit-outer-spin-button,
+input::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+input[type=number] {
+  -moz-appearance: textfield;
+}
+</style>

@@ -1,11 +1,14 @@
-from flask import Blueprint, jsonify
+from flask import Blueprint
 from services.admin.audit_service import obtener_logs
+from utils.responses import success_response # Usamos nuestra nueva utilidad
 
 audit_bp = Blueprint('audit', __name__)
 
 @audit_bp.route('/api/auditoria', methods=['GET'])
 def get_logs():
     logs = obtener_logs()
-    if logs is not None:
-        return jsonify({"status": "success", "data": logs}), 200
-    return jsonify({"status": "error", "message": "Error al cargar la auditoría"}), 500
+    
+    return success_response(
+        data=logs, 
+        message="Registros de auditoría cargados correctamente"
+    )

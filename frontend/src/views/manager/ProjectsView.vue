@@ -38,9 +38,13 @@ const fetchProjects = async () => {
     isLoading.value = true
     try {
         const response = await ManagerAPI.getProjectsData()
-        proyectos.value = response.data.proyectos || []
-        usuariosDisponibles.value = response.data.usuariosDisponibles || []
-        clientesDisponibles.value = response.data.clientesDisponibles || [] 
+        const json = response.data
+        // Extraemos los datos del nuevo formato
+        const payload = json.status === 'success' ? json.data : json
+
+        proyectos.value = payload.proyectos || []
+        usuariosDisponibles.value = payload.usuariosDisponibles || []
+        clientesDisponibles.value = payload.clientesDisponibles || [] 
     } catch (error) {
         showToast("Error al cargar los datos", "error")
     } finally {

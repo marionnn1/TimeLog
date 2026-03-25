@@ -31,7 +31,10 @@ const fetchAnalyticsData = async () => {
     isLoading.value = true
     try {
         const response = await ManagerAPI.getAnalytics(mesAnalisis.value)
-        const data = response.data
+        const json = response.data
+        
+        const data = json.status === 'success' ? json.data : json
+
         totalHorasReales.value = data.totalHorasImputadas || 0
         proyectosStats.value = data.proyectosStats || []
         cargaEmpleados.value = data.cargaEmpleados || []

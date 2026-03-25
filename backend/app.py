@@ -1,9 +1,14 @@
+import traceback
 from flask import Flask
 from flask_cors import CORS
 
 # --- SQLALCHEMY IMPORTS ---
 from config import SQLALCHEMY_DATABASE_URI
 from database.db import db
+
+# --- UTILIDADES DE ERROR (NUEVO) ---
+from utils.responses import error_response
+from utils.exceptions import APIError
 
 # --- TECHNICAL ---
 from controllers.technical.time_entries_user_controller import time_entries_user_bp
@@ -43,6 +48,23 @@ with app.app_context():
     from models.month_closings import MonthClosings
     from models.audits import Audits
     from models.logs import Logs
+
+
+# --- MANEJO GLOBAL DE ERRORES (NUEVO) ---
+
+@app.errorhandler(APIError)
+def handle_api_error(e):
+    """Atrapa los errores que lanzamos a propósito (ej. validaciones)"""
+    db.session.rollback()
+    return error_response(e.message, e.status_code)
+
+@app.errorhandler(Exception)
+def handle_generic_exception(e):
+    """Atrapa cualquier error inesperado (ej. fallos de SQL, variables nulas)"""
+    db.session.rollback()
+    traceback.print_exc() # Imprime el error en la consola de Docker/Terminal
+    return error_response(f"Error interno: {str(e)}", 500)
+
 
 # --- REGISTRO DE BLUEPRINTS ---
 app.register_blueprint(users_bp)

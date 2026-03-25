@@ -4,23 +4,17 @@ from models.time_entries import TimeEntries
 from models.users import Users
 from models.audits import Audits
 from datetime import datetime
+from utils.exceptions import APIError
 
 def get_max_horas_dia_usuario(usuario_id, fecha_str):
     usuario = Users.query.get(usuario_id)
     if not usuario: return 8.5
-    
-    if isinstance(fecha_str, str):
-        fecha = datetime.strptime(fecha_str, "%Y-%m-%d").date()
-    else:
-        fecha = fecha_str
-        
-    mes = fecha.month
-    dia_semana = fecha.weekday()
+    fecha = datetime.strptime(fecha_str, "%Y-%m-%d").date() if isinstance(fecha_str, str) else fecha_str
+    mes, dia_semana = fecha.month, fecha.weekday()
     if dia_semana >= 5: return 0.0 
     
     es_verano = (mes == 7 or mes == 8)
     tipo = usuario.tipo_contrato or '40H'
-    
     if tipo == '40H':
         if es_verano: return 7.0
         if dia_semana == 4: return 6.5
@@ -31,102 +25,64 @@ def get_max_horas_dia_usuario(usuario_id, fecha_str):
         return float(usuario.horas_invierno_lj or 8.5)
 
 def get_pending_validations():
-    try:
-        solicitudes_db = TimeEntries.query.filter_by(estado="Pendiente").all()
+    solicitudes_db = TimeEntries.query.filter_by(estado="Pendiente").all()
+    solicitudes = []
+    for s in solicitudes_db:
+        usuario_nombre = s.usuario.nombre if s.usuario else "Desconocido"
+        nombres = usuario_nombre.split()
+        avatar = (nombres[0][0] + (nombres[1][0] if len(nombres) > 1 else "")).upper() if nombres else "XX"
 
-        solicitudes = []
-        for s in solicitudes_db:
-            usuario_nombre = s.usuario.nombre if s.usuario else "Desconocido"
+        comentario_raw = s.comentario or ""
+        horas_solicitadas = float(s.horas) if s.horas is not None else 0.0
+        motivo_limpio = comentario_raw
 
-            nombres = usuario_nombre.split()
-            avatar = (nombres[0][0] + (nombres[1][0] if len(nombres) > 1 else "")).upper() if nombres else "XX"
+        match = re.search(r'\[Solicita.*?([\d\.]+)h\]\s*-\s*Motivo:\s*(.*)', comentario_raw)
+        if match:
+            try:
+                horas_solicitadas, motivo_limpio = float(match.group(1)), match.group(2).strip()
+            except ValueError: pass
 
-            proyecto_nombre = s.proyecto.nombre if s.proyecto else "Sin Proyecto"
-            cliente_nombre = s.proyecto.cliente.nombre if s.proyecto and s.proyecto.cliente else "Interno"
-
-            comentario_raw = s.comentario or ""
-            horas_solicitadas = float(s.horas) if s.horas is not None else 0.0
-            motivo_limpio = comentario_raw
-
-            match = re.search(r'\[Solicita.*?([\d\.]+)h\]\s*-\s*Motivo:\s*(.*)', comentario_raw)
-            if match:
-                try:
-                    horas_solicitadas = float(match.group(1))
-                    motivo_limpio = match.group(2).strip()
-                except ValueError:
-                    pass
-
-            solicitudes.append({
-                "id": s.id,
-                "usuario": usuario_nombre,
-                "avatar": avatar,
-                "fecha": s.fecha.strftime("%Y-%m-%d") if s.fecha else "",
-                "proyecto": proyecto_nombre,
-                "cliente": cliente_nombre,
-                "horasActuales": float(s.horas) if s.horas is not None else 0.0,
-                "horasSolicitadas": horas_solicitadas, 
-                "motivo": motivo_limpio or "Sin motivo especificado",
-                "estado": "pendiente",
-            })
-        return solicitudes, 200
-    except Exception as e:
-        print(f"Error al obtener validaciones pendientes: {e}")
-        return {"error": str(e)}, 500
+        solicitudes.append({
+            "id": s.id, "usuario": usuario_nombre, "avatar": avatar,
+            "fecha": s.fecha.strftime("%Y-%m-%d") if s.fecha else "",
+            "proyecto": s.proyecto.nombre if s.proyecto else "Sin Proyecto",
+            "cliente": s.proyecto.cliente.nombre if s.proyecto and s.proyecto.cliente else "Interno",
+            "horasActuales": float(s.horas) if s.horas is not None else 0.0,
+            "horasSolicitadas": horas_solicitadas, "motivo": motivo_limpio or "Sin motivo", "estado": "pendiente",
+        })
+    return solicitudes
 
 def approve_validation(imputacion_id, nuevas_horas):
-    try:
-        imputacion = TimeEntries.query.get(imputacion_id)
-        if not imputacion:
-            return {"error": "Imputación no encontrada"}, 404
+    imputacion = TimeEntries.query.get(imputacion_id)
+    if not imputacion: raise APIError("Imputación no encontrada", 404)
 
-        usuario_id = imputacion.usuario_id
-        fecha = imputacion.fecha
+    max_horas = get_max_horas_dia_usuario(imputacion.usuario_id, imputacion.fecha)
+    otras_imputaciones = TimeEntries.query.filter(
+        TimeEntries.usuario_id == imputacion.usuario_id, TimeEntries.fecha == imputacion.fecha,
+        TimeEntries.id != imputacion_id, TimeEntries.estado != 'Rechazado'
+    ).all()
+    
+    horas_otros_proyectos = sum(float(i.horas) for i in otras_imputaciones)
+    if (horas_otros_proyectos + float(nuevas_horas)) > max_horas:
+        raise APIError(f"El total diario superaría el límite de {max_horas}h.", 400)
 
-        max_horas = get_max_horas_dia_usuario(usuario_id, fecha)
-        
-        otras_imputaciones = TimeEntries.query.filter(
-            TimeEntries.usuario_id == usuario_id,
-            TimeEntries.fecha == fecha,
-            TimeEntries.id != imputacion_id,
-            TimeEntries.estado != 'Rechazado'
-        ).all()
-        
-        horas_otros_proyectos = sum(float(i.horas) for i in otras_imputaciones)
-        
-        if (horas_otros_proyectos + float(nuevas_horas)) > max_horas:
-            return {"error": f"No se puede aprobar. El total diario superaría su límite de {max_horas}h (Ya tiene {horas_otros_proyectos}h en otros proyectos)."}, 400
-
-        imputacion.horas = nuevas_horas
-        imputacion.estado = "Aprobado"
-        imputacion.fecha_validacion = datetime.utcnow()
-        imputacion.comentario = ""
-
-        db.session.commit()
-        return {"message": "Solicitud aprobada y corregida"}, 200
-    except Exception as e:
-        db.session.rollback()
-        print(f"Error al aprobar validación: {e}")
-        return {"error": str(e)}, 500
+    imputacion.horas = nuevas_horas
+    imputacion.estado = "Aprobado"
+    imputacion.fecha_validacion = datetime.utcnow()
+    imputacion.comentario = ""
+    db.session.commit()
+    return True
 
 def reject_validation(imputacion_id, motivo_rechazo):
-    try:
-        imputacion = TimeEntries.query.get(imputacion_id)
-        if not imputacion:
-            return {"error": "Imputación no encontrada"}, 404
+    imputacion = TimeEntries.query.get(imputacion_id)
+    if not imputacion: raise APIError("Imputación no encontrada", 404)
 
-        if float(imputacion.horas) == 0.0:
-            db.session.delete(imputacion)
-        else:
-            imputacion.estado = "Rechazado"
-            imputacion.comentario = f"[Rechazado] {motivo_rechazo}"
+    if float(imputacion.horas) == 0.0:
+        db.session.delete(imputacion)
+    else:
+        imputacion.estado = "Rechazado"
+        imputacion.comentario = f"[Rechazado] {motivo_rechazo}"
 
-        detalle_log = f"Solicitud {imputacion_id} rechazada. Motivo: {motivo_rechazo}"
-        nuevo_log = Audits(actor_nombre="Manager", accion="Rechazo Solicitud", gravedad="warning", detalle=detalle_log)
-        db.session.add(nuevo_log)
-
-        db.session.commit()
-        return {"message": "Solicitud rechazada"}, 200
-    except Exception as e:
-        db.session.rollback()
-        print(f"Error al rechazar validación: {e}")
-        return {"error": str(e)}, 500
+    db.session.add(Audits(actor_nombre="Manager", accion="Rechazo Solicitud", gravedad="warning", detalle=f"Solicitud {imputacion_id} rechazada. Motivo: {motivo_rechazo}"))
+    db.session.commit()
+    return True
