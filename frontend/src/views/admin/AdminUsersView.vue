@@ -157,9 +157,9 @@ const obtenerEstiloRol = (rol) => {
 </script>
 
 <template>
-  <div class="h-full flex flex-col font-sans bg-gray-50 p-6 gap-6 overflow-y-auto relative">
+  <div class="h-full flex flex-col font-sans bg-gray-50 p-6 gap-6 overflow-hidden relative">
     
-    <div class="flex justify-between items-center">
+    <div class="flex justify-between items-center shrink-0">
       <div>
         <h1 class="h1-title font-bold text-2xl text-slate-800">Gestión de Usuarios</h1>
         <p class="subtitle text-slate-500 text-sm">Administra altas, bajas y sedes de trabajo.</p>
@@ -169,7 +169,7 @@ const obtenerEstiloRol = (rol) => {
       </button>
     </div>
 
-    <div class="card py-3">
+    <div class="card py-3 shrink-0">
         <div class="relative w-full max-w-sm">
             <Search class="absolute left-3 top-2.5 h-4 w-4 text-gray-400" />
             <input 
@@ -181,57 +181,59 @@ const obtenerEstiloRol = (rol) => {
         </div>
     </div>
 
-    <div class="card p-0 overflow-hidden relative min-h-[200px] bg-white border border-gray-200 rounded-xl shadow-sm">
+    <div class="card flex-1 p-0 overflow-hidden relative min-h-[200px] bg-white border border-gray-200 rounded-xl shadow-sm flex flex-col">
         <div v-if="cargando" class="absolute inset-0 bg-white/80 backdrop-blur-sm flex flex-col items-center justify-center z-10">
             <div class="w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mb-2"></div>
             <p class="text-sm text-gray-500 font-medium">Conectando con SQL Server...</p>
         </div>
 
-        <table class="w-full text-left">
-            <thead class="bg-gray-50 text-xs uppercase text-gray-500 border-b border-gray-200">
-                <tr>
-                    <th class="px-6 py-4">Usuario</th>
-                    <th class="px-6 py-4">Rol</th>
-                    <th class="px-6 py-4">Sede / Ubicación</th>
-                    <th class="px-6 py-4 text-right">Acciones</th>
-                </tr>
-            </thead>
-            <tbody class="divide-y divide-gray-100 text-sm">
-                <tr v-if="!cargando && usuariosFiltrados.length === 0">
-                    <td colspan="4" class="px-6 py-8 text-center text-gray-400">
-                        No se han encontrado usuarios.
-                    </td>
-                </tr>
+        <div class="flex-1 overflow-y-auto scrollbar-thin">
+            <table class="w-full text-left relative">
+                <thead class="bg-gray-50 text-xs uppercase text-gray-500 border-b border-gray-200 sticky top-0 z-10 shadow-sm">
+                    <tr>
+                        <th class="px-6 py-4">Usuario</th>
+                        <th class="px-6 py-4">Rol</th>
+                        <th class="px-6 py-4">Sede / Ubicación</th>
+                        <th class="px-6 py-4 text-right">Acciones</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-100 text-sm">
+                    <tr v-if="!cargando && usuariosFiltrados.length === 0">
+                        <td colspan="4" class="px-6 py-8 text-center text-gray-400">
+                            No se han encontrado usuarios.
+                        </td>
+                    </tr>
 
-                <tr v-for="user in usuariosFiltrados" :key="user.id" class="hover:bg-slate-50 transition" :class="{'opacity-50': user.activo === 0 || user.activo === false}">
-                    <td class="px-6 py-4">
-                        <div class="flex items-center gap-2">
-                            <p class="font-bold text-slate-800" :class="{'line-through text-slate-400': user.activo === 0 || user.activo === false}">{{ user.nombre }}</p>
-                            <span v-if="user.activo === 0 || user.activo === false" class="bg-red-100 text-red-600 border border-red-200 text-[10px] px-2 py-0.5 rounded-full font-bold uppercase">Inactivo</span>
-                        </div>
-                        <p class="text-xs text-gray-400">{{ user.email }}</p>
-                    </td>
-                    <td class="px-6 py-4">
-                        <span :class="obtenerEstiloRol(user.rol)" class="px-2 py-1 rounded-md text-[10px] font-bold uppercase border">
-                            {{ user.rol }}
-                        </span>
-                    </td>
-                    <td class="px-6 py-4 flex items-center gap-2 text-gray-600">
-                        <MapPin class="w-4 h-4 text-gray-400"/> {{ user.sede }}
-                    </td>
-                    <td class="px-6 py-4 text-right">
-                        <div class="flex items-center justify-end gap-2">
-                            <button @click="abrirEditar(user)" class="p-2 text-gray-400 hover:text-blue-500 transition rounded-lg hover:bg-blue-50" title="Editar">
-                                <Pencil class="w-4 h-4"/>
-                            </button>
-                            <button @click="solicitarAccion(user.id, 'eliminar')" class="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 transition rounded-lg" title="Eliminar de BD">
-                                <Trash2 class="w-4 h-4"/>
-                            </button>
-                        </div>
-                    </td>
-                </tr>
-            </tbody>
-        </table>
+                    <tr v-for="user in usuariosFiltrados" :key="user.id" class="hover:bg-slate-50 transition" :class="{'opacity-50': user.activo === 0 || user.activo === false}">
+                        <td class="px-6 py-4">
+                            <div class="flex items-center gap-2">
+                                <p class="font-bold text-slate-800" :class="{'line-through text-slate-400': user.activo === 0 || user.activo === false}">{{ user.nombre }}</p>
+                                <span v-if="user.activo === 0 || user.activo === false" class="bg-red-100 text-red-600 border border-red-200 text-[10px] px-2 py-0.5 rounded-full font-bold uppercase">Inactivo</span>
+                            </div>
+                            <p class="text-xs text-gray-400">{{ user.email }}</p>
+                        </td>
+                        <td class="px-6 py-4">
+                            <span :class="obtenerEstiloRol(user.rol)" class="px-2 py-1 rounded-md text-[10px] font-bold uppercase border">
+                                {{ user.rol }}
+                            </span>
+                        </td>
+                        <td class="px-6 py-4 flex items-center gap-2 text-gray-600">
+                            <MapPin class="w-4 h-4 text-gray-400"/> {{ user.sede }}
+                        </td>
+                        <td class="px-6 py-4 text-right">
+                            <div class="flex items-center justify-end gap-2">
+                                <button @click="abrirEditar(user)" class="p-2 text-gray-400 hover:text-blue-500 transition rounded-lg hover:bg-blue-50" title="Editar">
+                                    <Pencil class="w-4 h-4"/>
+                                </button>
+                                <button @click="solicitarAccion(user.id, 'eliminar')" class="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 transition rounded-lg" title="Eliminar de BD">
+                                    <Trash2 class="w-4 h-4"/>
+                                </button>
+                            </div>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
     </div>
 
     <div v-if="mostrarModal" class="fixed inset-0 bg-slate-900/50 flex items-center justify-center z-50 p-4 backdrop-blur-sm">

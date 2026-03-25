@@ -1,6 +1,8 @@
 from database.db import db
 from models.absences import Absences
 from models.time_entries import TimeEntries
+from models.audits import Audits
+from models.users import Users
 from sqlalchemy import extract
 from datetime import datetime 
 
@@ -34,25 +36,28 @@ def obtener_ausencias_mes(mes, anio):
 
 def guardar_ausencias(usuario_id, fechas, tipo, comentario=""):
     try:
+        usuario = Users.query.get(usuario_id)
+        usuario_nombre = usuario.nombre if usuario else "Desconocido"
+        
+        fechas_guardadas = []
+
         for f in fechas:
             fecha_obj = datetime.strptime(f, "%Y-%m-%d").date() if isinstance(f, str) else f
             
-            imputaciones = TimeEntries.query.filter_by(
-                usuario_id=usuario_id, fecha=fecha_obj
-            ).all()
-            
+            imputaciones = TimeEntries.query.filter_by(usuario_id=usuario_id, fecha=fecha_obj).all()
             for imputacion in imputaciones:
                 db.session.delete(imputacion)
             
-            existe = Absences.query.filter_by(
-                usuario_id=usuario_id, fecha=fecha_obj
-            ).first()
-            
+            existe = Absences.query.filter_by(usuario_id=usuario_id, fecha=fecha_obj).first()
             if not existe:
-                nueva_ausencia = Absences(
-                    usuario_id=usuario_id, fecha=fecha_obj, tipo=tipo, comentario=comentario
-                )
+                nueva_ausencia = Absences(usuario_id=usuario_id, fecha=fecha_obj, tipo=tipo, comentario=comentario)
                 db.session.add(nueva_ausencia)
+                fechas_guardadas.append(str(fecha_obj))
+
+        if fechas_guardadas:
+            detalle = f"El usuario {usuario_nombre} registró {len(fechas_guardadas)} días de ausencia ({tipo}): {', '.join(fechas_guardadas)}"
+            nueva_auditoria = Audits(actor_id=usuario_id, actor_nombre=usuario_nombre, accion='Registro Ausencia', gravedad='info', detalle=detalle)
+            db.session.add(nueva_auditoria)
 
         db.session.commit()
         return True
@@ -61,15 +66,22 @@ def guardar_ausencias(usuario_id, fechas, tipo, comentario=""):
         db.session.rollback()
         return False
 
-
 def eliminar_ausencia(usuario_id, fecha):
     try:
-
+        usuario = Users.query.get(usuario_id)
+        usuario_nombre = usuario.nombre if usuario else "Desconocido"
+        
         fecha_obj = datetime.strptime(fecha, "%Y-%m-%d").date() if isinstance(fecha, str) else fecha
         
         ausencia = Absences.query.filter_by(usuario_id=usuario_id, fecha=fecha_obj).first()
         if ausencia:
+            tipo = ausencia.tipo
             db.session.delete(ausencia)
+            
+            detalle = f"El usuario {usuario_nombre} eliminó su ausencia ({tipo}) del día {fecha_obj}"
+            nueva_auditoria = Audits(actor_id=usuario_id, actor_nombre=usuario_nombre, accion='Eliminar Ausencia', gravedad='info', detalle=detalle)
+            db.session.add(nueva_auditoria)
+            
             db.session.commit()
         return True
     except Exception as e:

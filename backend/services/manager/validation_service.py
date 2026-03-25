@@ -73,7 +73,7 @@ def get_pending_validations():
         print(f"Error al obtener validaciones pendientes: {e}")
         return {"error": str(e)}, 500
 
-def approve_validation(imputacion_id, nuevas_horas):
+def approve_validation(imputacion_id, nuevas_horas, manager_id=None):
     try:
         imputacion = TimeEntries.query.get(imputacion_id)
         if not imputacion:
@@ -82,9 +82,16 @@ def approve_validation(imputacion_id, nuevas_horas):
         usuario_id = imputacion.usuario_id
         fecha = imputacion.fecha
         horas_float = float(nuevas_horas)
-        
+
+        manager = Users.query.get(manager_id) if manager_id else None
+        manager_nombre = manager.nombre if manager else "Manager (Desconocido)"
+
         if horas_float == 0.0:
             db.session.delete(imputacion)
+            
+            detalle_log = f"Solicitud {imputacion_id} aprobada y eliminada (0 horas) por {manager_nombre}"
+            nuevo_log = Audits(actor_id=manager_id, actor_nombre=manager_nombre, accion="Aprobación Solicitud", gravedad="info", detalle=detalle_log)
+            db.session.add(nuevo_log)           
             db.session.commit()
             return {"message": "Solicitud aprobada (registro eliminado al tener 0 horas)"}, 200
 
@@ -100,12 +107,16 @@ def approve_validation(imputacion_id, nuevas_horas):
         horas_otros_proyectos = sum(float(i.horas) for i in otras_imputaciones)
         
         if (horas_otros_proyectos + horas_float) > max_horas:
-            return {"error": f"No se puede aprobar. El total diario superaría su límite de {max_horas}h (Ya tiene {horas_otros_proyectos}h en otros proyectos)."}, 400
+            return {"error": f"No se puede aprobar. El total diario superaría su límite de {max_horas}h."}, 400
 
         imputacion.horas = horas_float
         imputacion.estado = "Aprobado"
         imputacion.fecha_validacion = datetime.utcnow()
         imputacion.comentario = ""
+
+        detalle_log = f"Solicitud {imputacion_id} aprobada con {horas_float}h por {manager_nombre}"
+        nuevo_log = Audits(actor_id=manager_id, actor_nombre=manager_nombre, accion="Aprobación Solicitud", gravedad="info", detalle=detalle_log)
+        db.session.add(nuevo_log)
 
         db.session.commit()
         return {"message": "Solicitud aprobada y corregida"}, 200
@@ -114,11 +125,15 @@ def approve_validation(imputacion_id, nuevas_horas):
         print(f"Error al aprobar validación: {e}")
         return {"error": str(e)}, 500
 
-def reject_validation(imputacion_id, motivo_rechazo):
+
+def reject_validation(imputacion_id, motivo_rechazo, manager_id=None):
     try:
         imputacion = TimeEntries.query.get(imputacion_id)
         if not imputacion:
             return {"error": "Imputación no encontrada"}, 404
+
+        manager = Users.query.get(manager_id) if manager_id else None
+        manager_nombre = manager.nombre if manager else "Manager (Desconocido)"
 
         if float(imputacion.horas) == 0.0:
             db.session.delete(imputacion)
@@ -126,8 +141,8 @@ def reject_validation(imputacion_id, motivo_rechazo):
             imputacion.estado = "Rechazado"
             imputacion.comentario = f"[Rechazado] {motivo_rechazo}"
 
-        detalle_log = f"Solicitud {imputacion_id} rechazada. Motivo: {motivo_rechazo}"
-        nuevo_log = Audits(actor_nombre="Manager", accion="Rechazo Solicitud", gravedad="warning", detalle=detalle_log)
+        detalle_log = f"Solicitud {imputacion_id} rechazada por {manager_nombre}. Motivo: {motivo_rechazo}"
+        nuevo_log = Audits(actor_id=manager_id, actor_nombre=manager_nombre, accion="Rechazo Solicitud", gravedad="warning", detalle=detalle_log)
         db.session.add(nuevo_log)
 
         db.session.commit()

@@ -6,23 +6,17 @@ from models.time_entries import TimeEntries
 from models.absences import Absences
 from models.month_closings import MonthClosings
 from sqlalchemy import extract
+from models.audits import Audits
 
 
 def get_closing_audit(mes):
     try:
         anio, mes_num = map(int, mes.split("-"))
 
-        # 1. Comprobar si el mes está cerrado
         registro_cierre = MonthClosings.query.filter_by(anio=anio, mes=mes_num).first()
         mes_cerrado = bool(registro_cierre.esta_cerrado) if registro_cierre else False
-
-        # Total de días del mes seleccionado
         _, num_days = calendar.monthrange(anio, mes_num)
-
-        # 2. Obtener usuarios activos
         usuarios = Users.query.filter_by(activo=True).all()
-
-        # 3. Traer TODAS las imputaciones y ausencias del mes
         imputaciones_mes = TimeEntries.query.filter(
             extract("year", TimeEntries.fecha) == anio,
             extract("month", TimeEntries.fecha) == mes_num,
@@ -34,13 +28,12 @@ def get_closing_audit(mes):
             extract("month", Absences.fecha) == mes_num,
         ).all()
 
-        # Pre-procesamos los datos añadiendo un diccionario de 'proyectos'
         datos_usuarios = {
             u.id: {
                 "horas": 0.0, 
                 "dias_imputados": set(), 
                 "dias_ausencias": set(),
-                "proyectos": {} # Agrupación de horas por Cliente y Proyecto
+                "proyectos": {} 
             }
             for u in usuarios
         }
@@ -51,14 +44,11 @@ def get_closing_audit(mes):
                 datos_usuarios[i.usuario_id]["horas"] += horas_imp
                 datos_usuarios[i.usuario_id]["dias_imputados"].add(i.fecha.day)
 
-                # Obtener nombres de proyecto y cliente
                 p_nombre = i.proyecto.nombre if i.proyecto else "Sin Proyecto"
                 c_nombre = i.proyecto.cliente.nombre if i.proyecto and i.proyecto.cliente else "Sin Cliente"
-                
-                # Clave compuesta por Cliente y Proyecto
+
                 key_proy = (c_nombre, p_nombre)
 
-                # Sumar horas a ese proyecto específico
                 if key_proy not in datos_usuarios[i.usuario_id]["proyectos"]:
                     datos_usuarios[i.usuario_id]["proyectos"][key_proy] = 0.0
                 datos_usuarios[i.usuario_id]["proyectos"][key_proy] += horas_imp
@@ -67,15 +57,13 @@ def get_closing_audit(mes):
             if a.usuario_id in datos_usuarios and a.fecha:
                 datos_usuarios[a.usuario_id]["dias_ausencias"].add(a.fecha.day)
 
-        # 4. Construimos la respuesta evaluando a cada usuario
         usuarios_auditoria = []
         for u in usuarios:
             datos = datos_usuarios[u.id]
             horas_reales = datos["horas"]
             dias_imputados = datos["dias_imputados"]
             dias_ausencias = datos["dias_ausencias"]
-            
-            # Formatear el desglose como una lista de objetos separados
+
             desglose_proyectos = [
                 {"cliente": k[0], "proyecto": k[1], "horas": v} 
                 for k, v in datos["proyectos"].items()
@@ -86,12 +74,11 @@ def get_closing_audit(mes):
 
             for day in range(1, num_days + 1):
                 current_date = date(anio, mes_num, day)
-                if current_date.weekday() < 5:  # 0-4 representan Lunes a Viernes
+                if current_date.weekday() < 5:  
                     dias_laborables_totales += 1
                     if day not in dias_imputados and day not in dias_ausencias:
                         dias_faltantes.append(str(day))
 
-            # Determinar el estado del usuario
             if len(dias_faltantes) == 0:
                 estado = "completo"
             elif len(dias_faltantes) == dias_laborables_totales and horas_reales == 0:
@@ -107,7 +94,7 @@ def get_closing_audit(mes):
                     "horasReales": horas_reales,
                     "estado": estado,
                     "diasFaltantes": dias_faltantes,
-                    "desgloseProyectos": desglose_proyectos # Mandamos la lista limpia
+                    "desgloseProyectos": desglose_proyectos 
                 }
             )
 
@@ -118,10 +105,13 @@ def get_closing_audit(mes):
         return {"error": str(e)}, 500
 
 
-def toggle_closing_month(mes, accion):
+def toggle_closing_month(mes, accion, manager_id=None):
     try:
         anio, mes_num = map(int, mes.split("-"))
         esta_cerrado = True if accion == "cerrar" else False
+
+        manager = Users.query.get(manager_id) if manager_id else None
+        manager_nombre = manager.nombre if manager else "Sistema/Admin"
 
         registro = MonthClosings.query.filter_by(anio=anio, mes=mes_num).first()
 
@@ -136,6 +126,17 @@ def toggle_closing_month(mes, accion):
                 fecha_cierre=datetime.utcnow(),
             )
             db.session.add(nuevo_cierre)
+
+        accion_str = "Cierre de Mes" if esta_cerrado else "Reapertura de Mes"
+        detalle = f"El usuario {manager_nombre} (ID:{manager_id}) ha {'cerrado' if esta_cerrado else 'reabierto'} el mes {mes}"
+        nueva_auditoria = Audits(
+            actor_id=manager_id, 
+            actor_nombre=manager_nombre, 
+            accion=accion_str, 
+            gravedad='warning', 
+            detalle=detalle
+        )
+        db.session.add(nueva_auditoria)
 
         db.session.commit()
         return {"message": f"Mes {accion} correctamente"}, 200

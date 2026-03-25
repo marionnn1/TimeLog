@@ -16,10 +16,11 @@ def get_closing():
 def toggle_closing():
     body = request.get_json()
     mes = body.get('mes')
-    accion = body.get('accion') # 'cerrar' o 'reabrir'
+    accion = body.get('accion') 
+    manager_id = body.get('manager_id') 
     
     if not mes or not accion:
         return jsonify({"error": "Faltan parámetros 'mes' o 'accion'"}), 400
 
-    data, status = toggle_closing_month(mes, accion)
+    data, status = toggle_closing_month(mes, accion, manager_id) 
     return jsonify(data), status
