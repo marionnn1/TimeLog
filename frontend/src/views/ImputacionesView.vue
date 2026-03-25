@@ -267,9 +267,9 @@ const enviarSolicitudJefe = async () => {
 </script>
 
 <template>
-  <div class="h-full flex flex-col font-sans bg-gray-50 p-6 overflow-y-auto relative">
+  <div class="h-full flex flex-col font-sans bg-gray-50 p-6 gap-6 overflow-y-auto relative">
     
-    <div class="flex justify-between items-center mb-6">
+    <div class="flex justify-between items-center shrink-0">
       <div class="flex items-center gap-4">
         <h1 class="text-3xl font-bold capitalize flex items-center gap-3 text-dark">
           <div class="p-2 rounded-lg bg-white shadow-sm border border-gray-100">
@@ -287,7 +287,7 @@ const enviarSolicitudJefe = async () => {
       <button @click="exportarDatos" class="btn-secondary"><FileText class="w-4 h-4"/> Exportar</button>
     </div>
 
-    <div class="bg-white p-3 rounded-lg border border-gray-200 shadow-sm mb-4 flex flex-wrap items-center gap-4 text-xs font-medium">
+    <div class="bg-white p-3 rounded-lg border border-gray-200 shadow-sm shrink-0 flex flex-wrap items-center gap-4 text-xs font-medium">
         <span class="uppercase text-gray-400 tracking-wider mr-2 font-bold">Leyenda:</span>
         <div class="flex items-center gap-2 px-2 py-1 rounded-md bg-gray-50 border border-gray-100">
             <div class="w-2.5 h-2.5 rounded-full bg-white border border-gray-300"></div><span class="text-gray-600">Laborable</span>
@@ -303,7 +303,7 @@ const enviarSolicitudJefe = async () => {
         </div>
     </div>
 
-    <div class="card p-0 overflow-hidden mb-8 flex-none shadow-xl">
+    <div class="card p-0 overflow-hidden flex-none shadow-xl">
       <div class="grid grid-cols-7 border-b border-gray-200">
         <div v-for="dia in diasSemana.slice(0, 5)" :key="dia" class="py-4 text-center text-xs font-bold uppercase tracking-widest bg-white text-dark">{{ dia }}</div>
         <div v-for="dia in diasSemana.slice(5, 7)" :key="dia" class="py-4 text-center text-xs font-bold uppercase tracking-widest text-white/90 bg-dark">{{ dia }}</div>
@@ -319,7 +319,7 @@ const enviarSolicitudJefe = async () => {
                getTipoDia(new Date(anioActual, mesActualIndex, dia)) === 'vacaciones' ? 'bg-emerald-50/40' : '',
                getTipoDia(new Date(anioActual, mesActualIndex, dia)) === 'asuntos' ? 'bg-blue-50/40' : '',
              ]">
-          <div class="flex justify-between items-start mb-2">
+          <div class="flex justify-between items-start mb-2 shrink-0">
             <span class="text-sm font-bold w-7 h-7 flex items-center justify-center rounded-full"
                   :class="esHoy(dia) ? 'bg-primary text-white' : (esFinDeSemana(dia) ? 'text-slate-400' : 'text-dark')">{{ dia }}</span>
             
@@ -333,7 +333,7 @@ const enviarSolicitudJefe = async () => {
             </div>
           </div>
 
-          <div v-if="getTipoDia(new Date(anioActual, mesActualIndex, dia))" class="flex-1 flex items-center justify-center mt-2">
+          <div v-if="getTipoDia(new Date(anioActual, mesActualIndex, dia))" class="flex-1 flex items-center justify-center mt-2 shrink-0">
               <span class="text-[10px] font-bold uppercase tracking-widest px-2 py-1 rounded w-full text-center border shadow-sm"
                     :class="{
                         'text-emerald-700 bg-emerald-100/80 border-emerald-200': getTipoDia(new Date(anioActual, mesActualIndex, dia)) === 'vacaciones',
@@ -344,7 +344,7 @@ const enviarSolicitudJefe = async () => {
               </span>
           </div>
 
-          <div v-else-if="!esFinDeSemana(dia)">
+          <div v-else-if="!esFinDeSemana(dia)" class="flex-1 overflow-y-auto scrollbar-thin pr-1">
              <div v-for="(item, idx) in getImputacionesPorDia(dia)" :key="idx" 
                   @click.stop="abrirSolicitud(item, dia)"
                   class="text-[10px] p-1.5 rounded border-l-2 mb-1 truncate shadow-sm cursor-pointer transition transform hover:scale-105 flex justify-between items-center"
@@ -357,8 +357,8 @@ const enviarSolicitudJefe = async () => {
       </div>
     </div>
 
-    <div class="card p-0 overflow-hidden shadow-lg">
-        <div class="px-6 py-4 border-b border-gray-200 bg-gray-50/50 flex justify-between items-center">
+    <div class="card p-0 flex flex-col flex-1 overflow-hidden shadow-lg min-h-[250px]">
+        <div class="px-6 py-4 border-b border-gray-200 bg-gray-50/50 flex justify-between items-center shrink-0">
             <h2 class="font-bold text-lg text-dark flex items-center gap-2"><FileText class="w-5 h-5 text-primary" /> Resumen de Proyectos</h2>
             <div class="flex items-center gap-2">
                 <span class="text-sm font-bold text-gray-500 uppercase tracking-wide">Total Mes:</span>
@@ -366,10 +366,10 @@ const enviarSolicitudJefe = async () => {
             </div>
         </div>
 
-        <div class="overflow-x-auto">
+        <div class="overflow-auto flex-1 scrollbar-thin">
             <table class="w-full text-left border-collapse">
-                <thead>
-                    <tr class="bg-white text-xs uppercase tracking-wider border-b-2 border-gray-100 text-dark">
+                <thead class="bg-white sticky top-0 z-10 shadow-sm">
+                    <tr class="text-xs uppercase tracking-wider border-b-2 border-gray-100 text-dark">
                         <th class="px-6 py-3 font-bold">Cliente</th>
                         <th class="px-6 py-3 font-bold">Cód. Proyecto</th>
                         <th class="px-6 py-3 font-bold">Proyecto / Tarea</th>

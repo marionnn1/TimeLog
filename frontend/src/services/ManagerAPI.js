@@ -14,8 +14,8 @@ export default {
         const res = await api.get(`${BASE_PATH}/closing?mes=${mes}`);
         return { data: res.data };
     },
-    async toggleCierreMes(mes, accion) {
-        const res = await api.post(`${BASE_PATH}/closing`, { mes, accion });
+    async toggleCierreMes(mes, accion, managerId) {
+        const res = await api.post(`${BASE_PATH}/closing`, { mes, accion, manager_id: managerId });
         return { data: res.data };
     },
 
@@ -64,12 +64,12 @@ export default {
         const res = await api.get(`${BASE_PATH}/validation`);
         return { data: res.data };
     },
-    async approveValidation(id, horas) {
-        const res = await api.put(`${BASE_PATH}/validation/${id}/approve`, { horas });
+    async approveValidation(id, horas, managerId) {
+        const res = await api.put(`${BASE_PATH}/validation/${id}/approve`, { horas, manager_id: managerId });
         return { data: res.data };
     },
-    async rejectValidation(id, motivo) {
-        const res = await api.put(`${BASE_PATH}/validation/${id}/reject`, { motivo });
+    async rejectValidation(id, motivo, managerId) {
+        const res = await api.put(`${BASE_PATH}/validation/${id}/reject`, { motivo, manager_id: managerId });
         return { data: res.data };
     }
 };

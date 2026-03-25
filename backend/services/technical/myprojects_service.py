@@ -198,6 +198,9 @@ def get_max_horas_dia_usuario(usuario_id, fecha_str):
 
 def solicitar_correccion_imputacion(usuario_id, proyecto_id, fecha, nuevas_horas, motivo):
     try:
+        usuario = Users.query.get(usuario_id)
+        nombre_actor = usuario.nombre if usuario else 'Sistema'
+
         max_horas = get_max_horas_dia_usuario(usuario_id, fecha)
         
         otras_imputaciones = TimeEntries.query.filter(
@@ -230,8 +233,14 @@ def solicitar_correccion_imputacion(usuario_id, proyecto_id, fecha, nuevas_horas
             )
             db.session.add(nuevo_registro)
             
-        detalle = f"Usuario {usuario_id} solicita imputar {nuevas_horas}h al proyecto {proyecto_id} en {fecha}"
-        nueva_auditoria = Audits(actor_nombre='Sistema', accion='Solicitud Corrección', gravedad='warning', detalle=detalle)
+        detalle = f"Usuario {nombre_actor} (ID:{usuario_id}) solicita imputar {nuevas_horas}h al proyecto {proyecto_id} en {fecha}"
+        nueva_auditoria = Audits(
+            actor_id=usuario_id, 
+            actor_nombre=nombre_actor, 
+            accion='Solicitud Corrección', 
+            gravedad='warning', 
+            detalle=detalle
+        )
         db.session.add(nueva_auditoria)
         
         db.session.commit()

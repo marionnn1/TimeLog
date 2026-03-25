@@ -1,12 +1,16 @@
 <script setup>
 import { ref, onMounted } from 'vue'
 import ManagerAPI from '../../services/ManagerAPI'
+import { useDataStore } from '../../stores/dataStore'
 import { 
     AlertOctagon, Check, X, FileEdit, MessageSquare, Calendar, Clock, Save,
     ArrowRight
 } from 'lucide-vue-next'
 import ConfirmModal from '../../components/common/ConfirmModal.vue'
 import ToastNotification from '../../components/common/ToastNotification.vue'
+
+const store = useDataStore()
+const user = store.getCurrentUser()
 
 const solicitudes = ref([])
 const isLoading = ref(false)
@@ -62,7 +66,7 @@ const cerrarModal = () => {
 
 const guardarCorreccion = async () => {
     try {
-        await ManagerAPI.approveValidation(solicitudSeleccionada.value.id, horasEditadas.value)
+        await ManagerAPI.approveValidation(solicitudSeleccionada.value.id, horasEditadas.value, user.id)
         showToast(`Corrección aplicada correctamente`, 'success')
         cerrarModal()
         fetchValidations() 
@@ -79,7 +83,7 @@ const rechazarSolicitud = (id) => {
         async (motivo) => {
             if (motivo && motivo.trim() !== '') {
                 try {
-                    await ManagerAPI.rejectValidation(id, motivo)
+                    await ManagerAPI.rejectValidation(id, motivo, user.id)
                     showToast("Solicitud rechazada y notificada.", "success")
                     fetchValidations() 
                 } catch (error) {
