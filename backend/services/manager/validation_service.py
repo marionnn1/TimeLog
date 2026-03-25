@@ -3,7 +3,9 @@ from database.db import db
 from models.time_entries import TimeEntries
 from models.users import Users
 from models.audits import Audits
-from datetime import datetime
+from models.absences import Absences
+from datetime import datetime, date
+from sqlalchemy import func
 
 def get_max_horas_dia_usuario(usuario_id, fecha_str):
     usuario = Users.query.get(usuario_id)
@@ -33,17 +35,14 @@ def get_max_horas_dia_usuario(usuario_id, fecha_str):
 def get_pending_validations():
     try:
         solicitudes_db = TimeEntries.query.filter_by(estado="Pendiente").all()
-
         solicitudes = []
         for s in solicitudes_db:
             usuario_nombre = s.usuario.nombre if s.usuario else "Desconocido"
-
             nombres = usuario_nombre.split()
             avatar = (nombres[0][0] + (nombres[1][0] if len(nombres) > 1 else "")).upper() if nombres else "XX"
-
             proyecto_nombre = s.proyecto.nombre if s.proyecto else "Sin Proyecto"
             cliente_nombre = s.proyecto.cliente.nombre if s.proyecto and s.proyecto.cliente else "Interno"
-
+            
             comentario_raw = s.comentario or ""
             horas_solicitadas = float(s.horas) if s.horas is not None else 0.0
             motivo_limpio = comentario_raw
@@ -66,9 +65,38 @@ def get_pending_validations():
                 "horasActuales": float(s.horas) if s.horas is not None else 0.0,
                 "horasSolicitadas": horas_solicitadas, 
                 "motivo": motivo_limpio or "Sin motivo especificado",
-                "estado": "pendiente",
+                "estado": "pendiente"
             })
-        return solicitudes, 200
+
+        hoy = datetime.utcnow().date()
+
+        fechas_conflictivas = db.session.query(Absences.fecha).filter(
+            Absences.tipo == 'vacaciones',
+            Absences.fecha >= hoy
+        ).group_by(Absences.fecha).having(func.count(Absences.id) >= 3).all()
+
+        alertas_vacaciones = []
+        for fc in fechas_conflictivas:
+            fecha_conflictiva = fc.fecha
+            
+            ausencias_dia = Absences.query.filter_by(
+                fecha=fecha_conflictiva, tipo='vacaciones'
+            ).order_by(Absences.id.asc()).all()
+            
+            usuarios_ordenados = []
+            for aus in ausencias_dia:
+                nombre = aus.usuario.nombre if aus.usuario else f"ID: {aus.usuario_id}"
+                usuarios_ordenados.append(nombre)
+                
+            fecha_str = fecha_conflictiva.strftime("%d/%m/%Y") if isinstance(fecha_conflictiva, date) else str(fecha_conflictiva)
+            
+            alertas_vacaciones.append({
+                "fecha": fecha_str, 
+                "total": len(usuarios_ordenados),
+                "usuarios": usuarios_ordenados
+            })
+
+        return {"solicitudes": solicitudes, "alertas_vacaciones": alertas_vacaciones}, 200
     except Exception as e:
         print(f"Error al obtener validaciones pendientes: {e}")
         return {"error": str(e)}, 500
@@ -81,17 +109,17 @@ def approve_validation(imputacion_id, nuevas_horas, manager_id=None):
 
         usuario_id = imputacion.usuario_id
         fecha = imputacion.fecha
+
         horas_float = float(nuevas_horas)
 
         manager = Users.query.get(manager_id) if manager_id else None
-        manager_nombre = manager.nombre if manager else "Manager (Desconocido)"
+        manager_nombre = manager.nombre if manager else "Manager"
 
         if horas_float == 0.0:
             db.session.delete(imputacion)
-            
-            detalle_log = f"Solicitud {imputacion_id} aprobada y eliminada (0 horas) por {manager_nombre}"
-            nuevo_log = Audits(actor_id=manager_id, actor_nombre=manager_nombre, accion="Aprobación Solicitud", gravedad="info", detalle=detalle_log)
-            db.session.add(nuevo_log)           
+            detalle_log = f"Solicitud {imputacion_id} aprobada y eliminada (0h) por {manager_nombre}"
+            nuevo_log = Audits(actor_nombre=manager_nombre, accion="Aprobación Solicitud", gravedad="info", detalle=detalle_log)
+            db.session.add(nuevo_log)
             db.session.commit()
             return {"message": "Solicitud aprobada (registro eliminado al tener 0 horas)"}, 200
 
@@ -115,7 +143,7 @@ def approve_validation(imputacion_id, nuevas_horas, manager_id=None):
         imputacion.comentario = ""
 
         detalle_log = f"Solicitud {imputacion_id} aprobada con {horas_float}h por {manager_nombre}"
-        nuevo_log = Audits(actor_id=manager_id, actor_nombre=manager_nombre, accion="Aprobación Solicitud", gravedad="info", detalle=detalle_log)
+        nuevo_log = Audits(actor_nombre=manager_nombre, accion="Aprobación Solicitud", gravedad="info", detalle=detalle_log)
         db.session.add(nuevo_log)
 
         db.session.commit()
@@ -125,7 +153,6 @@ def approve_validation(imputacion_id, nuevas_horas, manager_id=None):
         print(f"Error al aprobar validación: {e}")
         return {"error": str(e)}, 500
 
-
 def reject_validation(imputacion_id, motivo_rechazo, manager_id=None):
     try:
         imputacion = TimeEntries.query.get(imputacion_id)
@@ -133,7 +160,7 @@ def reject_validation(imputacion_id, motivo_rechazo, manager_id=None):
             return {"error": "Imputación no encontrada"}, 404
 
         manager = Users.query.get(manager_id) if manager_id else None
-        manager_nombre = manager.nombre if manager else "Manager (Desconocido)"
+        manager_nombre = manager.nombre if manager else "Manager"
 
         if float(imputacion.horas) == 0.0:
             db.session.delete(imputacion)
@@ -142,7 +169,7 @@ def reject_validation(imputacion_id, motivo_rechazo, manager_id=None):
             imputacion.comentario = f"[Rechazado] {motivo_rechazo}"
 
         detalle_log = f"Solicitud {imputacion_id} rechazada por {manager_nombre}. Motivo: {motivo_rechazo}"
-        nuevo_log = Audits(actor_id=manager_id, actor_nombre=manager_nombre, accion="Rechazo Solicitud", gravedad="warning", detalle=detalle_log)
+        nuevo_log = Audits(actor_nombre=manager_nombre, accion="Rechazo Solicitud", gravedad="warning", detalle=detalle_log)
         db.session.add(nuevo_log)
 
         db.session.commit()

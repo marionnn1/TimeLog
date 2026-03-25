@@ -1,18 +1,15 @@
 <script setup>
 import { ref, onMounted } from 'vue'
 import ManagerAPI from '../../services/ManagerAPI'
-import { useDataStore } from '../../stores/dataStore'
 import { 
     AlertOctagon, Check, X, FileEdit, MessageSquare, Calendar, Clock, Save,
-    ArrowRight
+    ArrowRight, AlertTriangle
 } from 'lucide-vue-next'
 import ConfirmModal from '../../components/common/ConfirmModal.vue'
 import ToastNotification from '../../components/common/ToastNotification.vue'
 
-const store = useDataStore()
-const user = store.getCurrentUser()
-
 const solicitudes = ref([])
+const alertasVacaciones = ref([]) 
 const isLoading = ref(false)
 
 const toast = ref({ show: false, message: '', type: 'success' })
@@ -39,9 +36,16 @@ const fetchValidations = async () => {
     isLoading.value = true
     try {
         const response = await ManagerAPI.getValidations()
-        solicitudes.value = response.data || []
+        
+        if (response.data && response.data.solicitudes) {
+            solicitudes.value = response.data.solicitudes
+            alertasVacaciones.value = response.data.alertas_vacaciones || []
+        } else {
+            solicitudes.value = Array.isArray(response.data) ? response.data : []
+            alertasVacaciones.value = []
+        }
     } catch (error) {
-        showToast("Error al cargar las solicitudes", "error")
+        showToast("Error al cargar los datos", "error")
     } finally {
         isLoading.value = false
     }
@@ -66,7 +70,7 @@ const cerrarModal = () => {
 
 const guardarCorreccion = async () => {
     try {
-        await ManagerAPI.approveValidation(solicitudSeleccionada.value.id, horasEditadas.value, user.id)
+        await ManagerAPI.approveValidation(solicitudSeleccionada.value.id, horasEditadas.value)
         showToast(`Corrección aplicada correctamente`, 'success')
         cerrarModal()
         fetchValidations() 
@@ -83,7 +87,7 @@ const rechazarSolicitud = (id) => {
         async (motivo) => {
             if (motivo && motivo.trim() !== '') {
                 try {
-                    await ManagerAPI.rejectValidation(id, motivo, user.id)
+                    await ManagerAPI.rejectValidation(id, motivo)
                     showToast("Solicitud rechazada y notificada.", "success")
                     fetchValidations() 
                 } catch (error) {
@@ -106,6 +110,34 @@ const rechazarSolicitud = (id) => {
             <AlertOctagon class="w-8 h-8 text-amber-500" /> Solicitudes de Corrección
         </h1>
         <p class="subtitle">Peticiones de usuarios para modificar horas en días cerrados o erróneos.</p>
+    </div>
+
+    <div v-if="alertasVacaciones.length > 0" class="bg-rose-50 border border-rose-200 p-4 rounded-xl shadow-sm shrink-0">
+        <h3 class="font-bold text-rose-700 flex items-center gap-2 mb-3">
+            <AlertTriangle class="w-5 h-5"/> ¡Atención! Exceso de vacaciones detectado
+        </h3>
+        <p class="text-sm text-rose-600 mb-4">Se ha detectado que 3 o más usuarios han solicitado vacaciones para los mismos días. Este es el orden en el que lo solicitaron:</p>
+        
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+            <div v-for="alerta in alertasVacaciones" :key="alerta.fecha" class="bg-white border border-rose-200 p-3 rounded-lg shadow-sm">
+                <div class="flex items-center gap-2 font-bold text-rose-700 mb-3 border-b border-rose-100 pb-2">
+                    <Calendar class="w-4 h-4"/> {{ alerta.fecha }}
+                    <span class="text-[10px] bg-rose-100 px-2 py-0.5 rounded-full ml-auto">{{ alerta.total }} personas</span>
+                </div>
+                <div class="flex flex-col gap-1.5">
+                    <div v-for="(user, idx) in alerta.usuarios" :key="idx" class="text-xs flex items-center gap-2" :class="idx === alerta.usuarios.length - 1 ? 'text-rose-700 font-bold' : 'text-slate-600'">
+                        <span class="w-4 h-4 rounded-full flex items-center justify-center text-[9px] font-black border shrink-0" 
+                              :class="idx === alerta.usuarios.length - 1 ? 'bg-rose-500 text-white border-rose-600' : 'bg-slate-100 text-slate-500 border-slate-200'">
+                            {{ idx + 1 }}
+                        </span>
+                        <span class="truncate" :title="user">{{ user }}</span>
+                        <span v-if="idx === alerta.usuarios.length - 1" class="text-[8px] uppercase bg-rose-100 text-rose-600 px-1.5 py-0.5 rounded ml-auto shrink-0 border border-rose-200">
+                            Último
+                        </span>
+                    </div>
+                </div>
+            </div>
+        </div>
     </div>
 
     <div v-if="isLoading" class="flex-1 flex flex-col items-center justify-center">
@@ -194,7 +226,7 @@ const rechazarSolicitud = (id) => {
                 <div>
                     <label class="label-std">Horas Solicitadas (Aprobar o Editar)</label>
                     <div class="flex items-center gap-3 mt-2">
-                        <input type="number" step="0.5" min="0" max="24" v-model="horasEditadas" 
+                        <input type="number" step="0.5" min="0" max="24" v-model.number="horasEditadas" 
                                class="input-std text-center text-lg font-bold w-32" />
                         <span class="text-sm text-gray-500">Horas</span>
                     </div>
