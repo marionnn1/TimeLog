@@ -1,5 +1,6 @@
 from database.db import db
 from models.absences import Absences
+from models.time_entries import TimeEntries
 from sqlalchemy import extract
 from datetime import datetime 
 
@@ -35,6 +36,13 @@ def guardar_ausencias(usuario_id, fechas, tipo, comentario=""):
     try:
         for f in fechas:
             fecha_obj = datetime.strptime(f, "%Y-%m-%d").date() if isinstance(f, str) else f
+            
+            imputaciones = TimeEntries.query.filter_by(
+                usuario_id=usuario_id, fecha=fecha_obj
+            ).all()
+            
+            for imputacion in imputaciones:
+                db.session.delete(imputacion)
             
             existe = Absences.query.filter_by(
                 usuario_id=usuario_id, fecha=fecha_obj

@@ -81,6 +81,12 @@ def approve_validation(imputacion_id, nuevas_horas):
 
         usuario_id = imputacion.usuario_id
         fecha = imputacion.fecha
+        horas_float = float(nuevas_horas)
+        
+        if horas_float == 0.0:
+            db.session.delete(imputacion)
+            db.session.commit()
+            return {"message": "Solicitud aprobada (registro eliminado al tener 0 horas)"}, 200
 
         max_horas = get_max_horas_dia_usuario(usuario_id, fecha)
         
@@ -93,10 +99,10 @@ def approve_validation(imputacion_id, nuevas_horas):
         
         horas_otros_proyectos = sum(float(i.horas) for i in otras_imputaciones)
         
-        if (horas_otros_proyectos + float(nuevas_horas)) > max_horas:
+        if (horas_otros_proyectos + horas_float) > max_horas:
             return {"error": f"No se puede aprobar. El total diario superaría su límite de {max_horas}h (Ya tiene {horas_otros_proyectos}h en otros proyectos)."}, 400
 
-        imputacion.horas = nuevas_horas
+        imputacion.horas = horas_float
         imputacion.estado = "Aprobado"
         imputacion.fecha_validacion = datetime.utcnow()
         imputacion.comentario = ""
