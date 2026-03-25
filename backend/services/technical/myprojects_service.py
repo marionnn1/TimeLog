@@ -4,6 +4,7 @@ from models.projects import Projects
 from models.clients import Clients
 from models.audits import Audits
 from models.users import Users
+from models.assignments import Assignments
 from sqlalchemy import func, extract
 import traceback
 from datetime import datetime, timedelta
@@ -32,6 +33,22 @@ def obtener_imputaciones_semana(usuario_id, fecha_lunes):
 
 def guardar_imputaciones_lote(usuario_id, filas, fechas_semana):
     try:
+        proyectos_enviados = [fila.get('id_proyecto') for fila in filas if fila.get('id_proyecto')]
+
+        query_borrar = TimeEntries.query.filter(
+            TimeEntries.usuario_id == usuario_id,
+            TimeEntries.fecha.in_(fechas_semana)
+        )
+        
+        if proyectos_enviados:
+            query_borrar = query_borrar.filter(~TimeEntries.proyecto_id.in_(proyectos_enviados))
+        
+        entradas_borrar = query_borrar.all()
+        for e in entradas_borrar:
+            if e.estado != 'Aprobado': 
+                db.session.delete(e)
+
+
         for fila in filas:
             p_id = fila.get('id_proyecto')
             if not p_id: continue
@@ -43,18 +60,26 @@ def guardar_imputaciones_lote(usuario_id, filas, fechas_semana):
                 
                 registro = TimeEntries.query.filter_by(usuario_id=usuario_id, proyecto_id=p_id, fecha=fecha).first()
                 
+                if h == 0:
+                    if registro and registro.estado != 'Aprobado':
+                        db.session.delete(registro)
+                    continue
+                
                 if registro and registro.estado == 'Aprobado':
-                    registro.estado = 'Pendiente'
-                    registro.horas = h
+                    if float(registro.horas) != h:
+                        registro.estado = 'Pendiente'
+                        registro.horas = h
                 else:
                     if registro:
-                        db.session.delete(registro)
-                    if h > 0:
+                        registro.horas = h
+                    else:
                         nuevo = TimeEntries(usuario_id=usuario_id, proyecto_id=p_id, fecha=fecha, horas=h, estado='Borrador')
                         db.session.add(nuevo)
+        
         db.session.commit()
         return True
-    except Exception:
+    except Exception as e:
+        print("Error al guardar_imputaciones_lote:", e)
         db.session.rollback()
         return False
 
@@ -282,3 +307,22 @@ def actualizar_jornada(usuario_id, datos):
         db.session.rollback()
         print(f"Error en actualizar_jornada: {e}")
         return False
+    
+def obtener_proyectos_asignados(usuario_id):
+    try:
+        asignaciones = Assignments.query.filter_by(usuario_id=usuario_id, activo=True).all()
+        
+        resultado = []
+        for a in asignaciones:
+            p = a.proyecto
+            if p and p.estado == 'Activo':
+                resultado.append({
+                    "Id": p.id,
+                    "Nombre": p.nombre,
+                    "Cliente": p.cliente.nombre if p.cliente else "Sin Cliente",
+                    "Estado": p.estado
+                })
+        return sorted(resultado, key=lambda x: (x['Cliente'], x['Nombre']))
+    except Exception as e:
+        print("Error al obtener proyectos asignados:", e)
+        return []
