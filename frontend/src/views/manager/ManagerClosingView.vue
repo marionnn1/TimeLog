@@ -1,7 +1,7 @@
 <script setup>
 import { ref, computed, watch, onMounted } from 'vue'
 import ManagerAPI from '../../services/ManagerAPI'
-import { useDataStore } from '../../stores/dataStore' // <-- AÑADIDO
+import { useDataStore } from '../../stores/dataStore'
 import {
     Lock, Unlock, Search, Calendar, AlertCircle, CheckCircle2,
     FileDown, XCircle, Ban
@@ -9,10 +9,8 @@ import {
 import ConfirmModal from '../../components/common/ConfirmModal.vue'
 import ToastNotification from '../../components/common/ToastNotification.vue'
 
-// --- AÑADIDO ---
 const store = useDataStore()
 const user = store.getCurrentUser()
-// ---------------
 
 const hoy = new Date()
 const mesActual = `${hoy.getFullYear()}-${String(hoy.getMonth() + 1).padStart(2, '0')}`
@@ -79,7 +77,6 @@ const resumenEstado = computed(() => {
 
 const procesarCierreToggle = async (accion) => {
     try {
-        // --- SE AÑADE user.id AQUÍ ---
         await ManagerAPI.toggleCierreMes(fechaCierre.value, accion, user.id)
         mesCerrado.value = (accion === 'cerrar')
         showToast(`Mes de ${fechaCierre.value} ${accion === 'cerrar' ? 'cerrado' : 'reabierto'} correctamente`, 'success')
