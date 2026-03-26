@@ -110,6 +110,12 @@ const form = ref({
     comentario: ''
 })
 
+const minDateISO = computed(() => {
+    const d = new Date()
+    const offset = d.getTimezoneOffset() * 60000
+    return new Date(d.getTime() - offset).toISOString().split('T')[0]
+})
+
 const getMiEstiloTipo = (tipo) => {
     const t = (tipo || '').toLowerCase()
     if (t.includes('vacaciones')) return 'bg-emerald-500 text-white border-emerald-600 shadow-md ring-1 ring-emerald-300'
@@ -168,7 +174,7 @@ const abrirModal = (day) => {
     if (day.isWeekend) return
 
     const existing = getMiAusencia(day.isoDate)
-
+    
     if (existing) {
         tabActiva.value = 'eliminar'
         form.value = { fechaInicio: day.isoDate, fechaFin: day.isoDate, tipo: existing.tipo, comentario: '' }
@@ -207,6 +213,13 @@ const procesarSolicitud = async (diasSolicitados) => {
 const confirmarSolicitud = () => {
     const start = new Date(form.value.fechaInicio)
     const end = new Date(form.value.fechaFin)
+
+    const hoyObj = new Date()
+    hoyObj.setHours(0,0,0,0)
+    if (start < hoyObj) {
+        return showToast("No puedes pedir ausencias para días pasados.", "error")
+    }
+
     const diasSolicitados = []
 
     for(let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
@@ -437,11 +450,11 @@ const nextMonth = () => currentDate.value = new Date(year.value, month.value + 1
                 <div class="grid grid-cols-2 gap-4">
                     <div>
                         <label class="block text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-2">Desde</label>
-                        <input type="date" v-model="form.fechaInicio" class="w-full bg-slate-50 border border-slate-200 text-slate-800 rounded-lg px-3 py-2 font-bold focus:ring-2 focus:ring-primary outline-none">
+                        <input type="date" v-model="form.fechaInicio" :min="minDateISO" class="w-full bg-slate-50 border border-slate-200 text-slate-800 rounded-lg px-3 py-2 font-bold focus:ring-2 focus:ring-primary outline-none">
                     </div>
                     <div>
                         <label class="block text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-2">Hasta</label>
-                        <input type="date" v-model="form.fechaFin" class="w-full bg-slate-50 border border-slate-200 text-slate-800 rounded-lg px-3 py-2 font-bold focus:ring-2 focus:ring-primary outline-none">
+                        <input type="date" v-model="form.fechaFin" :min="form.fechaInicio || minDateISO" class="w-full bg-slate-50 border border-slate-200 text-slate-800 rounded-lg px-3 py-2 font-bold focus:ring-2 focus:ring-primary outline-none">
                     </div>
                 </div>
 
