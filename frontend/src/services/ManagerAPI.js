@@ -6,13 +6,13 @@ export default {
     // ANALYTICS
     async getAnalytics(mes) {
         const res = await api.get(`${BASE_PATH}/analytics?mes=${mes}`);
-        return { data: res.data };
+        return { data: res.data.data }; 
     },
 
     // CLOSING
     async getClosingData(mes) {
         const res = await api.get(`${BASE_PATH}/closing?mes=${mes}`);
-        return { data: res.data };
+        return { data: res.data.data };
     },
     async toggleCierreMes(mes, accion, managerId) {
         const res = await api.post(`${BASE_PATH}/closing`, { mes, accion, manager_id: managerId });
@@ -36,7 +36,7 @@ export default {
     // PROYECTOS
     async getProjectsData() {
         const res = await api.get(`${BASE_PATH}/projects`);
-        return { data: res.data };
+        return { data: res.data.data };
     },
     async createProject(data) {
         const res = await api.post(`${BASE_PATH}/projects`, data);
@@ -62,7 +62,7 @@ export default {
     // VALIDATIONS (TICKETS)
     async getValidations() {
         const res = await api.get(`${BASE_PATH}/validation`);
-        return { data: res.data };
+        return { data: res.data.data };
     },
     async approveValidation(id, horas, managerId) {
         const res = await api.put(`${BASE_PATH}/validation/${id}/approve`, { horas, manager_id: managerId });

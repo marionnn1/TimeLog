@@ -23,14 +23,18 @@ const showToast = (message, type = 'success') => {
 const fetchTickets = async () => {
     isLoading.value = true
     try {
-        solicitudes.value = await AdminAPI.getTickets()
+        const json = await AdminAPI.getTickets()
+        if (json.status === 'success') {
+            solicitudes.value = json.data.solicitudes || []
+        } else {
+            solicitudes.value = []
+        }
     } catch (error) {
         showToast("Error al cargar las solicitudes", "error")
     } finally {
         isLoading.value = false
     }
 }
-
 onMounted(fetchTickets)
 
 const confirmState = ref({ show: false, title: '', message: '', type: 'neutral', action: null, inputMode: false })
