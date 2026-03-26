@@ -15,6 +15,7 @@ const mesAnalisis = ref(mesActual)
 const isLoading = ref(false)
 
 const totalHorasReales = ref(0)
+const totalCapacidadEquipo = ref(0)
 const proyectosStats = ref([])
 const cargaEmpleados = ref([])
 
@@ -33,6 +34,7 @@ const fetchAnalyticsData = async () => {
         const response = await ManagerAPI.getAnalytics(mesAnalisis.value)
         const data = response.data
         totalHorasReales.value = data.totalHorasImputadas || 0
+        totalCapacidadEquipo.value = data.totalCapacidadTeorica || 0
         proyectosStats.value = data.proyectosStats || []
         cargaEmpleados.value = data.cargaEmpleados || []
     } catch (error) {
@@ -50,17 +52,19 @@ const mediaHorasEquipo = computed(() => {
     return Math.round(totalHorasReales.value / cargaEmpleados.value.length)
 })
 
-const empleadosAltaActividad = computed(() => cargaEmpleados.value.filter(e => e.horas > 160).length)
 
-const getBarColor = (horas) => {
-    if (horas > 160) return 'bg-rose-500'
-    if (horas < 80) return 'bg-amber-400'
+const empleadosAltaActividad = computed(() => cargaEmpleados.value.filter(e => e.horas > e.capacidad).length)
+
+const getBarColor = (horas, capacidad) => {
+    const umbral = capacidad || 160
+    if (horas > umbral) return 'bg-rose-500'
+    if (horas < (umbral * 0.5)) return 'bg-amber-400' 
     return 'bg-emerald-500'
 }
 
 const exportarReporte = () => {
-    const headers = ['Empleado', 'Rol', 'Horas Imputadas']
-    const rows = cargaEmpleados.value.map(emp => [emp.nombre, emp.rol, emp.horas])
+    const headers = ['Empleado', 'Rol', 'Horas Imputadas', 'Objetivo del Mes']
+    const rows = cargaEmpleados.value.map(emp => [emp.nombre, emp.rol, emp.horas, emp.capacidad])
     const csvContent = [headers.join(';'), ...rows.map(row => row.join(';'))].join('\n')
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
     const url = URL.createObjectURL(blob)
@@ -93,15 +97,18 @@ const exportarReporte = () => {
         <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
             <div class="bg-white p-6 rounded-2xl shadow-sm border-l-4 border-l-indigo-500">
                 <p class="text-[11px] font-bold text-slate-400 uppercase tracking-widest">Total Horas Imputadas</p>
-                <h3 class="text-4xl font-extrabold text-slate-800 mt-2">{{ totalHorasReales }}h</h3>
+                <div class="flex items-baseline gap-2 mt-2">
+                    <h3 class="text-4xl font-extrabold text-slate-800">{{ totalHorasReales }}h</h3>
+                    <span class="text-sm font-bold text-slate-400">/ {{ totalCapacidadEquipo }}h teóricas</span>
+                </div>
             </div>
             <div class="bg-white p-6 rounded-2xl shadow-sm border-l-4 border-l-emerald-500">
                 <p class="text-[11px] font-bold text-slate-400 uppercase tracking-widest">Media por Empleado</p>
                 <h3 class="text-4xl font-extrabold text-slate-800 mt-2">{{ mediaHorasEquipo }}h</h3>
             </div>
             <div class="bg-white p-6 rounded-2xl shadow-sm border-l-4 border-l-rose-500">
-                <p class="text-[11px] font-bold text-slate-400 uppercase tracking-widest">Alta Actividad (>160h)</p>
-                <h3 class="text-4xl font-extrabold text-slate-800 mt-2">{{ empleadosAltaActividad }}</h3>
+                <p class="text-[11px] font-bold text-slate-400 uppercase tracking-widest">Exceso Horas (Horas Extra)</p>
+                <h3 class="text-4xl font-extrabold text-slate-800 mt-2">{{ empleadosAltaActividad }} <span class="text-sm font-medium text-slate-500">empleados</span></h3>
             </div>
         </div>
 
@@ -110,22 +117,34 @@ const exportarReporte = () => {
                 <Users class="w-5 h-5 text-slate-400" /> Desglose Individual
             </h3>
             
-            <div class="space-y-6">
+            <div v-if="isLoading" class="flex flex-col items-center justify-center py-10 opacity-50">
+                <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-emerald-500 mb-4"></div>
+                <p class="text-sm text-slate-500">Calculando horas teóricas del mes...</p>
+            </div>
+
+            <div v-else class="grid grid-cols-1 lg:grid-cols-2 gap-x-12 gap-y-8">
                 <div v-for="emp in cargaEmpleados" :key="emp.nombre" class="flex flex-col gap-2">
                     <div class="flex justify-between items-center">
                         <div class="flex items-center gap-3">
                             <div class="w-9 h-9 rounded-full bg-slate-100 flex items-center justify-center text-xs font-bold text-slate-600">{{ emp.avatar }}</div>
                             <span class="font-bold text-slate-700">{{ emp.nombre }}</span>
                         </div>
-                        <span class="font-mono font-bold text-slate-800">{{ emp.horas }}h</span>
+                        <div class="text-right">
+                            <span class="font-mono font-bold" :class="emp.horas > emp.capacidad ? 'text-rose-600' : 'text-slate-800'">{{ emp.horas }}h</span>
+                            <span class="font-mono text-xs font-bold text-slate-400"> / {{ emp.capacidad }}h</span>
+                        </div>
                     </div>
                     <div class="w-full h-2 bg-slate-100 rounded-full overflow-hidden">
                         <div class="h-full transition-all duration-1000" 
-                             :class="getBarColor(emp.horas)" 
-                             :style="`width: ${Math.min((emp.horas / 170) * 100, 100)}%`">
+                             :class="getBarColor(emp.horas, emp.capacidad)" 
+                             :style="`width: ${Math.min((emp.horas / (emp.capacidad || 1)) * 100, 100)}%`">
                         </div>
                     </div>
                 </div>
+            </div>
+            
+            <div v-if="!isLoading && cargaEmpleados.length === 0" class="text-center py-10 text-slate-400">
+                No hay empleados activos.
             </div>
         </div>
 
