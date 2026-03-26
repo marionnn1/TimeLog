@@ -270,23 +270,24 @@ const enviarSolicitudJefe = async () => {
   <div class="h-full flex flex-col font-sans bg-gray-50 p-6 gap-6 overflow-y-auto relative">
     
     <div class="flex justify-between items-center shrink-0">
-      <div class="flex items-center gap-4">
-        <h1 class="text-3xl font-bold capitalize flex items-center gap-3 text-dark">
-          <div class="p-2 rounded-lg bg-white shadow-sm border border-gray-100">
+      <div class="flex items-center">
+        
+        <h1 class="text-3xl font-bold capitalize flex items-center gap-3 text-dark w-[350px]">
+          <div class="p-2 rounded-lg bg-white shadow-sm border border-gray-100 shrink-0">
             <CalendarIcon class="w-6 h-6 text-primary"/>
           </div>
-          {{ nombreMes }} <span class="font-light opacity-50">{{ anioActual }}</span>
+          <span>{{ nombreMes }} <span class="font-light opacity-50">{{ anioActual }}</span></span>
         </h1>
         
-        <div class="flex items-center bg-white rounded-lg shadow-sm border border-gray-200 ml-6">
+        <div class="flex items-center bg-white rounded-lg shadow-sm border border-gray-200 shrink-0">
           <button @click="mesAnterior" class="p-2 hover:bg-gray-50 text-gray-600 rounded-l-lg border-r border-gray-200 transition"><ChevronLeft class="w-5 h-5" /></button>
-          <button @click="irAHoy" class="px-4 py-2 text-xs font-bold tracking-widest hover:bg-gray-50 transition uppercase text-dark">Hoy</button>
+          <button @click="irAHoy" class="w-20 py-2 text-xs font-bold tracking-widest hover:bg-gray-50 transition uppercase text-dark text-center">Hoy</button>
           <button @click="mesSiguiente" class="p-2 hover:bg-gray-50 text-gray-600 rounded-r-lg border-l border-gray-200 transition"><ChevronRight class="w-5 h-5" /></button>
         </div>
+        
       </div>
       <button @click="exportarDatos" class="btn-secondary"><FileText class="w-4 h-4"/> Exportar</button>
     </div>
-
     <div class="bg-white p-3 rounded-lg border border-gray-200 shadow-sm shrink-0 flex flex-wrap items-center gap-4 text-xs font-medium">
         <span class="uppercase text-gray-400 tracking-wider mr-2 font-bold">Leyenda:</span>
         <div class="flex items-center gap-2 px-2 py-1 rounded-md bg-gray-50 border border-gray-100">
