@@ -1,16 +1,16 @@
 from flask import Blueprint, jsonify, request
 from services.manager.closing_service import get_closing_audit, toggle_closing_month
+from errors import APIError
 
 closing_bp = Blueprint('manager_closing', __name__, url_prefix='/api/manager/closing')
 
 @closing_bp.route('', methods=['GET'], strict_slashes=False)
 def get_closing():
     mes = request.args.get('mes')
-    if not mes:
-        return jsonify({"error": "Falta el parámetro 'mes'"}), 400
+    if not mes: raise APIError("Falta el parámetro 'mes'", status_code=400)
 
-    data, status = get_closing_audit(mes)
-    return jsonify(data), status
+    data = get_closing_audit(mes)
+    return jsonify({"status": "success", "data": data}), 200
 
 @closing_bp.route('', methods=['POST'], strict_slashes=False)
 def toggle_closing():
@@ -20,7 +20,7 @@ def toggle_closing():
     manager_id = body.get('manager_id') 
     
     if not mes or not accion:
-        return jsonify({"error": "Faltan parámetros 'mes' o 'accion'"}), 400
+        raise APIError("Faltan parámetros 'mes' o 'accion'", status_code=400)
 
-    data, status = toggle_closing_month(mes, accion, manager_id) 
-    return jsonify(data), status
+    toggle_closing_month(mes, accion, manager_id) 
+    return jsonify({"status": "success", "message": f"Mes {accion} correctamente"}), 200

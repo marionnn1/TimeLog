@@ -1,9 +1,9 @@
 import api from './API'
 
 export default {
-    async getTickets() {
+   async getTickets() {
         const res = await api.get('/admin/tickets/')
-        return res.data
+        return res.data 
     },
     async approveTicket(id, horas) {
         const res = await api.put(`/admin/tickets/${id}/approve`, { horas })

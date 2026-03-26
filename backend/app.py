@@ -32,6 +32,10 @@ app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 db.init_app(app)
 
+# ---> REGISTRO DEL CAZADOR DE ERRORES GLOBAL <---
+from errors import register_error_handlers
+register_error_handlers(app)
+
 # Importamos los modelos dentro del contexto de la app
 with app.app_context():
     from models.users import Users
