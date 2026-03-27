@@ -1,7 +1,7 @@
 from flask import Blueprint, jsonify, request
 from services.manager.projects_service import (
-    get_all_projects_data, save_project, soft_delete_project, 
-    assign_user, unassign_user, save_client, update_client, delete_client
+    get_all_projects_data, save_project, eliminar_proyecto_fisico, 
+    cambiar_estado_proyecto, assign_user, unassign_user, save_client, update_client, delete_client
 )
 
 manager_projects_bp = Blueprint('manager_projects', __name__, url_prefix='/api/manager/projects')
@@ -23,10 +23,16 @@ def update_project(id):
     save_project(request.get_json(), id)
     return jsonify({"status": "success", "message": "Proyecto actualizado correctamente"}), 200
 
-@manager_projects_bp.route('/<int:id>', methods=['DELETE'], strict_slashes=False)
+@manager_projects_bp.route('/<int:id>/force', methods=['DELETE'], strict_slashes=False)
 def delete_project(id):
-    soft_delete_project(id)
+    eliminar_proyecto_fisico(id)
     return jsonify({"status": "success", "message": "Proyecto eliminado"}), 200
+
+@manager_projects_bp.route('/<int:id>/estado', methods=['PUT'], strict_slashes=False)
+def change_estado_proyecto(id):
+    nuevo_estado = request.json.get('estado')
+    cambiar_estado_proyecto(id, nuevo_estado)
+    return jsonify({"status": "success", "message": f"Estado actualizado a {nuevo_estado}"}), 200
 
 @manager_projects_bp.route('/<int:id>/assign', methods=['POST'], strict_slashes=False)
 def assign(id):

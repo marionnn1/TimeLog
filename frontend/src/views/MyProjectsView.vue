@@ -216,7 +216,18 @@
                                 <tbody class="divide-y divide-slate-50 text-sm">
                                     <tr v-for="p in datosCliente.proyectos" :key="p.proyecto" class="hover:bg-slate-50/50 transition-colors">
                                         <td class="px-6 py-4">
-                                            <p class="font-bold text-slate-700">{{ p.proyecto }}</p>
+                                            <div class="flex items-center gap-2">
+                                                <p class="font-bold text-slate-700">{{ p.proyecto }}</p>
+                                                <span class="px-2 py-0.5 rounded text-[10px] font-bold uppercase border"
+                                                      :class="{
+                                                          'bg-emerald-50 text-emerald-600 border-emerald-200': p.estado === 'Activo',
+                                                          'bg-amber-50 text-amber-600 border-amber-200': p.estado === 'Cerrado',
+                                                          'bg-orange-50 text-orange-600 border-orange-200': p.estado === 'Inactivo',
+                                                          'bg-slate-50 text-slate-500 border-slate-200': !p.estado || p.estado === 'Desconocido'
+                                                      }">
+                                                    {{ p.estado || 'Desconocido' }}
+                                                </span>
+                                            </div>
                                         </td>
                                         <td class="px-6 py-4 text-right">
                                             <span class="inline-block px-3 py-1 bg-slate-100 text-slate-700 font-bold rounded-md border border-slate-200">

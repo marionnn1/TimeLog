@@ -2,7 +2,7 @@
 import { ref, onMounted, reactive, computed } from 'vue'
 import { 
     FolderPlus, Pencil, Tag, X, Briefcase, Users, Check, 
-    Trash2, Plus, Building2, UserPlus
+    Trash2, Plus, Building2, UserPlus, Lock, Ban, Play 
 } from 'lucide-vue-next'
 import { useDataStore } from '../../stores/dataStore'
 import AdminAPI from '../../services/AdminAPI'
@@ -190,15 +190,22 @@ const solicitarAccion = (id, modo) => {
     confirmacion.id = id
     confirmacion.modo = modo
     
-    if (modo === 'toggle') {
-        const proj = proyectos.value.find(p => p.id === id) || formulario.value
-        if (proj.estado === 'Activo') {
-            confirmacion.title = 'Cerrar Proyecto'; confirmacion.message = '¿Deseas marcar este proyecto como Cerrado?'; confirmacion.type = 'neutral'
-        } else {
-            confirmacion.title = 'Reabrir Proyecto'; confirmacion.message = '¿Deseas volver a activar este proyecto?'; confirmacion.type = 'success'
-        }
-    } else {
-        confirmacion.title = 'Eliminar Proyecto'; confirmacion.message = '¿Estás seguro? Esta acción borrará el registro de la BD.'; confirmacion.type = 'danger'
+    if (modo === 'cerrar') {
+        confirmacion.title = 'Cerrar Proyecto'
+        confirmacion.message = '¿Deseas Cerrar este proyecto? Significa que ha finalizado (histórico).'
+        confirmacion.type = 'neutral'
+    } else if (modo === 'desactivar') {
+        confirmacion.title = 'Desactivar Proyecto'
+        confirmacion.message = '¿Deseas Desactivar este proyecto? Quedará en pausa y no se le podrán imputar horas.'
+        confirmacion.type = 'warning'
+    } else if (modo === 'activar') {
+        confirmacion.title = 'Activar Proyecto'
+        confirmacion.message = '¿Deseas volver a Activar este proyecto para que el equipo impute horas?'
+        confirmacion.type = 'success'
+    } else if (modo === 'eliminar') {
+        confirmacion.title = 'Eliminar Proyecto (Físico)'
+        confirmacion.message = '¿Estás seguro? Esta acción borrará el registro de la BD. Solo el sistema te dejará hacerlo si NO tiene horas imputadas.'
+        confirmacion.type = 'danger'
     }
     confirmacion.show = true
 }
@@ -208,7 +215,10 @@ const ejecutarAccionConfirmada = async () => {
         let res;
         if (confirmacion.modo === 'eliminar_cliente') res = await AdminAPI.eliminarCliente(confirmacion.id)
         else if (confirmacion.modo === 'eliminar') res = await AdminAPI.eliminarProyecto(confirmacion.id)
-        else if (confirmacion.modo === 'toggle') res = await AdminAPI.toggleProyecto(confirmacion.id)
+        else if (['cerrar', 'desactivar', 'activar'].includes(confirmacion.modo)) {
+            const mapEstado = { 'cerrar': 'Cerrado', 'desactivar': 'Inactivo', 'activar': 'Activo' }
+            res = await AdminAPI.cambiarEstadoProyecto(confirmacion.id, mapEstado[confirmacion.modo])
+        }
         
         if (res.status === 'success') {
             await cargarDatos();
@@ -291,7 +301,7 @@ const obtenerEquipoVisual = (proyecto) => proyecto.equipo || []
                         <div v-else class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
                             <div v-for="proyecto in datosCliente.proyectos" :key="proyecto.id"
                                 class="bg-white border border-gray-100 rounded-xl p-5 group hover:border-blue-400 hover:shadow-lg transition relative flex flex-col min-h-[220px] shadow-sm"
-                                :class="{'opacity-75': proyecto.estado === 'Cerrado'}"> 
+                                :class="{'opacity-75 bg-gray-50': proyecto.estado !== 'Activo'}"> 
 
                                 <div class="flex-shrink-0">
                                     <div class="flex justify-between items-start mb-3">
@@ -301,18 +311,29 @@ const obtenerEquipoVisual = (proyecto) => proyecto.equipo || []
 
                                         <div class="flex items-center gap-1">
                                             <span class="badge px-2 py-0.5 rounded-full font-bold text-[10px] border" 
-                                                :class="proyecto.estado === 'Activo' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-gray-100 text-gray-500 border-gray-200'">
+                                                :class="{
+                                                    'bg-emerald-50 text-emerald-700 border-emerald-200': proyecto.estado === 'Activo',
+                                                    'bg-amber-50 text-amber-700 border-amber-200': proyecto.estado === 'Cerrado',
+                                                    'bg-orange-50 text-orange-700 border-orange-200': proyecto.estado === 'Inactivo'
+                                                }">
                                                 {{ proyecto.estado }}
                                             </span>
 
-                                            <div class="flex items-center opacity-0 group-hover:opacity-100 transition">
+                                            <div class="flex items-center opacity-0 group-hover:opacity-100 transition gap-1">
                                                 <button @click.stop="abrirEditar(proyecto)" class="p-1 text-gray-400 hover:text-blue-500" title="Editar"><Pencil class="w-4 h-4" /></button>
+                                                
+                                                <button v-if="proyecto.estado === 'Activo'" @click.stop="solicitarAccion(proyecto.id, 'cerrar')" class="p-1 text-gray-400 hover:text-amber-500" title="Cerrar Proyecto"><Lock class="w-4 h-4" /></button>
+                                                
+                                                <button v-if="proyecto.estado === 'Activo'" @click.stop="solicitarAccion(proyecto.id, 'desactivar')" class="p-1 text-gray-400 hover:text-orange-500" title="Desactivar Proyecto"><Ban class="w-4 h-4" /></button>
+                                                
+                                                <button v-if="proyecto.estado !== 'Activo'" @click.stop="solicitarAccion(proyecto.id, 'activar')" class="p-1 text-gray-400 hover:text-emerald-500" title="Activar Proyecto"><Play class="w-4 h-4" /></button>
+                                                
                                                 <button @click.stop="solicitarAccion(proyecto.id, 'eliminar')" class="p-1 text-gray-400 hover:text-red-500" title="Eliminar"><Trash2 class="w-4 h-4" /></button>
                                             </div>
                                         </div>
                                     </div>
 
-                                    <h3 class="font-bold text-lg text-slate-800 mb-1 leading-tight" :class="{'line-through text-gray-400': proyecto.estado === 'Cerrado'}">
+                                    <h3 class="font-bold text-lg text-slate-800 mb-1 leading-tight" :class="{'text-gray-500': proyecto.estado !== 'Activo'}">
                                         {{ proyecto.nombre }}
                                     </h3>
                                 </div>
@@ -403,13 +424,8 @@ const obtenerEquipoVisual = (proyecto) => proyecto.equipo || []
                     <div v-if="esEdicion" class="p-4 bg-gray-50 rounded-lg border border-gray-200 mt-4 flex items-center justify-between">
                         <div>
                             <p class="text-sm font-bold text-slate-700">Estado del Proyecto</p>
-                            <p class="text-xs text-gray-500">Actualmente: <span class="font-bold" :class="formulario.estado === 'Activo' ? 'text-emerald-600' : 'text-gray-500'">{{ formulario.estado }}</span></p>
+                            <p class="text-xs text-gray-500">Actualmente: <span class="font-bold" :class="formulario.estado === 'Activo' ? 'text-emerald-600' : (formulario.estado === 'Cerrado' ? 'text-amber-600' : 'text-orange-600')">{{ formulario.estado }}</span></p>
                         </div>
-                        <button @click.prevent="solicitarAccion(formulario.id, 'toggle')"
-                                class="px-3 py-1.5 rounded text-xs font-bold transition border"
-                                :class="formulario.estado === 'Activo' ? 'bg-white border-amber-200 text-amber-600 hover:bg-amber-50' : 'bg-white border-emerald-200 text-emerald-600 hover:bg-emerald-50'">
-                            {{ formulario.estado === 'Activo' ? 'Cerrar Proyecto' : 'Reabrir Proyecto' }}
-                        </button>
                     </div>
 
                     <div>

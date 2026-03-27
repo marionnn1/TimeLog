@@ -3,6 +3,7 @@ from models.projects import Projects
 from models.clients import Clients
 from models.assignments import Assignments
 from models.users import Users
+from models.time_entries import TimeEntries
 from services.admin.audit_service import registrar_log
 from sqlalchemy import text
 from datetime import datetime
@@ -120,22 +121,29 @@ def eliminar_proyecto_fisico(id_proyecto):
     proyecto = Projects.query.get(id_proyecto)
     if not proyecto: raise APIError("Proyecto no encontrado", status_code=404)
     
-    db.session.execute(text("DELETE FROM Imputaciones WHERE ProyectoId = :id"), {"id": id_proyecto})
+    imputaciones_count = TimeEntries.query.filter_by(proyecto_id=id_proyecto).count()
+    
+    if imputaciones_count > 0:
+        raise APIError(
+            f"El proyecto '{proyecto.nombre}' ya tiene {imputaciones_count} registros de horas. "
+            "No se puede eliminar físicamente para no alterar el histórico. Por favor, usa la opción Cerrar o Desactivar.", 
+            status_code=400
+        )
+
     Assignments.query.filter_by(proyecto_id=id_proyecto).delete()
     db.session.delete(proyecto)
     db.session.commit()
     
-    registrar_log(1, 'Admin', 'BORRADO_FISICO', 'danger', f"El proyecto con ID {id_proyecto} fue eliminado.")
+    registrar_log(1, 'Admin', 'BORRADO_FISICO', 'danger', f"El proyecto '{proyecto.nombre}' con ID {id_proyecto} fue eliminado de la BD.")
     return True
 
-def toggle_estado_proyecto(id_proyecto):
+def cambiar_estado_proyecto(id_proyecto, nuevo_estado):
     proyecto = Projects.query.get(id_proyecto)
     if not proyecto: raise APIError("Proyecto no encontrado", status_code=404)
     
-    nuevo_estado = 'Cerrado' if proyecto.estado == 'Activo' else 'Activo'
     proyecto.estado = nuevo_estado
-    proyecto.fecha_desactivacion = datetime.utcnow() if nuevo_estado == 'Cerrado' else None
+    proyecto.fecha_desactivacion = datetime.utcnow() if nuevo_estado in ['Cerrado', 'Inactivo'] else None
         
     db.session.commit()
-    registrar_log(1, 'Admin', 'CAMBIO_ESTADO', 'warning' if nuevo_estado == 'Cerrado' else 'info', f"El proyecto '{proyecto.nombre}' ha pasado a estado: {nuevo_estado}.")
+    registrar_log(1, 'Admin', 'CAMBIO_ESTADO', 'warning' if nuevo_estado != 'Activo' else 'info', f"El proyecto '{proyecto.nombre}' ha pasado a estado: {nuevo_estado}.")
     return True
