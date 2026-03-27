@@ -1,7 +1,6 @@
 from flask import jsonify
 from database.db import db
 
-# 1. Creamos nuestra propia "Alarma" personalizada
 class APIError(Exception):
     def __init__(self, message, status_code=400, payload=None):
         super().__init__()
@@ -15,7 +14,6 @@ class APIError(Exception):
         rv['message'] = self.message
         return rv
 
-# 2. Creamos el "Cazador" que atrapa las alarmas y los fallos inesperados
 def register_error_handlers(app):
     
 
@@ -26,12 +24,9 @@ def register_error_handlers(app):
         response.status_code = error.status_code
         return response
 
-    # Este atrapa CUALQUIER otro error de Python/SQL (ej: fallos de sintaxis, caídas de BD)
     @app.errorhandler(Exception)
     def handle_exception(error):
-        db.session.rollback() # CRÍTICO: Limpia la BD si hubo fallo
-        
-        # Aquí podrías guardar el error en tu tabla de Logs en el futuro
+        db.session.rollback() 
         print(f" ERROR CRÍTICO NO CONTROLADO: {error}") 
         
         response = jsonify({

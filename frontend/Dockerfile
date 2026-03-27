@@ -1,4 +1,3 @@
-# Actualizamos a Node 20 para que Vite no se queje
 FROM node:20-alpine
 
 WORKDIR /app

@@ -33,14 +33,11 @@ let toastTimeout = null
 
 const confirmacion = reactive({ show: false, title: '', message: '', type: 'neutral', id: null, modo: '' })
 
-// Agrupamos teniendo en cuenta a los clientes vacíos
 const proyectosAgrupados = computed(() => {
     const grupos = {}
     
-    // 1. Inicializar grupos vacíos para clientes existentes
     clientes_db.value.forEach(c => { grupos[c.nombre] = { id: c.id, proyectos: [] } })
 
-    // 2. Poblar con proyectos
     proyectos.value.forEach(p => {
         const nombreCliente = p.cliente || 'Sin Cliente asignado'
         if (!grupos[nombreCliente]) {
@@ -59,11 +56,9 @@ const cargarDatos = async () => {
     try {
         cargando.value = true
         
-        // Cargar Clientes
         const jsonCli = await AdminAPI.getClientes()
         if (jsonCli.status === 'success') clientes_db.value = jsonCli.data
 
-        // Cargar Proyectos
         const jsonProj = await AdminAPI.getProyectos()
         if (jsonProj.status === 'success') {
             proyectos.value = jsonProj.data.map(p => ({
@@ -76,7 +71,6 @@ const cargarDatos = async () => {
             }))
         }
 
-        // Cargar Usuarios
         const jsonUser = await AdminAPI.getUsuarios()
         if (jsonUser.status === 'success') {
             usuarios_db.value = jsonUser.data.map(u => ({
@@ -100,7 +94,6 @@ const mostrarNotificacion = (mensaje, tipo = 'success') => {
     toastTimeout = setTimeout(() => toast.value.show = false, 3000)
 }
 
-// === LÓGICA DE CLIENTES ===
 const abrirCrearCliente = () => {
     esEdicionCliente.value = false
     clienteForm.value = { ...CLIENTE_DEFAULT }
@@ -108,7 +101,7 @@ const abrirCrearCliente = () => {
 }
 
 const abrirEditarCliente = (clienteData, nombreActual) => {
-    if (!clienteData.id) return // No podemos editar el grupo "Sin Cliente asignado"
+    if (!clienteData.id) return 
     esEdicionCliente.value = true
     clienteForm.value = { 
         id: clienteData.id, 
