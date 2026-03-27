@@ -97,6 +97,12 @@ def guardar_imputaciones_lote(usuario_id, filas, fechas_semana):
             fecha = fechas_semana[i]
             h = float(horas[i]) if i < len(horas) and horas[i] else 0
 
+            if h % 0.5 != 0:
+                raise APIError(
+                    f"Las horas imputadas deben ser múltiplos de 0.5 (ej. 1.0, 1.5). Valor inválido detectado: {h}", 
+                    status_code=400
+                )
+
             registro = TimeEntries.query.filter_by(
                 usuario_id=usuario_id, proyecto_id=p_id, fecha=fecha
             ).first()
@@ -319,6 +325,12 @@ def solicitar_correccion_imputacion(
     usuario = Users.query.get(usuario_id)
     if not usuario:
         raise APIError("Usuario no encontrado", status_code=404)
+
+    if float(nuevas_horas) % 0.5 != 0:
+        raise APIError(
+            f"Las horas solicitadas deben ser múltiplos de 0.5. Valor detectado: {nuevas_horas}", 
+            status_code=400
+        )
 
     nombre_actor = usuario.nombre
     max_horas = get_max_horas_dia_usuario(usuario_id, fecha)
