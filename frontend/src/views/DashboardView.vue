@@ -334,16 +334,22 @@ const totalDia = (index) => filas.value.reduce((acc, f) => acc + (parseFloat(f.h
 const totalSemanal = computed(() => filas.value.reduce((acc, f) => acc + totalFila(f), 0))
 
 const excedeLimiteDiario = (index) => {
+    if (!esEditable(index)) return false; 
+    
     const max = getMaxHorasDia(index)
     return max > 0 && totalDia(index) > max
 }
+
 const excedeLimiteSemanal = computed(() => totalSemanal.value > getMaxHorasSemana())
 
 const hayErrores = computed(() => {
-    const excedeHoras = excedeLimiteSemanal.value || Array.from({ length: 7 }).some((_, i) => excedeLimiteDiario(i));
-    const tieneDecimalesMal = filas.value.some(f => f.horas.some(h => esPasoInvalido(h)));
+    const excedeHoras = Array.from({length:7}).some((_,i) => excedeLimiteDiario(i));
+    
+    const tieneDecimalesMal = filas.value.some(f => f.horas.some((h, i) => esEditable(i) && esPasoInvalido(h)));
+    
     return excedeHoras || tieneDecimalesMal;
 })
+// --------------------------
 
 const autocompletarFila = (fila) => {
     const indexHoy = diasSemana.value.findIndex(d => esHoy(d))
@@ -603,8 +609,8 @@ onMounted(() => {
 
             <div class="p-4 bg-gray-50 border-t flex justify-end gap-4 items-center">
                 <p v-if="hayErrores" class="text-xs font-bold text-red-600 animate-pulse flex items-center gap-1">
-                    <AlertCircle class="w-4 h-4" />
-                    {{filas.some(f => f.horas.some(h => esPasoInvalido(h))) ? 'Solo se permiten incrementos de 0.5h (ej. 1.5)' : 'Corrige el exceso de horas' }}
+                    <AlertCircle class="w-4 h-4"/> 
+                    {{ filas.some(f => f.horas.some((h, i) => esEditable(i) && esPasoInvalido(h))) ? 'Solo se permiten incrementos de 0.5h (ej. 1.5)' : 'Corrige el exceso de horas' }}
                 </p>
                 <button @click="guardarCambios" :disabled="hayErrores || cargando"
                     class="btn-primary px-8 py-2.5 rounded-xl font-bold uppercase tracking-widest text-xs shadow-md transition-all"

@@ -52,7 +52,7 @@ def guardar_imputaciones_lote(usuario_id, filas, fechas_semana):
 
         for i in range(7):
             fecha = fechas_semana[i]
-            h = float(horas[i]) if i < len(horas) and horas[i] else 0
+            h = float(horas[i]) if i < len(horas) and horas[i] else 0.0
             fecha_str = fecha.strftime("%Y-%m-%d") if isinstance(fecha, datetime) else str(fecha)
             
             if fecha_str in fechas_bloqueadas and h > 0:
@@ -62,12 +62,16 @@ def guardar_imputaciones_lote(usuario_id, filas, fechas_semana):
                 usuario_id=usuario_id, proyecto_id=proyecto_id, fecha=fecha
             ).first()
 
+            if registro and float(registro.horas) == h:
+                continue
+
             if registro and registro.estado == "Aprobado":
                 registro.estado = "Pendiente"
                 registro.horas = h
             else:
                 if registro:
                     db.session.delete(registro)
+                
                 if h > 0:
                     nuevo = TimeEntries(
                         usuario_id=usuario_id,
