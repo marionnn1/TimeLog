@@ -15,7 +15,7 @@ const mesAnalisis = ref(mesActual)
 const isLoading = ref(false)
 
 const totalHorasReales = ref(0)
-const totalCapacidadEquipo = ref(0)
+const totalCapacidadEquipo = ref(0) 
 const proyectosStats = ref([])
 const cargaEmpleados = ref([])
 
@@ -32,9 +32,10 @@ const fetchAnalyticsData = async () => {
     isLoading.value = true
     try {
         const response = await ManagerAPI.getAnalytics(mesAnalisis.value)
-        const data = response.data
+        const data = response.data?.data || response.data
+        
         totalHorasReales.value = data.totalHorasImputadas || 0
-        totalCapacidadEquipo.value = data.totalCapacidadTeorica || 0
+        totalCapacidadEquipo.value = data.totalCapacidadTeorica || 0 
         proyectosStats.value = data.proyectosStats || []
         cargaEmpleados.value = data.cargaEmpleados || []
     } catch (error) {
@@ -52,8 +53,7 @@ const mediaHorasEquipo = computed(() => {
     return Math.round(totalHorasReales.value / cargaEmpleados.value.length)
 })
 
-
-const empleadosAltaActividad = computed(() => cargaEmpleados.value.filter(e => e.horas > e.capacidad).length)
+const empleadosAltaActividad = computed(() => cargaEmpleados.value.filter(e => e.horas > (e.capacidad || 160)).length)
 
 const getBarColor = (horas, capacidad) => {
     const umbral = capacidad || 160
