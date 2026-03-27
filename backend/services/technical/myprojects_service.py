@@ -6,6 +6,7 @@ from models.audits import Audits
 from models.users import Users
 from models.assignments import Assignments
 from models.month_closings import MonthClosings
+from models.absences import Absences  # <-- NUEVO: Importamos el modelo de Ausencias
 from sqlalchemy import func, extract
 from datetime import datetime, timedelta
 from errors import APIError
@@ -58,6 +59,20 @@ def guardar_imputaciones_lote(usuario_id, filas, fechas_semana):
                 status_code=403,
             )
 
+    # --- NUEVA LÓGICA TRASLADADA: VALIDACIÓN DE AUSENCIAS ---
+    fechas_str = [(f if isinstance(f, str) else f.strftime("%Y-%m-%d")) for f in fechas_semana]
+    
+    ausencias_bd = Absences.query.filter(
+        Absences.usuario_id == usuario_id,
+        Absences.fecha.in_(fechas_str)
+    ).all()
+    
+    fechas_bloqueadas = [
+        (a.fecha if isinstance(a.fecha, str) else a.fecha.strftime("%Y-%m-%d")) 
+        for a in ausencias_bd
+    ]
+    # ---------------------------------------------------------
+
     proyectos_enviados = [
         fila.get("id_proyecto") for fila in filas if fila.get("id_proyecto")
     ]
@@ -95,12 +110,21 @@ def guardar_imputaciones_lote(usuario_id, filas, fechas_semana):
         horas = fila.get("horas", [])
         for i in range(7):
             fecha = fechas_semana[i]
+            fecha_str = fecha if isinstance(fecha, str) else fecha.strftime("%Y-%m-%d")
             h = float(horas[i]) if i < len(horas) and horas[i] else 0
 
+            # Validación 1: Saltos de 0.5h
             if h % 0.5 != 0:
                 raise APIError(
                     f"Las horas imputadas deben ser múltiplos de 0.5 (ej. 1.0, 1.5). Valor inválido detectado: {h}", 
                     status_code=400
+                )
+
+            # Validación 2: Ausencias y vacaciones (La que nos acabamos de traer)
+            if h > 0 and fecha_str in fechas_bloqueadas:
+                raise APIError(
+                    f"No puedes imputar horas el día {fecha_str} porque tienes una ausencia registrada (vacaciones, etc.).", 
+                    status_code=403
                 )
 
             registro = TimeEntries.query.filter_by(
@@ -108,6 +132,7 @@ def guardar_imputaciones_lote(usuario_id, filas, fechas_semana):
             ).first()
             horas_actuales = float(registro.horas) if registro else 0.0
 
+            # Validación 3: Proyectos inactivos
             if not proyecto_activo and h != horas_actuales:
                 raise APIError(
                     f"No puedes imputar ni modificar horas en '{proyecto.nombre}' porque actualmente está {proyecto.estado}.",

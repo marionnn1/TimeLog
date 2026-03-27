@@ -1,4 +1,3 @@
-# backend/models/assignments.py
 from database.db import db
 from datetime import datetime
 

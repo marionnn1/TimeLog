@@ -6,7 +6,6 @@ from config import SQLALCHEMY_DATABASE_URI
 from database.db import db
 
 # --- TECHNICAL ---
-from controllers.technical.time_entries_user_controller import time_entries_user_bp
 from controllers.technical.myprojects_controller import myprojects_bp
 from controllers.technical.absences_controller import absences_bp
 
@@ -51,7 +50,6 @@ app.register_blueprint(users_bp)
 app.register_blueprint(projects_bp)
 app.register_blueprint(audit_bp)
 app.register_blueprint(dashboard_bp)
-app.register_blueprint(time_entries_user_bp)
 app.register_blueprint(myprojects_bp)
 app.register_blueprint(absences_bp)
 app.register_blueprint(tickets_bp)

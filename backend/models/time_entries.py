@@ -16,7 +16,6 @@ class TimeEntries(db.Model):
     fecha_validacion = db.Column('FechaValidacion', db.DateTime, nullable=True)
     fecha_creacion = db.Column('FechaCreacion', db.DateTime, default=datetime.utcnow)
 
-    # Relaciones. Indicamos 'foreign_keys' cuando hay más de una clave apuntando a la misma tabla (Users)
     usuario = db.relationship('Users', foreign_keys=[usuario_id], backref='imputaciones', lazy=True)
     validador = db.relationship('Users', foreign_keys=[validado_por], lazy=True)
     proyecto = db.relationship('Projects', backref='imputaciones', lazy=True)
