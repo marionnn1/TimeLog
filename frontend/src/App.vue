@@ -5,7 +5,6 @@ import SideBar from './components/layout/SideBar.vue'
 
 const route = useRoute()
 
-// Ocultar Sidebar si estamos en /login (layout: 'empty')
 const showSidebar = computed(() => route.meta.layout !== 'empty')
 </script>
 

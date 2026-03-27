@@ -14,7 +14,6 @@ const props = defineProps({
 const emit = defineEmits(['confirm', 'cancel'])
 const inputValue = ref('')
 
-// Limpiar el input cada vez que se abre el modal
 watch(() => props.show, (newVal) => {
     if (newVal) inputValue.value = ''
 })

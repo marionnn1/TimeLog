@@ -241,7 +241,6 @@ const guardarCambios = async () => {
             showToast('Error al guardar: Revisa la consola del servidor', 'error')
         }
     } catch (error) {
-        // AQUÍ ES DONDE SE LEE EL MENSAJE REAL DEL BACKEND SI REBOTA LA PETICIÓN
         const mensajeError = error.response?.data?.error 
                           || error.response?.data?.message 
                           || 'Error de red al guardar';
@@ -349,7 +348,6 @@ const hayErrores = computed(() => {
     
     return excedeHoras || tieneDecimalesMal;
 })
-// --------------------------
 
 const autocompletarFila = (fila) => {
     const indexHoy = diasSemana.value.findIndex(d => esHoy(d))

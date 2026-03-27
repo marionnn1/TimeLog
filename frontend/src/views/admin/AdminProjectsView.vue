@@ -137,7 +137,6 @@ const solicitarEliminarCliente = (clienteId) => {
     confirmacion.show = true
 }
 
-// === LÓGICA DE PROYECTOS ===
 const abrirCrearProyectoGlobal = () => { 
     esEdicion.value = false
     formulario.value = { ...FORM_DEFAULT }
