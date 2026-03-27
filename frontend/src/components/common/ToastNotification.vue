@@ -4,7 +4,7 @@ import { CheckCircle2, AlertCircle, X } from 'lucide-vue-next'
 defineProps({
     show: { type: Boolean, required: true },
     message: { type: String, required: true },
-    type: { type: String, default: 'success' } // 'success' o 'error'
+    type: { type: String, default: 'success' } 
 })
 
 defineEmits(['close'])

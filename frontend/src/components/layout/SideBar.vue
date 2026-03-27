@@ -15,7 +15,6 @@ const { logout } = useAuth()
 const currentUser = computed(() => store.getCurrentUser())
 const rolActual = computed(() => currentUser.value?.rol || 'user')
 
-// Lógica de permisos para mostrar/ocultar secciones
 const esAdmin = computed(() => rolActual.value === 'admin')
 const esJefe = computed(() => rolActual.value === 'manager' || rolActual.value === 'admin' || rolActual.value === 'jp')
 

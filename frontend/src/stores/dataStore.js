@@ -22,7 +22,6 @@ const loadState = () => {
 
 const state = reactive(loadState())
 
-// Persistencia automática: si cambia el state, se guarda en localStorage
 watch(state, (nuevoEstado) => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(nuevoEstado))
 }, { deep: true })
@@ -37,7 +36,6 @@ export const useDataStore = () => {
         state.currentUser = userData
     }
 
-    // Método útil para cuando el usuario hace logout
     const $reset = () => {
         state.currentUser = null
     }

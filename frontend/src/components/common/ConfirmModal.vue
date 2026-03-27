@@ -7,7 +7,7 @@ const props = defineProps({
     title: { type: String, required: true },
     message: { type: String, required: true },
     type: { type: String, default: 'neutral' },
-    inputMode: { type: Boolean, default: false }, // <-- Novedad
+    inputMode: { type: Boolean, default: false }, 
     inputPlaceholder: { type: String, default: 'Escribe aquí...' }
 })
 
