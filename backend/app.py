@@ -26,17 +26,16 @@ from controllers.manager.validation_controller import validation_bp
 app = Flask(__name__)
 CORS(app)
 
-# --- CONFIGURACIÓN SQLALCHEMY ---
+
 app.config['SQLALCHEMY_DATABASE_URI'] = SQLALCHEMY_DATABASE_URI
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 db.init_app(app)
 
-# ---> REGISTRO DEL CAZADOR DE ERRORES GLOBAL <---
+
 from errors import register_error_handlers
 register_error_handlers(app)
 
-# Importamos los modelos dentro del contexto de la app
 with app.app_context():
     from models.users import Users
     from models.clients import Clients
@@ -48,7 +47,6 @@ with app.app_context():
     from models.audits import Audits
     from models.logs import Logs
 
-# --- REGISTRO DE BLUEPRINTS ---
 app.register_blueprint(users_bp)
 app.register_blueprint(projects_bp)
 app.register_blueprint(audit_bp)

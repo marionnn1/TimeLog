@@ -112,7 +112,7 @@ const ejecutarCierre = () => {
 const reabrirMes = () => {
     solicitarConfirmacion(
         'Reabrir Mes',
-        '¿Quieres reabrir este periodo? Los usuarios podrán volver a editar sus imputaciones.',
+        '¿Quieres reabrir este mes?',
         'neutral',
         () => procesarCierreToggle('reabrir')
     )

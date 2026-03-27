@@ -89,7 +89,7 @@ const router = createRouter({
       meta: { requiresAuth: true, role: 'admin' }
     },
     {
-      path: '/admin/tickets', // <--- NUEVA RUTA DE TICKETS
+      path: '/admin/tickets', 
       name: 'admin-tickets',
       component: AdminTicketsView,
       meta: { requiresAuth: true, role: 'admin' }
@@ -97,22 +97,22 @@ const router = createRouter({
 
     // --- RUTAS MANAGER ---
     {
-      path: '/manager/analitica', // <-- Cambiado de /analytics a /analitica
+      path: '/manager/analitica', 
       name: 'manager-analytics',
       component: ManagerAnalyticsView
     },
     {
-      path: '/manager/cierre', // <-- Cambiado de /closing a /cierre
+      path: '/manager/cierre', 
       name: 'manager-closing',
       component: ManagerClosingView
     },
     {
-      path: '/manager/projects', // (Si tu menú dice /proyectos, ponlo así. Si te funcionaba con /projects, déjalo como estaba)
+      path: '/manager/projects', 
       name: 'manager-projects',
       component: ProjectsView
     },
     {
-      path: '/manager/validaciones', // <-- Cambiado de /validation a /validaciones
+      path: '/manager/validaciones', 
       name: 'manager-validation',
       component: ManagerValidationView
     }
