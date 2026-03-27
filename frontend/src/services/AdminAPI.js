@@ -47,8 +47,8 @@ export default {
         const res = await api.delete(`/proyectos/${id}/force`)
         return res.data
     },
-    async toggleProyecto(id) {
-        const res = await api.put(`/proyectos/${id}/toggle`)
+    async cambiarEstadoProyecto(id, estado) {
+        const res = await api.put(`/proyectos/${id}/estado`, { estado })
         return res.data
     },
 

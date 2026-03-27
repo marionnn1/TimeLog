@@ -4,7 +4,7 @@ import ManagerAPI from '../../services/ManagerAPI'
 import {
     LayoutGrid, Search, Plus, Pencil, Trash2, X, Check,
     Briefcase, UserPlus, Tag, Hash, Save, Building2,
-    CheckCircle2, AlertCircle, AlertTriangle
+    Lock, Ban, Play
 } from 'lucide-vue-next'
 import ConfirmModal from '../../components/common/ConfirmModal.vue'
 import ToastNotification from '../../components/common/ToastNotification.vue'
@@ -56,7 +56,7 @@ const mostrarModalCliente = ref(false)
 const esEdicion = ref(false)
 const esEdicionCliente = ref(false)
 
-const proyectoForm = ref({ id: null, nombre: '', cliente: '', idCliente: '', codigo: '', estado: true, equipo: [] }) 
+const proyectoForm = ref({ id: null, nombre: '', cliente: '', idCliente: '', codigo: '', estado: 'Activo', equipo: [] }) 
 const clienteForm = ref({ id: null, nombre: '', codigo: '' }) 
 
 const busqueda = ref('')
@@ -70,7 +70,7 @@ const proyectosFiltrados = computed(() => {
         
         const estadoMatch =
             filtroEstado.value === 'todos' ? true :
-            filtroEstado.value === 'activos' ? p.estado : !p.estado
+            filtroEstado.value === 'activos' ? p.estado === 'Activo' : p.estado !== 'Activo'
 
         return textoMatch && estadoMatch
     })
@@ -155,13 +155,13 @@ const solicitarEliminarCliente = (clienteId) => {
 
 const abrirCrearProyecto = () => {
     esEdicion.value = false
-    proyectoForm.value = { id: null, nombre: '', cliente: '', idCliente: '', codigo: '', estado: true, equipo: [] }
+    proyectoForm.value = { id: null, nombre: '', cliente: '', idCliente: '', codigo: '', estado: 'Activo', equipo: [] }
     mostrarModalProyecto.value = true
 }
 
 const abrirCrearProyectoDesdeCliente = (nombreCliente) => {
     esEdicion.value = false
-    proyectoForm.value = { id: null, nombre: '', cliente: nombreCliente, idCliente: '', codigo: '', estado: true, equipo: [] }
+    proyectoForm.value = { id: null, nombre: '', cliente: nombreCliente, idCliente: '', codigo: '', estado: 'Activo', equipo: [] }
     mostrarModalProyecto.value = true
 }
 
@@ -202,13 +202,33 @@ const guardarProyecto = async () => {
     }
 }
 
-const eliminarProyecto = (id) => {
-    solicitarConfirmacion('Eliminar Proyecto', '¿Estás seguro de que deseas eliminar este proyecto de forma permanente?', 'danger', 'eliminar', async () => {
-            try {
+const solicitarAccionProyecto = (id, modo) => {
+    let config = { title: '', message: '', type: 'neutral' }
+    
+    if (modo === 'cerrar') {
+        config = { title: 'Cerrar Proyecto', message: '¿Deseas Cerrar este proyecto? Significa que ha finalizado (histórico).', type: 'neutral' }
+    } else if (modo === 'desactivar') {
+        config = { title: 'Desactivar Proyecto', message: '¿Deseas Desactivar este proyecto? Quedará en pausa y no se le podrán imputar horas.', type: 'warning' }
+    } else if (modo === 'activar') {
+        config = { title: 'Activar Proyecto', message: '¿Deseas volver a Activar este proyecto para que el equipo impute horas?', type: 'success' }
+    } else if (modo === 'eliminar') {
+        config = { title: 'Eliminar Proyecto (Físico)', message: '¿Estás seguro? Esta acción borrará el registro de la BD. Solo el sistema te dejará hacerlo si NO tiene horas imputadas.', type: 'danger' }
+    }
+
+    solicitarConfirmacion(config.title, config.message, config.type, modo, async () => {
+        try {
+            if (modo === 'eliminar') {
                 await ManagerAPI.deleteProject(id)
                 showToast("Proyecto eliminado", "success")
-                fetchProjects() 
-            } catch (error) { showToast("Error al eliminar", "error") }
+            } else {
+                const mapEstado = { 'cerrar': 'Cerrado', 'desactivar': 'Inactivo', 'activar': 'Activo' }
+                await ManagerAPI.cambiarEstadoProyecto(id, mapEstado[modo])
+                showToast("Estado actualizado correctamente", "success")
+            }
+            fetchProjects() 
+        } catch (error) {
+            showToast(error.response?.data?.error || error.response?.data?.message || "Error en la operación", "error")
+        }
     })
 }
 
@@ -271,7 +291,7 @@ const getColorClass = (nombre) => {
                 <button @click="filtroEstado = 'activos'" class="px-4 py-2 rounded-lg text-sm font-medium transition"
                     :class="filtroEstado === 'activos' ? 'bg-emerald-50 text-emerald-700' : 'text-slate-500 hover:text-slate-700'">Activos</button>
                 <button @click="filtroEstado = 'inactivos'" class="px-4 py-2 rounded-lg text-sm font-medium transition"
-                    :class="filtroEstado === 'inactivos' ? 'bg-red-50 text-red-700' : 'text-slate-500 hover:text-slate-700'">Cerrados</button>
+                    :class="filtroEstado === 'inactivos' ? 'bg-red-50 text-red-700' : 'text-slate-500 hover:text-slate-700'">Cerrados / Inactivos</button>
             </div>
         </div>
 
@@ -312,37 +332,40 @@ const getColorClass = (nombre) => {
 
                 <div v-else class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
                     <div v-for="proy in datosCliente.proyectos" :key="proy.id"
-                        class="bg-white rounded-2xl border border-slate-200 shadow-sm hover:shadow-md transition-all duration-300 group relative flex flex-col p-5 min-h-[320px]">
+                        class="bg-white rounded-2xl border border-slate-200 shadow-sm hover:shadow-md transition-all duration-300 group relative flex flex-col p-5 min-h-[320px]"
+                        :class="{'opacity-75 bg-slate-50': proy.estado !== 'Activo'}">
                         
                         <div class="flex justify-between items-start mb-4">
-                            <div class="w-10 h-10 rounded-xl bg-[#E8F5F3] flex items-center justify-center text-[#26AA9B]">
+                            <div class="w-10 h-10 rounded-xl bg-[#E8F5F3] flex items-center justify-center text-[#26AA9B] group-hover:scale-110 transition-transform">
                                 <Briefcase class="w-5 h-5" stroke-width="2.5"/>
                             </div>
 
                             <div class="flex items-center gap-2">
                                 <span class="px-3 py-1 rounded-md text-[11px] font-bold tracking-wide uppercase border transition-colors"
-                                    :class="proy.estado 
-                                        ? 'bg-emerald-50 text-emerald-600 border-emerald-200' 
-                                        : 'bg-slate-50 text-slate-500 border-slate-200'">
-                                    {{ proy.estado ? 'Activo' : 'Cerrado' }}
+                                    :class="{
+                                        'bg-emerald-50 text-emerald-600 border-emerald-200': proy.estado === 'Activo',
+                                        'bg-amber-50 text-amber-600 border-amber-200': proy.estado === 'Cerrado',
+                                        'bg-orange-50 text-orange-600 border-orange-200': proy.estado === 'Inactivo'
+                                    }">
+                                    {{ proy.estado }}
                                 </span>
 
-                                <button @click.stop="abrirEditarProyecto(proy)"
-                                    class="w-7 h-7 flex items-center justify-center rounded bg-white border border-slate-200 text-slate-400 hover:text-blue-600 hover:border-blue-200 transition-all shadow-sm"
-                                    title="Editar Proyecto">
-                                    <Pencil class="w-3.5 h-3.5" />
-                                </button>
-
-                                <button @click.stop="eliminarProyecto(proy.id)"
-                                    class="w-7 h-7 flex items-center justify-center rounded bg-white border border-slate-200 text-slate-400 hover:text-red-600 hover:border-red-200 transition-all shadow-sm"
-                                    title="Eliminar">
-                                    <Trash2 class="w-3.5 h-3.5" />
-                                </button>
+                                <div class="flex items-center opacity-0 group-hover:opacity-100 transition gap-1">
+                                    <button @click.stop="abrirEditarProyecto(proy)" class="w-7 h-7 flex items-center justify-center rounded bg-white border border-slate-200 text-slate-400 hover:text-[#26AA9B] hover:border-[#26AA9B] transition-all shadow-sm" title="Editar Proyecto"><Pencil class="w-3.5 h-3.5" /></button>
+                                    
+                                    <button v-if="proy.estado === 'Activo'" @click.stop="solicitarAccionProyecto(proy.id, 'cerrar')" class="w-7 h-7 flex items-center justify-center rounded bg-white border border-slate-200 text-slate-400 hover:text-amber-500 hover:border-amber-300 transition-all shadow-sm" title="Cerrar Proyecto"><Lock class="w-3.5 h-3.5" /></button>
+                                    
+                                    <button v-if="proy.estado === 'Activo'" @click.stop="solicitarAccionProyecto(proy.id, 'desactivar')" class="w-7 h-7 flex items-center justify-center rounded bg-white border border-slate-200 text-slate-400 hover:text-orange-500 hover:border-orange-300 transition-all shadow-sm" title="Desactivar Proyecto"><Ban class="w-3.5 h-3.5" /></button>
+                                    
+                                    <button v-if="proy.estado !== 'Activo'" @click.stop="solicitarAccionProyecto(proy.id, 'activar')" class="w-7 h-7 flex items-center justify-center rounded bg-white border border-slate-200 text-slate-400 hover:text-emerald-500 hover:border-emerald-300 transition-all shadow-sm" title="Activar Proyecto"><Play class="w-3.5 h-3.5" /></button>
+                                    
+                                    <button @click.stop="solicitarAccionProyecto(proy.id, 'eliminar')" class="w-7 h-7 flex items-center justify-center rounded bg-white border border-slate-200 text-slate-400 hover:text-red-500 hover:border-red-300 transition-all shadow-sm" title="Eliminar"><Trash2 class="w-3.5 h-3.5" /></button>
+                                </div>
                             </div>
                         </div>
 
                         <div class="mb-5">
-                            <h3 class="text-lg font-bold text-slate-800 leading-tight mb-1 truncate" :title="proy.nombre">
+                            <h3 class="text-lg font-bold text-slate-800 leading-tight mb-1 truncate" :title="proy.nombre" :class="{'text-slate-500': proy.estado !== 'Activo'}">
                                 {{ proy.nombre }}
                             </h3>
                             <div class="flex flex-col gap-1">
@@ -413,12 +436,12 @@ const getColorClass = (nombre) => {
                     <div>
                         <label class="block text-xs font-bold text-slate-500 uppercase mb-2">Nombre Cliente *</label>
                         <input v-model="clienteForm.nombre" type="text" placeholder="Ej: Inetum" 
-                               class="w-full p-3 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500">
+                               class="w-full p-3 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#26AA9B]/20 focus:border-[#26AA9B]">
                     </div>
                     <div>
                         <label class="block text-xs font-bold text-slate-500 uppercase mb-2">ID/Código (Opcional)</label>
                         <input v-model="clienteForm.codigo" type="text" placeholder="Ej: CLI-001" 
-                               class="w-full p-3 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500">
+                               class="w-full p-3 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#26AA9B]/20 focus:border-[#26AA9B]">
                     </div>
                     
                     <div class="pt-2">
@@ -466,20 +489,13 @@ const getColorClass = (nombre) => {
                         </div>
                     </div>
 
-                    <div v-if="esEdicion">
-                         <label class="block text-xs font-bold text-slate-500 uppercase mb-2">Estado</label>
-                         <div class="flex gap-2">
-                            <button @click="proyectoForm.estado = true" 
-                                    class="flex-1 py-2 rounded-lg text-sm font-bold border transition-colors"
-                                    :class="proyectoForm.estado ? 'bg-emerald-50 border-emerald-500 text-emerald-700' : 'bg-white border-slate-200 text-slate-500'">
-                                Activo
-                            </button>
-                            <button @click="proyectoForm.estado = false" 
-                                    class="flex-1 py-2 rounded-lg text-sm font-bold border transition-colors"
-                                    :class="!proyectoForm.estado ? 'bg-slate-100 border-slate-400 text-slate-700' : 'bg-white border-slate-200 text-slate-500'">
-                                Cerrado
-                            </button>
-                         </div>
+                    <div v-if="esEdicion" class="p-3 bg-slate-50 rounded-lg border border-slate-200">
+                         <p class="text-xs font-bold text-slate-500 uppercase mb-1">Estado Actual</p>
+                         <p class="text-sm font-medium" :class="{
+                            'text-emerald-600': proyectoForm.estado === 'Activo',
+                            'text-amber-600': proyectoForm.estado === 'Cerrado',
+                            'text-orange-600': proyectoForm.estado === 'Inactivo'
+                         }">{{ proyectoForm.estado }}</p>
                     </div>
 
                     <div>

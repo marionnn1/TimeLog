@@ -47,7 +47,11 @@ export default {
         return { data: res.data };
     },
     async deleteProject(id) {
-        const res = await api.delete(`${BASE_PATH}/projects/${id}`);
+        const res = await api.delete(`${BASE_PATH}/projects/${id}/force`);
+        return { data: res.data };
+    },
+    async cambiarEstadoProyecto(id, estado) {
+        const res = await api.put(`${BASE_PATH}/projects/${id}/estado`, { estado });
         return { data: res.data };
     },
     async assignUserToProject(proyectoId, usuarioId) {

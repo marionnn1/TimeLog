@@ -3,12 +3,13 @@ from models.projects import Projects
 from models.clients import Clients
 from models.users import Users
 from models.assignments import Assignments
+from models.time_entries import TimeEntries
 from datetime import datetime
 import random
 from errors import APIError
 
 def get_all_projects_data():
-    proyectos_db = Projects.query.filter(Projects.fecha_desactivacion.is_(None)).all()
+    proyectos_db = Projects.query.all()
     proyectos = []
     for p in proyectos_db:
         equipo = []
@@ -24,7 +25,7 @@ def get_all_projects_data():
             "cliente": p.cliente.nombre if p.cliente else "Sin Cliente",
             "idCliente": (p.cliente.codigo if p.cliente and p.cliente.codigo else ""),
             "codigo": p.codigo,
-            "estado": True if p.estado == "Activo" else False,
+            "estado": p.estado,
             "equipo": equipo,
         })
 
@@ -78,7 +79,7 @@ def save_project(data, project_id=None):
     nombre = data.get("nombre")
     cliente_nombre = data.get("cliente")
     cliente_codigo = data.get("idCliente")
-    estado_str = "Activo" if data.get("estado") else "Cerrado"
+    estado_str = data.get("estado", "Activo")
     codigo = data.get("codigo")
     usuarios_ids = data.get("usuarios_ids", []) 
 
@@ -119,12 +120,31 @@ def save_project(data, project_id=None):
     db.session.commit()
     return True
 
-def soft_delete_project(project_id):
+def eliminar_proyecto_fisico(project_id):
     proyecto = Projects.query.get(project_id)
     if not proyecto: raise APIError("Proyecto no encontrado", status_code=404)
 
-    proyecto.estado = "Cerrado"
-    proyecto.fecha_desactivacion = datetime.utcnow()
+    imputaciones_count = TimeEntries.query.filter_by(proyecto_id=project_id).count()
+    
+    if imputaciones_count > 0:
+        raise APIError(
+            f"El proyecto '{proyecto.nombre}' ya tiene {imputaciones_count} registros de horas. "
+            "No se puede eliminar físicamente para no alterar el histórico. Por favor, usa la opción Cerrar o Desactivar.", 
+            status_code=400
+        )
+
+    Assignments.query.filter_by(proyecto_id=project_id).delete()
+    db.session.delete(proyecto)
+    db.session.commit()
+    return True
+
+def cambiar_estado_proyecto(project_id, nuevo_estado):
+    proyecto = Projects.query.get(project_id)
+    if not proyecto: raise APIError("Proyecto no encontrado", status_code=404)
+    
+    proyecto.estado = nuevo_estado
+    proyecto.fecha_desactivacion = datetime.utcnow() if nuevo_estado in ['Cerrado', 'Inactivo'] else None
+        
     db.session.commit()
     return True
 

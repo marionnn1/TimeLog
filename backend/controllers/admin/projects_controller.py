@@ -1,7 +1,7 @@
 from flask import Blueprint, request, jsonify
 from services.admin.projects_service import (
     obtener_proyectos, crear_proyecto, actualizar_proyecto, eliminar_proyecto_fisico, 
-    toggle_estado_proyecto, obtener_clientes, crear_cliente, actualizar_cliente, eliminar_cliente
+    cambiar_estado_proyecto, obtener_clientes, crear_cliente, actualizar_cliente, eliminar_cliente
 )
 from errors import APIError
 
@@ -27,10 +27,11 @@ def delete_permanent(id_proyecto):
     eliminar_proyecto_fisico(id_proyecto)
     return jsonify({"status": "success", "message": "Proyecto eliminado permanentemente de la BD"}), 200
 
-@projects_bp.route('/api/proyectos/<int:id_proyecto>/toggle', methods=['PUT'])
-def toggle_proyecto(id_proyecto):
-    toggle_estado_proyecto(id_proyecto)
-    return jsonify({"status": "success", "message": "Estado del proyecto actualizado"}), 200
+@projects_bp.route('/api/proyectos/<int:id_proyecto>/estado', methods=['PUT'])
+def change_estado_proyecto(id_proyecto):
+    nuevo_estado = request.json.get('estado')
+    cambiar_estado_proyecto(id_proyecto, nuevo_estado)
+    return jsonify({"status": "success", "message": f"Estado del proyecto actualizado a {nuevo_estado}"}), 200
 
 @projects_bp.route('/api/clientes', methods=['GET'])
 def get_clients():

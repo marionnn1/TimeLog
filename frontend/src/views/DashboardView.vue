@@ -1,18 +1,18 @@
 <script setup>
 import { ref, computed, onMounted, watch, onUnmounted } from 'vue'
 import { useRoute } from 'vue-router'
-import { useDataStore } from '../stores/dataStore' 
+import { useDataStore } from '../stores/dataStore'
 import MyProjectsAPI from '../services/MyProjectsAPI'
 import AbsencesAPI from '../services/AbsencesAPI'
 import ToastNotification from '../components/common/ToastNotification.vue'
 
 import {
-    ChevronLeft, ChevronRight, Plus, Trash2, Save, Building2, Info, X, RotateCcw, 
+    ChevronLeft, ChevronRight, Plus, Trash2, Save, Building2, Info, X, RotateCcw,
     Check, AlertCircle, CheckCircle2, Loader2, Wand2, Settings2, Briefcase, Clock
 } from 'lucide-vue-next'
 
 const route = useRoute()
-const store = useDataStore() 
+const store = useDataStore()
 const user = store.getCurrentUser()
 
 const toast = ref({ show: false, message: '', type: 'success' })
@@ -49,7 +49,7 @@ const cargarJornadaBD = async () => {
                     return
                 }
             }
-            
+
             configJornada.value = {
                 tipoContrato: res.data.tipoContrato || '40H',
                 horasNormal: [
@@ -75,19 +75,19 @@ const abrirModalJornada = () => {
 const guardarConfigJornada = async () => {
     if (!user) return
     configJornada.value = JSON.parse(JSON.stringify(configJornadaTemp.value))
-    
+
     localStorage.setItem(`jornada_custom_${user.id}`, JSON.stringify(configJornada.value))
 
     try {
         const payload = {
             usuario_id: user.id,
             tipoContrato: configJornada.value.tipoContrato,
-            horasInviernoLJ: configJornada.value.horasNormal[0], 
-            horasInviernoV: configJornada.value.horasNormal[4],  
-            horasVerano: configJornada.value.horasVerano[0]      
+            horasInviernoLJ: configJornada.value.horasNormal[0],
+            horasInviernoV: configJornada.value.horasNormal[4],
+            horasVerano: configJornada.value.horasVerano[0]
         }
         const res = await MyProjectsAPI.updateJornada(payload)
-        if(res.status === 'success') {
+        if (res.status === 'success') {
             mostrarModalJornada.value = false
             showToast('Jornada guardada', 'success')
             cargarHorasDesdeAPI()
@@ -106,7 +106,7 @@ const cargarAusenciasAPI = async () => {
         const y1 = diasSemana.value[0].getFullYear()
         const m2 = diasSemana.value[6].getMonth() + 1
         const y2 = diasSemana.value[6].getFullYear()
-        
+
         let todas = []
         const res1 = await AbsencesAPI.getAusenciasMes(m1, y1)
         if (res1.status === 'success') todas = res1.data
@@ -115,7 +115,7 @@ const cargarAusenciasAPI = async () => {
             const res2 = await AbsencesAPI.getAusenciasMes(m2, y2)
             if (res2.status === 'success') todas = todas.concat(res2.data)
         }
-        
+
         ausenciasPersonales.value = todas.filter(a => String(a.userId) === String(user.id))
     } catch (e) {
         console.error("Error cargando ausencias:", e)
@@ -167,11 +167,11 @@ const cargarProyectosParaModal = async () => {
 const proyectosAgrupadosParaModal = computed(() => {
     const grupos = {}
     proyectosRealDB.value.forEach(p => {
-        const cliente = p.Cliente || 'Sin Cliente asignado' 
+        const cliente = p.Cliente || 'Sin Cliente asignado'
         if (!grupos[cliente]) grupos[cliente] = []
         grupos[cliente].push(p)
     })
-    
+
     return Object.keys(grupos).sort().map(cliente => ({
         cliente,
         proyectos: grupos[cliente].sort((a, b) => a.Nombre.localeCompare(b.Nombre))
@@ -188,7 +188,7 @@ const cargarHorasDesdeAPI = async () => {
             const datosBackend = res.data || []
             const nuevasFilas = []
             const proyectosUnicos = [...new Set(datosBackend.map(d => d.ProyectoId))]
-            
+
             proyectosUnicos.forEach(pId => {
                 const registrosP = datosBackend.filter(d => d.ProyectoId === pId)
                 nuevasFilas.push({
@@ -208,7 +208,11 @@ const cargarHorasDesdeAPI = async () => {
             filas.value = nuevasFilas
         }
     } catch (error) {
-        showToast("Error al conectar con el servidor", "error")
+        const mensajeError = error.response?.data?.error
+            || error.response?.data?.message
+            || 'Error de red al cargar';
+
+        showToast(mensajeError, 'error');
     } finally {
         cargando.value = false
     }
@@ -216,7 +220,7 @@ const cargarHorasDesdeAPI = async () => {
 
 const guardarCambios = async () => {
     if (hayErrores.value) return showToast('Por favor corrige los errores antes de guardar.', 'error')
-    
+
     filas.value.forEach(f => {
         f.horas = f.horas.map((h, i) => tiposDiasSemana.value[i] ? 0 : h)
     })
@@ -227,7 +231,7 @@ const guardarCambios = async () => {
         fechas: fechasSemana,
         filas: filas.value.map(f => ({ id_proyecto: f.id, horas: f.horas }))
     }
-    
+
     try {
         const res = await MyProjectsAPI.guardarImputaciones(payload)
         if (res.status === 'success') {
@@ -237,7 +241,12 @@ const guardarCambios = async () => {
             showToast('Error al guardar: Revisa la consola del servidor', 'error')
         }
     } catch (error) {
-        showToast('Error de red', 'error')
+        // AQUÍ ES DONDE SE LEE EL MENSAJE REAL DEL BACKEND SI REBOTA LA PETICIÓN
+        const mensajeError = error.response?.data?.error 
+                          || error.response?.data?.message 
+                          || 'Error de red al guardar';
+                          
+        showToast(mensajeError, 'error');
     }
 }
 
@@ -268,13 +277,13 @@ const esJornadaVerano = (date) => { const mes = date.getMonth(); return mes === 
 
 const getMaxHorasDia = (index) => {
     const date = diasSemana.value[index]
-    if (tiposDiasSemana.value[index]) return 0 
-    
-    const day = date.getDay() 
+    if (tiposDiasSemana.value[index]) return 0
+
+    const day = date.getDay()
     if (day === 0 || day === 6) return 0
-    
+
     const isVerano = esJornadaVerano(date)
-    const dayIndex = day - 1 
+    const dayIndex = day - 1
 
     if (configJornada.value.tipoContrato === '40H') {
         if (isVerano) return 7.0;
@@ -299,8 +308,8 @@ const esHoy = (date) => {
 }
 const esEditable = (index) => {
     const date = diasSemana.value[index]
-    const hoy = new Date(); hoy.setHours(0,0,0,0)
-    const fComp = new Date(date); fComp.setHours(0,0,0,0)
+    const hoy = new Date(); hoy.setHours(0, 0, 0, 0)
+    const fComp = new Date(date); fComp.setHours(0, 0, 0, 0)
     return !esFinDeSemana(date) && fComp >= hoy && !tiposDiasSemana.value[index]
 }
 
@@ -365,25 +374,25 @@ const abrirModal = () => { nuevoRegistro.value = { proyectoId: undefined }; most
 const cerrarModal = () => { mostrarModal.value = false }
 
 const confirmarAnadirLinea = () => {
-    if(!nuevoRegistro.value.proyectoId) return showToast('Por favor, selecciona un proyecto de la lista', 'error')
+    if (!nuevoRegistro.value.proyectoId) return showToast('Por favor, selecciona un proyecto de la lista', 'error')
 
     const p = proyectosRealDB.value.find(x => x.Id === nuevoRegistro.value.proyectoId)
     if (!p) return showToast('Selecciona un proyecto válido', 'error')
     if (filas.value.find(f => f.id === p.Id)) return showToast('El proyecto ya está en la lista', 'error')
-    
-    filas.value.push({ 
-        id: p.Id, 
-        cliente: p.Cliente || 'Sin Cliente asignado', 
-        proyecto: p.Nombre, 
-        horas: [0, 0, 0, 0, 0, 0, 0], 
-        seleccionado: false 
+
+    filas.value.push({
+        id: p.Id,
+        cliente: p.Cliente || 'Sin Cliente asignado',
+        proyecto: p.Nombre,
+        horas: [0, 0, 0, 0, 0, 0, 0],
+        seleccionado: false
     })
     cerrarModal()
 }
 
 const borrarLineas = () => {
     const seleccionadas = filas.value.filter(f => f.seleccionado)
-    
+
     if (seleccionadas.length === 0) {
         return showToast('Selecciona al menos una línea para borrar', 'error')
     }
@@ -419,30 +428,39 @@ onMounted(() => {
                 <div class="flex items-center gap-3">
                     <h1 class="h1-title capitalize">{{ formatoFechaCabecera(lunesActual) }}</h1>
                     <span class="text-sm font-medium text-gray-400 px-2 border-l border-gray-300">
-                        Semana {{ lunesActual.getDate() }} - {{ new Date(lunesActual.getTime() + 6 * 24 * 60 * 60 * 1000).getDate() }}
+                        Semana {{ lunesActual.getDate() }} - {{ new Date(lunesActual.getTime() + 6 * 24 * 60 * 60 *
+                        1000).getDate() }}
                     </span>
                 </div>
                 <div class="flex gap-4 items-center">
-                    
-                    <button @click="abrirModalJornada" 
-                            class="flex items-center gap-2 bg-white border border-gray-200 rounded-xl px-4 py-2 shadow-sm hover:shadow-md hover:border-blue-300 transition-all text-sm font-bold text-gray-700">
-                        <Settings2 class="w-4 h-4 text-primary" /> 
-                        Contrato: <span class="text-primary font-black uppercase">{{ configJornada.tipoContrato === '40H' ? 'Completa' : 'Personalizada' }}</span>
+
+                    <button @click="abrirModalJornada"
+                        class="flex items-center gap-2 bg-white border border-gray-200 rounded-xl px-4 py-2 shadow-sm hover:shadow-md hover:border-blue-300 transition-all text-sm font-bold text-gray-700">
+                        <Settings2 class="w-4 h-4 text-primary" />
+                        Contrato: <span class="text-primary font-black uppercase">{{ configJornada.tipoContrato ===
+                            '40H' ? 'Completa' : 'Personalizada' }}</span>
                     </button>
-                    
+
                     <div class="h-8 w-px bg-gray-200 mx-2"></div>
                     <div class="flex items-center bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
-                        <button @click="semanaAnterior" class="p-2 hover:bg-gray-50 text-gray-600 border-r"><ChevronLeft class="w-5 h-5" /></button>
-                        <button @click="irAHoy" class="px-4 py-2 text-sm font-bold uppercase tracking-wide hover:bg-gray-50 flex items-center gap-2 min-w-[100px] justify-center text-dark">
-                            <RotateCcw v-if="textoBotonCentral !== 'HOY'" class="w-3 h-3 opacity-50" /> {{ textoBotonCentral }}
+                        <button @click="semanaAnterior" class="p-2 hover:bg-gray-50 text-gray-600 border-r">
+                            <ChevronLeft class="w-5 h-5" />
                         </button>
-                        <button @click="semanaSiguiente" class="p-2 hover:bg-gray-50 text-gray-600 border-l"><ChevronRight class="w-5 h-5" /></button>
+                        <button @click="irAHoy"
+                            class="px-4 py-2 text-sm font-bold uppercase tracking-wide hover:bg-gray-50 flex items-center gap-2 min-w-[100px] justify-center text-dark">
+                            <RotateCcw v-if="textoBotonCentral !== 'HOY'" class="w-3 h-3 opacity-50" /> {{
+                            textoBotonCentral }}
+                        </button>
+                        <button @click="semanaSiguiente" class="p-2 hover:bg-gray-50 text-gray-600 border-l">
+                            <ChevronRight class="w-5 h-5" />
+                        </button>
                     </div>
                 </div>
             </div>
 
             <div class="grid grid-cols-7 gap-3 h-32 relative">
-                <div v-if="cargando" class="absolute inset-0 z-20 flex items-center justify-center bg-gray-50/50 backdrop-blur-[1px] rounded-xl">
+                <div v-if="cargando"
+                    class="absolute inset-0 z-20 flex items-center justify-center bg-gray-50/50 backdrop-blur-[1px] rounded-xl">
                     <Loader2 class="w-8 h-8 text-primary animate-spin" />
                 </div>
                 <div v-for="(fecha, index) in diasSemana" :key="index" @click="seleccionarDia(fecha)"
@@ -453,9 +471,12 @@ onMounted(() => {
                         esFinDeSemana(fecha) ? 'bg-slate-100 border-slate-200 cursor-default opacity-60' : '',
                         excedeLimiteDiario(index) ? 'border-red-500 bg-red-50' : ''
                     ]">
-                    <span class="text-xs font-bold uppercase tracking-widest" :class="esHoy(fecha) ? 'text-primary' : 'text-gray-400'">{{ nombresDias[index] }}</span>
-                    <span class="text-2xl font-bold" :class="esHoy(fecha) ? 'text-dark' : (esFinDeSemana(fecha) ? 'text-gray-400' : 'text-gray-700')">{{ fecha.getDate() }}</span>
-                    
+                    <span class="text-xs font-bold uppercase tracking-widest"
+                        :class="esHoy(fecha) ? 'text-primary' : 'text-gray-400'">{{ nombresDias[index] }}</span>
+                    <span class="text-2xl font-bold"
+                        :class="esHoy(fecha) ? 'text-dark' : (esFinDeSemana(fecha) ? 'text-gray-400' : 'text-gray-700')">{{
+                        fecha.getDate() }}</span>
+
                     <div v-if="tiposDiasSemana[index]" class="mt-1">
                         <span class="text-[9px] font-bold uppercase px-1.5 py-0.5 rounded shadow-sm" :class="{
                             'bg-orange-100 text-orange-700': tiposDiasSemana[index] === 'festivo',
@@ -464,70 +485,98 @@ onMounted(() => {
                         }">{{ labelsDiasSemana[index] }}</span>
                     </div>
 
-                    <div v-else-if="totalDia(index) > 0" class="px-2 py-0.5 rounded-full text-xs font-bold" :class="excedeLimiteDiario(index) ? 'bg-red-100 text-red-700 animate-pulse' : 'bg-blue-100 text-dark'">{{ totalDia(index) }}h</div>
+                    <div v-else-if="totalDia(index) > 0" class="px-2 py-0.5 rounded-full text-xs font-bold"
+                        :class="excedeLimiteDiario(index) ? 'bg-red-100 text-red-700 animate-pulse' : 'bg-blue-100 text-dark'">
+                        {{ totalDia(index) }}h</div>
                     <div v-else class="h-5"></div>
                     <div v-if="esHoy(fecha)" class="absolute top-2 right-2 w-2 h-2 rounded-full bg-primary"></div>
                 </div>
             </div>
         </div>
 
-        <div class="card flex-1 flex flex-col overflow-hidden p-0 bg-white rounded-2xl shadow-sm border border-gray-200">
+        <div
+            class="card flex-1 flex flex-col overflow-hidden p-0 bg-white rounded-2xl shadow-sm border border-gray-200">
             <div class="flex justify-between items-center px-6 py-4 border-b bg-gray-50/50">
-                <h2 class="font-bold text-sm uppercase tracking-wider text-dark flex items-center gap-2"><Info class="w-4 h-4 text-primary" /> Detalle de Imputaciones</h2>
+                <h2 class="font-bold text-sm uppercase tracking-wider text-dark flex items-center gap-2">
+                    <Info class="w-4 h-4 text-primary" /> Detalle de Imputaciones
+                </h2>
                 <div class="flex gap-3">
-                    <button @click="borrarLineas" class="flex items-center gap-2 px-3 py-1.5 text-xs font-bold text-red-600 hover:bg-red-50 rounded border border-transparent hover:border-red-100 transition uppercase">
+                    <button @click="borrarLineas"
+                        class="flex items-center gap-2 px-3 py-1.5 text-xs font-bold text-red-600 hover:bg-red-50 rounded border border-transparent hover:border-red-100 transition uppercase">
                         <Trash2 class="w-3 h-3" /> Borrar
                     </button>
-                    <button @click="abrirModal" class="btn-primary flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold bg-primary text-white hover:shadow-lg transition">
+                    <button @click="abrirModal"
+                        class="btn-primary flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold bg-primary text-white hover:shadow-lg transition">
                         <Plus class="w-4 h-4" /> Añadir Proyecto
                     </button>
                 </div>
             </div>
 
             <div class="overflow-x-auto flex-1 relative scrollbar-thin">
-                <div v-if="cargando" class="absolute inset-0 z-10 flex items-center justify-center bg-white/40"><Loader2 class="w-10 h-10 text-primary animate-spin" /></div>
+                <div v-if="cargando" class="absolute inset-0 z-10 flex items-center justify-center bg-white/40">
+                    <Loader2 class="w-10 h-10 text-primary animate-spin" />
+                </div>
                 <table class="w-full text-left border-collapse min-w-max">
                     <thead>
                         <tr class="bg-white text-xs uppercase tracking-wider border-b-2 border-gray-100 text-dark">
                             <th class="p-3 w-8 text-center"></th>
                             <th class="p-3 font-bold min-w-[150px]">Cliente</th>
                             <th class="p-3 font-bold min-w-[200px]">Proyecto</th>
-                            <th v-for="(fecha, i) in diasSemana" :key="i" class="p-2 text-center w-14" :class="[esFinDeSemana(fecha) ? 'bg-slate-50 text-gray-400' : '', excedeLimiteDiario(i) ? 'bg-red-50 text-red-600 font-bold' : '']">
-                                <div class="flex flex-col items-center"><span>{{ nombresDias[i] }}</span><span class="text-[10px] opacity-60 font-medium">{{ fecha.getDate() }}</span></div>
+                            <th v-for="(fecha, i) in diasSemana" :key="i" class="p-2 text-center w-14"
+                                :class="[esFinDeSemana(fecha) ? 'bg-slate-50 text-gray-400' : '', excedeLimiteDiario(i) ? 'bg-red-50 text-red-600 font-bold' : '']">
+                                <div class="flex flex-col items-center"><span>{{ nombresDias[i] }}</span><span
+                                        class="text-[10px] opacity-60 font-medium">{{ fecha.getDate() }}</span></div>
                             </th>
                             <th class="p-3 font-bold text-center w-16">Total</th>
                         </tr>
                     </thead>
                     <tbody class="text-sm text-gray-700 divide-y divide-gray-50">
-                        <tr v-if="filas.length === 0 && !cargando"><td colspan="11" class="px-6 py-12 text-center text-gray-400 italic">No hay imputaciones esta semana. Pulsa "Añadir Línea" para comenzar.</td></tr>
-                        
+                        <tr v-if="filas.length === 0 && !cargando">
+                            <td colspan="11" class="px-6 py-12 text-center text-gray-400 italic">No hay imputaciones
+                                esta semana. Pulsa "Añadir Línea" para comenzar.</td>
+                        </tr>
+
                         <tr v-for="fila in filas" :key="fila.id" class="hover:bg-blue-50/20 transition group">
-                            <td class="p-3 text-center"><input type="checkbox" v-model="fila.seleccionado" class="rounded border-gray-300 text-primary"></td>
-                            <td class="p-2"><div class="flex items-center gap-2 border border-transparent rounded px-2 py-1"><Building2 class="w-3 h-3 text-gray-400" /><span class="text-xs font-medium">{{ fila.cliente }}</span></div></td>
-                            
+                            <td class="p-3 text-center"><input type="checkbox" v-model="fila.seleccionado"
+                                    class="rounded border-gray-300 text-primary"></td>
+                            <td class="p-2">
+                                <div class="flex items-center gap-2 border border-transparent rounded px-2 py-1">
+                                    <Building2 class="w-3 h-3 text-gray-400" /><span class="text-xs font-medium">{{
+                                        fila.cliente }}</span>
+                                </div>
+                            </td>
+
                             <td class="p-2 relative group/cell">
                                 <div class="flex items-center justify-between pr-2">
                                     <span class="text-xs font-bold text-slate-700 px-2">{{ fila.proyecto }}</span>
-                                    <button @click="autocompletarFila(fila)" class="opacity-0 group-hover/cell:opacity-100 p-1.5 text-blue-600 hover:bg-blue-100 rounded-lg transition-all" title="Autocompletar hoy (Varita mágica)">
+                                    <button @click="autocompletarFila(fila)"
+                                        class="opacity-0 group-hover/cell:opacity-100 p-1.5 text-blue-600 hover:bg-blue-100 rounded-lg transition-all"
+                                        title="Autocompletar hoy (Varita mágica)">
                                         <Wand2 class="w-4 h-4" />
                                     </button>
                                 </div>
                             </td>
-                            
-                            <td v-for="(hora, index) in fila.horas" :key="index" class="p-1 text-center relative" :class="[esFinDeSemana(diasSemana[index]) ? 'bg-slate-50' : '']">
-                                
-                                <div v-if="tiposDiasSemana[index]" class="w-full py-1 flex items-center justify-center cursor-not-allowed" :title="labelsDiasSemana[index]">
-                                    <span class="text-[9px] font-black uppercase tracking-wider rounded px-1.5 py-1 w-full border text-center"
-                                          :class="{
-                                              'bg-emerald-50 text-emerald-700 border-emerald-200': tiposDiasSemana[index] === 'vacaciones',
-                                              'bg-orange-50 text-orange-700 border-orange-200': tiposDiasSemana[index] === 'festivo',
-                                              'bg-blue-50 text-blue-700 border-blue-200': tiposDiasSemana[index] === 'asuntos'
-                                          }">
+
+                            <td v-for="(hora, index) in fila.horas" :key="index" class="p-1 text-center relative"
+                                :class="[esFinDeSemana(diasSemana[index]) ? 'bg-slate-50' : '']">
+
+                                <div v-if="tiposDiasSemana[index]"
+                                    class="w-full py-1 flex items-center justify-center cursor-not-allowed"
+                                    :title="labelsDiasSemana[index]">
+                                    <span
+                                        class="text-[9px] font-black uppercase tracking-wider rounded px-1.5 py-1 w-full border text-center"
+                                        :class="{
+                                            'bg-emerald-50 text-emerald-700 border-emerald-200': tiposDiasSemana[index] === 'vacaciones',
+                                            'bg-orange-50 text-orange-700 border-orange-200': tiposDiasSemana[index] === 'festivo',
+                                            'bg-blue-50 text-blue-700 border-blue-200': tiposDiasSemana[index] === 'asuntos'
+                                        }">
                                         {{ tiposDiasSemana[index].substring(0, 3) }}
                                     </span>
                                 </div>
 
-                                <input v-else type="number" min="0" max="24" step="0.5" v-model="fila.horas[index]" @focus="handleFocus" @blur="(e) => handleBlur(e, fila, index)" :disabled="!esEditable(index)"
+                                <input v-else type="number" min="0" max="24" step="0.5" v-model="fila.horas[index]"
+                                    @focus="handleFocus" @blur="(e) => handleBlur(e, fila, index)"
+                                    :disabled="!esEditable(index)"
                                     class="w-full text-center py-1 rounded transition font-medium text-sm disabled:cursor-not-allowed appearance-none"
                                     :class="{
                                         'text-primary font-bold border border-transparent hover:border-gray-300 bg-transparent': esEditable(index) && fila.horas[index] > 0 && !esPasoInvalido(fila.horas[index]),
@@ -536,47 +585,67 @@ onMounted(() => {
                                         'border-red-500 bg-red-50 text-red-600 ring-2 ring-red-500 font-black shadow-none': esEditable(index) && (excedeLimiteDiario(index) || esPasoInvalido(fila.horas[index]))
                                     }">
                             </td>
-                            
-                            <td class="p-3 text-center font-bold text-dark bg-gray-50 text-sm">{{ totalFila(fila) }}</td>
+
+                            <td class="p-3 text-center font-bold text-dark bg-gray-50 text-sm">{{ totalFila(fila) }}
+                            </td>
                         </tr>
                     </tbody>
                     <tfoot class="bg-gray-50 border-t border-gray-200 text-xs font-bold text-dark uppercase">
                         <tr>
                             <td colspan="3" class="p-3 text-right">Total Diario:</td>
-                            <td v-for="(dia, index) in diasSemana" :key="index" class="p-2 text-center" :class="excedeLimiteDiario(index) ? 'bg-red-100' : ''">
-                                <span :class="excedeLimiteDiario(index) ? 'text-red-600 font-extrabold' : (totalDia(index) > 0 ? 'text-primary' : 'text-gray-400')">{{ totalDia(index) }}</span>
+                            <td v-for="(dia, index) in diasSemana" :key="index" class="p-2 text-center"
+                                :class="excedeLimiteDiario(index) ? 'bg-red-100' : ''">
+                                <span
+                                    :class="excedeLimiteDiario(index) ? 'text-red-600 font-extrabold' : (totalDia(index) > 0 ? 'text-primary' : 'text-gray-400')">{{
+                                    totalDia(index) }}</span>
                             </td>
-                            <td class="p-3 text-center border-l border-blue-100 text-sm" :class="excedeLimiteSemanal ? 'bg-red-600 text-white' : 'bg-blue-50 text-blue-900'">{{ totalSemanal }} / {{ getMaxHorasSemana() }}</td>
+                            <td class="p-3 text-center border-l border-blue-100 text-sm"
+                                :class="excedeLimiteSemanal ? 'bg-red-600 text-white' : 'bg-blue-50 text-blue-900'">{{
+                                totalSemanal }} / {{ getMaxHorasSemana() }}</td>
                         </tr>
                     </tfoot>
                 </table>
             </div>
-            
+
             <div class="p-4 bg-gray-50 border-t flex justify-end gap-4 items-center">
                 <p v-if="hayErrores" class="text-xs font-bold text-red-600 animate-pulse flex items-center gap-1">
                     <AlertCircle class="w-4 h-4"/> 
                     {{ filas.some(f => f.horas.some((h, i) => esEditable(i) && esPasoInvalido(h))) ? 'Solo se permiten incrementos de 0.5h (ej. 1.5)' : 'Corrige el exceso de horas' }}
                 </p>
-                <button @click="guardarCambios" :disabled="hayErrores || cargando" class="btn-primary px-8 py-2.5 rounded-xl font-bold uppercase tracking-widest text-xs shadow-md transition-all" :class="hayErrores ? 'bg-gray-300 text-gray-500 cursor-not-allowed' : 'bg-slate-900 text-white hover:shadow-xl'">
+                <button @click="guardarCambios" :disabled="hayErrores || cargando"
+                    class="btn-primary px-8 py-2.5 rounded-xl font-bold uppercase tracking-widest text-xs shadow-md transition-all"
+                    :class="hayErrores ? 'bg-gray-300 text-gray-500 cursor-not-allowed' : 'bg-slate-900 text-white hover:shadow-xl'">
                     <Save class="w-4 h-4 mr-2" /> Guardar Imputaciones
                 </button>
             </div>
         </div>
 
-        <div v-if="mostrarModalJornada" class="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4">
-            <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden animate-in zoom-in duration-200 flex flex-col max-h-[85vh]">
+        <div v-if="mostrarModalJornada"
+            class="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4">
+            <div
+                class="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden animate-in zoom-in duration-200 flex flex-col max-h-[85vh]">
                 <div class="bg-slate-50 border-b px-6 py-4 flex justify-between items-center shrink-0">
-                    <h3 class="text-lg font-bold text-slate-800 flex items-center gap-2"><Clock class="w-5 h-5 text-primary"/> Configuración de Jornada</h3>
-                    <button @click="mostrarModalJornada = false" class="text-gray-400 hover:text-red-500 transition-colors"><X class="w-5 h-5" /></button>
+                    <h3 class="text-lg font-bold text-slate-800 flex items-center gap-2">
+                        <Clock class="w-5 h-5 text-primary" /> Configuración de Jornada
+                    </h3>
+                    <button @click="mostrarModalJornada = false"
+                        class="text-gray-400 hover:text-red-500 transition-colors">
+                        <X class="w-5 h-5" />
+                    </button>
                 </div>
-                
+
                 <div class="p-6 flex-1 overflow-y-auto space-y-6">
                     <div class="flex bg-gray-100 p-1 rounded-xl">
-                        <button @click="configJornadaTemp.tipoContrato = '40H'" :class="configJornadaTemp.tipoContrato === '40H' ? 'bg-white shadow text-primary font-bold' : 'text-gray-500 hover:text-gray-700'" class="flex-1 py-2 rounded-lg text-sm transition-all">Jornada Completa</button>
-                        <button @click="configJornadaTemp.tipoContrato = 'Personalizada'" :class="configJornadaTemp.tipoContrato === 'Personalizada' ? 'bg-white shadow text-primary font-bold' : 'text-gray-500 hover:text-gray-700'" class="flex-1 py-2 rounded-lg text-sm transition-all">Personalizada</button>
+                        <button @click="configJornadaTemp.tipoContrato = '40H'"
+                            :class="configJornadaTemp.tipoContrato === '40H' ? 'bg-white shadow text-primary font-bold' : 'text-gray-500 hover:text-gray-700'"
+                            class="flex-1 py-2 rounded-lg text-sm transition-all">Jornada Completa</button>
+                        <button @click="configJornadaTemp.tipoContrato = 'Personalizada'"
+                            :class="configJornadaTemp.tipoContrato === 'Personalizada' ? 'bg-white shadow text-primary font-bold' : 'text-gray-500 hover:text-gray-700'"
+                            class="flex-1 py-2 rounded-lg text-sm transition-all">Personalizada</button>
                     </div>
 
-                    <div v-if="configJornadaTemp.tipoContrato === '40H'" class="bg-blue-50 border border-blue-100 rounded-xl p-4 text-sm text-blue-800 space-y-2">
+                    <div v-if="configJornadaTemp.tipoContrato === '40H'"
+                        class="bg-blue-50 border border-blue-100 rounded-xl p-4 text-sm text-blue-800 space-y-2">
                         <p><strong>Jornada Completa:</strong></p>
                         <ul class="list-disc pl-4 space-y-1 text-blue-700">
                             <li>Lunes a Jueves: <strong>8.5h</strong></li>
@@ -586,28 +655,37 @@ onMounted(() => {
                     </div>
 
                     <div v-else class="space-y-5">
-                        <p class="text-xs text-gray-500 leading-relaxed">Configura las horas exactas para cada día según tu contrato personalizado.</p>
-                        
+                        <p class="text-xs text-gray-500 leading-relaxed">Configura las horas exactas para cada día según
+                            tu contrato personalizado.</p>
+
                         <div>
-                            <label class="text-[10px] font-black uppercase text-slate-400 tracking-widest mb-3 block shrink-0">
+                            <label
+                                class="text-[10px] font-black uppercase text-slate-400 tracking-widest mb-3 block shrink-0">
                                 Jornada Normal (Lunes a Viernes)
                             </label>
                             <div class="grid grid-cols-5 gap-2">
-                                <div class="text-center" v-for="(diaLabel, idx) in ['Lun', 'Mar', 'Mié', 'Jue', 'Vie']" :key="'n'+idx">
+                                <div class="text-center" v-for="(diaLabel, idx) in ['Lun', 'Mar', 'Mié', 'Jue', 'Vie']"
+                                    :key="'n' + idx">
                                     <label class="text-xs text-gray-500 mb-1 block">{{ diaLabel }}</label>
-                                    <input type="number" step="0.5" min="0" max="24" v-model.number="configJornadaTemp.horasNormal[idx]" class="w-full text-center border border-gray-300 rounded-lg p-2 text-sm font-bold outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all">
+                                    <input type="number" step="0.5" min="0" max="24"
+                                        v-model.number="configJornadaTemp.horasNormal[idx]"
+                                        class="w-full text-center border border-gray-300 rounded-lg p-2 text-sm font-bold outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all">
                                 </div>
                             </div>
                         </div>
 
                         <div>
-                            <label class="text-[10px] font-black uppercase text-slate-400 tracking-widest mb-3 block shrink-0">
+                            <label
+                                class="text-[10px] font-black uppercase text-slate-400 tracking-widest mb-3 block shrink-0">
                                 Jornada de Verano (Julio y Agosto)
                             </label>
                             <div class="grid grid-cols-5 gap-2">
-                                <div class="text-center" v-for="(diaLabel, idx) in ['Lun', 'Mar', 'Mié', 'Jue', 'Vie']" :key="'v'+idx">
+                                <div class="text-center" v-for="(diaLabel, idx) in ['Lun', 'Mar', 'Mié', 'Jue', 'Vie']"
+                                    :key="'v' + idx">
                                     <label class="text-xs text-gray-500 mb-1 block">{{ diaLabel }}</label>
-                                    <input type="number" step="0.5" min="0" max="24" v-model.number="configJornadaTemp.horasVerano[idx]" class="w-full text-center border border-gray-300 rounded-lg p-2 text-sm font-bold outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all">
+                                    <input type="number" step="0.5" min="0" max="24"
+                                        v-model.number="configJornadaTemp.horasVerano[idx]"
+                                        class="w-full text-center border border-gray-300 rounded-lg p-2 text-sm font-bold outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all">
                                 </div>
                             </div>
                         </div>
@@ -615,48 +693,54 @@ onMounted(() => {
                 </div>
 
                 <div class="px-6 py-4 bg-gray-50 border-t flex justify-end gap-3 shrink-0">
-                    <button @click="mostrarModalJornada = false" class="px-4 py-2 text-sm font-bold text-slate-400 uppercase tracking-widest hover:text-slate-600">Cancelar</button>
-                    <button @click="guardarConfigJornada" class="bg-primary text-white px-6 py-2 rounded-xl font-bold uppercase tracking-widest text-xs hover:bg-blue-700 shadow-md transition-all">Guardar</button>
+                    <button @click="mostrarModalJornada = false"
+                        class="px-4 py-2 text-sm font-bold text-slate-400 uppercase tracking-widest hover:text-slate-600">Cancelar</button>
+                    <button @click="guardarConfigJornada"
+                        class="bg-primary text-white px-6 py-2 rounded-xl font-bold uppercase tracking-widest text-xs hover:bg-blue-700 shadow-md transition-all">Guardar</button>
                 </div>
             </div>
         </div>
 
-        <div v-if="mostrarModal" class="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4">
-            <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden animate-in zoom-in duration-200 flex flex-col max-h-[85vh]">
+        <div v-if="mostrarModal"
+            class="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4">
+            <div
+                class="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden animate-in zoom-in duration-200 flex flex-col max-h-[85vh]">
                 <div class="bg-slate-50 border-b px-6 py-4 flex justify-between items-center shrink-0">
                     <h3 class="text-lg font-bold text-slate-800">Añadir Proyecto</h3>
-                    <button @click="cerrarModal" class="text-gray-400 hover:text-red-500 transition-colors"><X class="w-5 h-5" /></button>
+                    <button @click="cerrarModal" class="text-gray-400 hover:text-red-500 transition-colors">
+                        <X class="w-5 h-5" />
+                    </button>
                 </div>
-                
+
                 <div class="p-6 flex-1 overflow-hidden flex flex-col">
                     <label class="text-[10px] font-black uppercase text-slate-400 tracking-widest mb-3 block shrink-0">
                         Selecciona tu proyecto asignado
                     </label>
-                    
-                    <div class="flex-1 overflow-y-auto border border-gray-200 rounded-xl bg-white shadow-inner scrollbar-thin relative">
-                        <div v-if="proyectosRealDB.length === 0" class="p-8 text-center flex flex-col items-center justify-center text-gray-400">
+
+                    <div
+                        class="flex-1 overflow-y-auto border border-gray-200 rounded-xl bg-white shadow-inner scrollbar-thin relative">
+                        <div v-if="proyectosRealDB.length === 0"
+                            class="p-8 text-center flex flex-col items-center justify-center text-gray-400">
                             <Loader2 v-if="cargando" class="w-6 h-6 animate-spin mb-2" />
                             <span v-if="!cargando" class="text-sm">No tienes proyectos asignados.</span>
                         </div>
 
                         <template v-for="grupo in proyectosAgrupadosParaModal" :key="grupo.cliente">
-                            <div class="bg-slate-100/90 px-4 py-2.5 text-[10px] font-bold text-slate-500 uppercase tracking-widest sticky top-0 backdrop-blur-sm border-b border-gray-200 flex items-center gap-2 z-10">
+                            <div
+                                class="bg-slate-100/90 px-4 py-2.5 text-[10px] font-bold text-slate-500 uppercase tracking-widest sticky top-0 backdrop-blur-sm border-b border-gray-200 flex items-center gap-2 z-10">
                                 <Briefcase class="w-3.5 h-3.5 text-slate-400" /> {{ grupo.cliente }}
                             </div>
-                            <div
-                                v-for="p in grupo.proyectos"
-                                :key="p.Id"
-                                @click="nuevoRegistro.proyectoId = p.Id"
+                            <div v-for="p in grupo.proyectos" :key="p.Id" @click="nuevoRegistro.proyectoId = p.Id"
                                 class="px-4 py-3 cursor-pointer border-b border-gray-50 last:border-b-0 hover:bg-blue-50/50 transition-colors flex items-center justify-between group"
-                                :class="nuevoRegistro.proyectoId === p.Id ? 'bg-blue-50' : ''"
-                            >
+                                :class="nuevoRegistro.proyectoId === p.Id ? 'bg-blue-50' : ''">
                                 <div class="flex items-center gap-3">
                                     <div class="w-4 h-4 rounded-full border flex items-center justify-center transition-colors"
-                                         :class="nuevoRegistro.proyectoId === p.Id ? 'border-primary bg-primary' : 'border-gray-300 group-hover:border-blue-400'">
-                                        <Check v-if="nuevoRegistro.proyectoId === p.Id" class="w-3 h-3 text-white" stroke-width="3"/>
+                                        :class="nuevoRegistro.proyectoId === p.Id ? 'border-primary bg-primary' : 'border-gray-300 group-hover:border-blue-400'">
+                                        <Check v-if="nuevoRegistro.proyectoId === p.Id" class="w-3 h-3 text-white"
+                                            stroke-width="3" />
                                     </div>
-                                    <span class="text-sm font-medium transition-colors" 
-                                          :class="nuevoRegistro.proyectoId === p.Id ? 'text-primary font-bold' : 'text-gray-700 group-hover:text-blue-800'">
+                                    <span class="text-sm font-medium transition-colors"
+                                        :class="nuevoRegistro.proyectoId === p.Id ? 'text-primary font-bold' : 'text-gray-700 group-hover:text-blue-800'">
                                         {{ p.Nombre }}
                                     </span>
                                 </div>
@@ -666,21 +750,23 @@ onMounted(() => {
                 </div>
 
                 <div class="px-6 py-4 bg-gray-50 border-t flex justify-end gap-3 shrink-0">
-                    <button @click="cerrarModal" class="px-4 py-2 text-sm font-bold text-slate-400 uppercase tracking-widest hover:text-slate-600">Cancelar</button>
-                    <button @click="confirmarAnadirLinea" class="bg-primary text-white px-6 py-2 rounded-xl font-bold uppercase tracking-widest text-xs hover:bg-blue-700 shadow-md transition-all">Añadir a la Tabla</button>
+                    <button @click="cerrarModal"
+                        class="px-4 py-2 text-sm font-bold text-slate-400 uppercase tracking-widest hover:text-slate-600">Cancelar</button>
+                    <button @click="confirmarAnadirLinea"
+                        class="bg-primary text-white px-6 py-2 rounded-xl font-bold uppercase tracking-widest text-xs hover:bg-blue-700 shadow-md transition-all">Añadir
+                        a la Tabla</button>
                 </div>
             </div>
         </div>
 
-        <ToastNotification
-            :show="toast.show"
-            :message="toast.message"
-            :type="toast.type"
-            @close="toast.show = false"
-        />
+        <ToastNotification :show="toast.show" :message="toast.message" :type="toast.type" @close="toast.show = false" />
     </div>
 </template>
 
 <style scoped>
-input[type=number]::-webkit-inner-spin-button, input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+input[type=number]::-webkit-inner-spin-button,
+input[type=number]::-webkit-outer-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+}
 </style>
