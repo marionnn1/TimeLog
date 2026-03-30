@@ -1,4 +1,5 @@
 from flask import Blueprint, request, jsonify
+from auth import token_required # <-- VIGILANTE DE SEGURIDAD
 from services.technical.absences_service import (
     obtener_ausencias_mes,
     guardar_ausencias,
@@ -11,6 +12,7 @@ absences_bp = Blueprint("absences", __name__)
 
 
 @absences_bp.route("/api/absences", methods=["GET"])
+@token_required # <-- CANDADO
 def get_ausencias():
     try:
         mes = int(request.args.get("mes", datetime.now().month))
@@ -25,6 +27,7 @@ def get_ausencias():
 
 
 @absences_bp.route("/api/absences", methods=["POST"])
+@token_required # <-- CANDADO
 def create_ausencias():
     d = request.json
     if not d:
@@ -43,6 +46,7 @@ def create_ausencias():
 
 
 @absences_bp.route("/api/absences", methods=["DELETE"])
+@token_required # <-- CANDADO
 def delete_ausencia():
     d = request.json
     if not d:

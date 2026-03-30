@@ -18,7 +18,7 @@ from controllers.admin.dashboard_controller import dashboard_bp
 from controllers.admin.tickets_controller import tickets_bp
 
 # --- MANAGER ---
-from controllers.manager.analytics_controller import manager_analytics_bp
+from controllers.manager.analytics_controller import analytics_bp
 from controllers.manager.closing_controller import closing_bp
 from controllers.manager.projects_controller import manager_projects_bp
 from controllers.manager.validation_controller import validation_bp
@@ -56,7 +56,7 @@ app.register_blueprint(myprojects_bp)
 app.register_blueprint(absences_bp)
 app.register_blueprint(tickets_bp)
 
-app.register_blueprint(manager_analytics_bp)
+app.register_blueprint(analytics_bp)
 app.register_blueprint(closing_bp)
 app.register_blueprint(manager_projects_bp)
 app.register_blueprint(validation_bp)

@@ -1,4 +1,5 @@
 from flask import Blueprint, request, jsonify
+from auth import token_required 
 from services.technical.myprojects_service import (
     obtener_imputaciones_semana, 
     guardar_imputaciones_lote, 
@@ -16,6 +17,7 @@ from errors import APIError
 myprojects_bp = Blueprint('myprojects', __name__)
 
 @myprojects_bp.route('/api/myprojects/semana', methods=['GET'])
+@token_required
 def get_semana():
     u_id = request.args.get('usuario_id')
     lunes = request.args.get('fecha_lunes')
@@ -27,6 +29,7 @@ def get_semana():
     return jsonify({"status": "success", "data": data}), 200
 
 @myprojects_bp.route('/api/myprojects/analitica-mensual', methods=['GET'])
+@token_required
 def get_analitica():
     u_id = request.args.get('usuario_id')
     if not u_id:
@@ -39,6 +42,7 @@ def get_analitica():
     return jsonify({"status": "success", "data": data}), 200
 
 @myprojects_bp.route('/api/myprojects/analitica-equipo', methods=['GET'])
+@token_required
 def get_analitica_equipo():
     mes = request.args.get('mes', datetime.now().month, type=int)
     anio = request.args.get('anio', datetime.now().year, type=int)
@@ -47,6 +51,7 @@ def get_analitica_equipo():
     return jsonify({"status": "success", "data": data}), 200
 
 @myprojects_bp.route('/api/myprojects/guardar', methods=['POST'])
+@token_required
 def save():
     d = request.json
     if not d: 
@@ -56,6 +61,7 @@ def save():
     return jsonify({"status": "success", "message": "Imputaciones guardadas correctamente"}), 200
 
 @myprojects_bp.route('/api/myprojects/calendario', methods=['GET'])
+@token_required
 def get_calendario():
     u_id = request.args.get('usuario_id')
     mes = request.args.get('mes', type=int)
@@ -68,6 +74,7 @@ def get_calendario():
     return jsonify({"status": "success", "data": data}), 200
 
 @myprojects_bp.route('/api/myprojects/solicitar-correccion', methods=['POST'])
+@token_required
 def solicitar_correccion():
     data = request.json
     if not data: 
@@ -86,6 +93,7 @@ def solicitar_correccion():
     return jsonify({"status": "success", "message": "Solicitud enviada al responsable"}), 200
 
 @myprojects_bp.route('/api/myprojects/jornada', methods=['GET'])
+@token_required
 def get_user_jornada():
     u_id = request.args.get('usuario_id')
     if not u_id:
@@ -95,6 +103,7 @@ def get_user_jornada():
     return jsonify({"status": "success", "data": data}), 200
 
 @myprojects_bp.route('/api/myprojects/jornada', methods=['PUT'])
+@token_required
 def update_user_jornada():
     data = request.json
     if not data or 'usuario_id' not in data:
@@ -104,6 +113,7 @@ def update_user_jornada():
     return jsonify({"status": "success", "message": "Jornada actualizada"}), 200
 
 @myprojects_bp.route('/api/myprojects/asignados', methods=['GET'])
+@token_required
 def get_proyectos_asignados_endpoint():
     u_id = request.args.get('usuario_id')
     if not u_id:

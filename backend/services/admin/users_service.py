@@ -76,3 +76,29 @@ def eliminar_usuario_fisico(id_usuario):
     
     registrar_log(1, 'Admin', 'BORRADO_FISICO', 'danger', f"El usuario '{nombre}' fue borrado físicamente.")
     return True
+
+def sync_usuario_sso(datos):
+    oid_azure = datos.get('oid_azure')
+    usuario = Users.query.filter_by(oid_azure=oid_azure).first()
+    
+    if not usuario:
+        usuario = Users(
+            oid_azure=oid_azure,
+            nombre=datos.get('nombre'),
+            rol='Admin', 
+            sede='Remoto',
+            activo=True,
+            fecha_creacion=datetime.utcnow()
+        )
+        db.session.add(usuario)
+        db.session.commit()
+        registrar_log(usuario.id, 'Sistema', 'NUEVO_USUARIO_SSO', 'info', f"Usuario {usuario.nombre} creado automáticamente vía Microsoft.")
+        
+    return {
+        "id": usuario.id,
+        "oid_azure": usuario.oid_azure,
+        "nombre": usuario.nombre,
+        "rol": usuario.rol,
+        "sede": usuario.sede,
+        "activo": usuario.activo
+    }

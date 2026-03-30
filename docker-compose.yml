@@ -27,6 +27,9 @@ services:
       - DB_NAME=timelog
       - DB_USER=sa
       - DB_PASSWORD=SuperPassword123!
+      # En docker-compose.yml, dentro de backend > environment:
+      - AZURE_CLIENT_ID=f55e7101-1357-4aa9-ac2a-cec7804a4be8
+      - AZURE_TENANT_ID=99ff7baf-dc5e-4527-aff1-16486a70b38e
     depends_on:
       - db 
 

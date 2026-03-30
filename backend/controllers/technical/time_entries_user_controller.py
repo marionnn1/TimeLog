@@ -1,10 +1,12 @@
 from flask import Blueprint, request, jsonify
+from auth import token_required
 from services.technical.time_entries_user_service import obtener_imputaciones_semana, guardar_imputaciones_lote
 from errors import APIError
 
 time_entries_user_bp = Blueprint('time_entries_user', __name__)
 
 @time_entries_user_bp.route('/api/imputaciones/semana', methods=['GET'])
+@token_required
 def get_semana():
     u_id = request.args.get('usuario_id')
     lunes = request.args.get('fecha_lunes')
@@ -16,6 +18,7 @@ def get_semana():
     return jsonify({"status": "success", "data": res}), 200
 
 @time_entries_user_bp.route('/api/imputaciones/guardar', methods=['POST'])
+@token_required
 def save_lote():
     data = request.json
     if not data:

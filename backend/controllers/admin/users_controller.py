@@ -4,6 +4,12 @@ from services.admin.users_service import (
     actualizar_usuario, eliminar_usuario, eliminar_usuario_fisico
 )
 
+from services.admin.users_service import (
+    toggle_estado_usuario, obtener_usuarios, crear_usuario, 
+    actualizar_usuario, eliminar_usuario, eliminar_usuario_fisico,
+    sync_usuario_sso
+)
+
 users_bp = Blueprint('users', __name__)
 
 @users_bp.route('/api/usuarios', methods=['GET'])
@@ -35,3 +41,8 @@ def delete_permanent(id_usuario):
 def toggle_usuario(id_usuario):
     toggle_estado_usuario(id_usuario)
     return jsonify({"status": "success", "message": "Estado del usuario actualizado"}), 200
+
+@users_bp.route('/api/usuarios/sync', methods=['POST'])
+def sync_endpoint():
+    data = sync_usuario_sso(request.json)
+    return jsonify({"status": "success", "data": data}), 200

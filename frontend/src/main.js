@@ -5,10 +5,21 @@ import { createPinia } from 'pinia'
 
 import App from './App.vue'
 import router from './router' 
+import { msalInstance } from './auth/AuthConfig' 
 
-const app = createApp(App)
+async function startApp() {
+    try {
+        await msalInstance.initialize()
+    } catch (error) {
+        console.error("Error inicializando MSAL:", error)
+    }
 
-app.use(createPinia())
-app.use(router) 
+    const app = createApp(App)
 
-app.mount('#app')
+    app.use(createPinia())
+    app.use(router) 
+
+    app.mount('#app')
+}
+
+startApp()
