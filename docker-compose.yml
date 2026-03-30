@@ -7,7 +7,7 @@ services:
       - ACCEPT_EULA=Y
       - MSSQL_SA_PASSWORD=SuperPassword123!
     ports:
-      - "1455:1433" # Mantenemos el 1455 para tu PC
+      - "1455:1433"
     volumes:
       - sqldata:/var/opt/mssql
       - ./backend:/app 
@@ -22,9 +22,8 @@ services:
       - ./backend:/app
     environment:
       - FLASK_ENV=development
-      # La magia de Docker: El backend habla con la BD a través de la red interna
       - DB_SERVER=db
-      - DB_PORT=1433 # Internamente siempre es 1433
+      - DB_PORT=1433
       - DB_NAME=timelog
       - DB_USER=sa
       - DB_PASSWORD=SuperPassword123!
