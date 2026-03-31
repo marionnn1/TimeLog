@@ -2,7 +2,7 @@ import os
 from urllib.parse import quote_plus
 
 server = os.getenv("DB_SERVER", "localhost")
-port = os.getenv("DB_PORT", "1455")
+port = os.getenv("DB_PORT", "1433")
 database = os.getenv("DB_NAME", "timelog")
 username = os.getenv("DB_USER", "sa")
 password = os.getenv("DB_PASSWORD", "SuperPassword123!")

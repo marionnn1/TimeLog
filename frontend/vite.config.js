@@ -17,7 +17,7 @@ export default defineConfig({
   },
   // --- CONFIGURACIÓN PARA ESTABILIZAR DOCKER EN WINDOWS ---
   server: {
-    host: 'localhost',
+    host: true,
     port: 5173,
     strictPort: true,
     watch: {
