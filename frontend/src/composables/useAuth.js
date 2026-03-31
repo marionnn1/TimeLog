@@ -21,15 +21,22 @@ export function useAuth() {
   const logout = async () => {
     try {
       await msalInstance.initialize()
-      localStorage.removeItem('timeLog_state')
-      localStorage.removeItem('isAuthenticated')
-      store.$reset && store.$reset()
+      
+      // CAMBIO 1: Limpieza TOTAL del local storage. 
+      // Esto borra 'isAuthenticated', 'timeLog_state' y todos los tokens de Microsoft (msal.2|...)
+      localStorage.clear() 
+      
+      if (store.$reset) store.$reset()
 
+      // CAMBIO 2: Especificamos qué cuenta cerrar para que Microsoft procese bien la salida
       await msalInstance.logoutRedirect({
-        postLogoutRedirectUri: import.meta.env.VITE_MSAL_POST_LOGOUT_REDIRECT_URI
+        postLogoutRedirectUri: import.meta.env.VITE_MSAL_POST_LOGOUT_REDIRECT_URI,
+        account: msalInstance.getAllAccounts()[0]
       })
     } catch (error) {
       console.error('Error cerrando sesión:', error)
+      // Si falla MSAL, al menos forzamos la vuelta al login localmente
+      window.location.href = '/login'
     }
   }
 
@@ -46,7 +53,9 @@ export function useAuth() {
         const currentAccounts = msalInstance.getAllAccounts()
         if (currentAccounts.length > 0) {
           const account = currentAccounts[0]
-          await processLogin(account, false)
+          // CAMBIO 3: Cambiamos 'false' por 'true'. 
+          // Esto obliga a que, aunque la sesión se recupere del storage, se pregunte al backend por el ID y Rol.
+          await processLogin(account, true) 
           return true
         }
       }
@@ -63,7 +72,7 @@ export function useAuth() {
       nombre: account.name,
       email: account.username,
       iniciales: account.name ? account.name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase() : 'U',
-      rol: 'user'
+      rol: 'tecnico' // Rol por defecto más seguro
     }
 
     if (callBackend) {

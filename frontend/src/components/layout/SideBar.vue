@@ -21,19 +21,18 @@ const esJefe = computed(() => rolActual.value === 'manager' || rolActual.value =
 const claseLink = "flex items-center gap-3 px-3 py-2.5 rounded-r-lg text-slate-300 hover:text-white hover:bg-slate-800 transition group cursor-pointer border-l-4 border-transparent whitespace-nowrap"
 const claseIcono = "w-5 h-5 text-slate-400 group-hover:text-primary transition shrink-0"
 
+// CAMBIO REALIZADO: Ahora usamos la lógica centralizada de logout
 const handleLogout = async () => {
-  localStorage.removeItem('isAuthenticated')
-  localStorage.removeItem('timeLog_state')
-
-  store.setCurrentUser(null)
-
-  await router.push('/login')
-
   try {
-    if (logout) {
-      logout().catch(() => console.log('Aviso: MSAL no respondió, pero la sesión local se cerró.'))
-    }
+    // El servicio logout ya se encarga de limpiar el localStorage, 
+    // resetear el store y redirigir a Microsoft.
+    await logout()
   } catch (e) {
+    console.error('Error durante el cierre de sesión:', e)
+    // Fallback en caso de error crítico con MSAL
+    localStorage.clear()
+    if (store.$reset) store.$reset()
+    window.location.href = '/login'
   }
 }
 </script>
@@ -95,7 +94,7 @@ const handleLogout = async () => {
         </router-link>
         <router-link to="/manager/analitica" :class="claseLink">
           <Activity :class="claseIcono" />
-          <span class="text-sm font-medium truncate">Analítica Equipo</span>
+          <span class="text-sm font-medium truncate">Analítica Equipo</span> 
         </router-link>
       </template>
 
