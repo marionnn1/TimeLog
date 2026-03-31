@@ -1,10 +1,11 @@
 import urllib.parse
-from flask import request, has_request_context
+from flask import g, has_request_context
 from database.db import db
 from models.audits import Audits
 from errors import APIError
 
 def obtener_logs():
+    """Obtiene todos los registros de auditoría ordenados por fecha descendente."""
     logs = Audits.query.order_by(Audits.fecha.desc(), Audits.id.desc()).all()
     return [
         {
@@ -18,13 +19,17 @@ def obtener_logs():
         for log in logs
     ]
 
-def registrar_log(actor_id, actor_nombre, accion, gravedad, detalle):
-    if has_request_context():
-        header_id = request.headers.get('X-User-Id')
-        header_name = request.headers.get('X-User-Name')
-        if header_id: actor_id = header_id
-        if header_name: actor_nombre = urllib.parse.unquote(header_name) 
+def registrar_log(accion, gravedad, detalle, actor_id=None, actor_nombre=None):
+    """
+    Registra una acción en el historial. 
+    Prioriza automáticamente al usuario autenticado en el token (g.usuario_actual).
+    """
+    usuario_sesion = getattr(g, 'usuario_actual', None)
 
+    if usuario_sesion:
+        actor_id = usuario_sesion.id
+        actor_nombre = usuario_sesion.nombre
+    
     if not actor_nombre:
         actor_nombre = "Sistema"
 
@@ -35,6 +40,12 @@ def registrar_log(actor_id, actor_nombre, accion, gravedad, detalle):
         gravedad=gravedad,
         detalle=detalle,
     )
-    db.session.add(nuevo_log)
-    db.session.commit()
-    return True
+    
+    try:
+        db.session.add(nuevo_log)
+        db.session.commit()
+        return True
+    except Exception as e:
+        db.session.rollback()
+        print(f"Error al registrar log: {str(e)}")
+        return False

@@ -1,6 +1,7 @@
 import os
 import jwt
 import requests
+import time
 from functools import wraps
 from flask import request, g
 from errors import APIError
@@ -12,75 +13,64 @@ load_dotenv()
 TENANT_ID = os.getenv("MSAL_TENANT_ID")
 CLIENT_ID = os.getenv("MSAL_CLIENT_ID")
 
+# Variables para caché de llaves JWKS
+cached_jwks = None
+last_jwks_fetch = 0
+JWKS_CACHE_DURATION = 43200  # 12 horas
 
 def get_public_keys():
-    """Obtiene las llaves públicas de Microsoft para verificar la firma del token."""
-    jwks_url = f"https://login.microsoftonline.com/{TENANT_ID}/discovery/v2.0/keys"
-    return requests.get(jwks_url).json()
+    """Obtiene las llaves públicas de Microsoft con sistema de caché."""
+    global cached_jwks, last_jwks_fetch
+    current_time = time.time()
+    
+    if cached_jwks and (current_time - last_jwks_fetch < JWKS_CACHE_DURATION):
+        return cached_jwks
 
+    jwks_url = f"https://login.microsoftonline.com/{TENANT_ID}/discovery/v2.0/keys"
+    try:
+        response = requests.get(jwks_url, timeout=5)
+        cached_jwks = response.json()
+        last_jwks_fetch = current_time
+        return cached_jwks
+    except Exception as e:
+        if cached_jwks: return cached_jwks
+        raise e
 
 def require_auth(f):
     @wraps(f)
     def decorated(*args, **kwargs):
         auth_header = request.headers.get("Authorization", None)
-
         if not auth_header:
             raise APIError("Cabecera Authorization no encontrada", status_code=401)
 
         parts = auth_header.split()
         if parts[0].lower() != "bearer" or len(parts) != 2:
-            raise APIError(
-                "La cabecera debe tener el formato 'Bearer <token>'", status_code=401
-            )
+            raise APIError("Formato de cabecera inválido", status_code=401)
 
         token = parts[1]
-
         try:
             unverified_header = jwt.get_unverified_header(token)
             jwks = get_public_keys()
 
-            rsa_key = {}
-            for key in jwks["keys"]:
-                if key["kid"] == unverified_header["kid"]:
-                    rsa_key = {
-                        "kty": key["kty"],
-                        "kid": key["kid"],
-                        "use": key["use"],
-                        "n": key["n"],
-                        "e": key["e"],
-                    }
-                    break
-
+            rsa_key = next((key for key in jwks["keys"] if key["kid"] == unverified_header["kid"]), None)
             if not rsa_key:
-                raise APIError(
-                    "No se encontró una llave pública válida en Azure", status_code=401
-                )
+                raise APIError("Llave pública no encontrada", status_code=401)
 
-            public_key = jwt.algorithms.RSAAlgorithm.from_jwk(rsa_key)
-
-            payload = jwt.decode(
-                token,
-                public_key,
-                algorithms=["RS256"],
-                options={"verify_aud": False, "verify_issuer": False},
-            )
+            from jwt.algorithms import RSAAlgorithm
+            public_key = RSAAlgorithm.from_jwk(rsa_key)
+            payload = jwt.decode(token, public_key, algorithms=["RS256"], options={"verify_aud": False, "verify_issuer": False})
 
             oid_azure = payload.get("oid")
             usuario = Users.query.filter_by(oid_azure=oid_azure).first()
 
             if not usuario or not usuario.activo:
-                raise APIError(
-                    "Usuario no autorizado o desactivado en la BD", status_code=403
-                )
+                raise APIError("Usuario no autorizado o inactivo", status_code=403)
 
-            g.usuario_actual = usuario
-
+            g.usuario_actual = usuario # Guardamos el usuario real en la sesión de Flask
         except jwt.ExpiredSignatureError:
-            raise APIError("El token de Microsoft ha caducado", status_code=401)
+            raise APIError("Token caducado", status_code=401)
         except Exception as e:
-            print(f"Error descodificando token: {str(e)}")
             raise APIError(f"Token inválido: {str(e)}", status_code=401)
 
         return f(*args, **kwargs)
-
     return decorated
