@@ -5,13 +5,13 @@ export default {
         const res = await api.get('/usuarios')
         return res.data
     },
-    async addUser(msalAccount) {
+    async syncUser(msalAccount) {
         const payload = {
             oid_azure: msalAccount.localAccountId, 
             email: msalAccount.username,
             nombre: msalAccount.name
         }
-        const response = await api.post('/users', payload)
+        const response = await api.post('/usuarios/sync', payload)
         return response.data
     }
 }
