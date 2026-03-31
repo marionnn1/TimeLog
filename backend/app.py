@@ -46,6 +46,7 @@ with app.app_context():
     from models.month_closings import MonthClosings
     from models.audits import Audits
     from models.logs import Logs
+    from models.annual_days import AnnualDays
 
 app.register_blueprint(users_bp)
 app.register_blueprint(projects_bp)
@@ -62,4 +63,4 @@ app.register_blueprint(manager_projects_bp)
 app.register_blueprint(validation_bp)
 
 if __name__ == '__main__':
-    app.run(debug=True, host='0.0.0.0', port=5000)
+    app.run(debug=True, port=5000)

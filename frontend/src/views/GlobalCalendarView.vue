@@ -58,32 +58,10 @@ const cargarAusencias = async () => {
 const cargarResumenAnual = async () => {
     if (!currentUser) return
     try {
-        const promesas = []
-        for(let m = 1; m <= 12; m++) {
-            promesas.push(AbsencesAPI.getAusenciasMes(m, year.value))
+        const res = await AbsencesAPI.getResumenAnual(year.value)
+        if (res.status === 'success') {
+            resumenAnual.value = res.data
         }
-        const resultados = await Promise.all(promesas)
-        
-        let todasLasAusencias = []
-        resultados.forEach(res => {
-            if(res.status === 'success') todasLasAusencias = todasLasAusencias.concat(res.data)
-        })
-
-        const grupos = {}
-        todasLasAusencias.forEach(a => {
-            if (!grupos[a.userId]) {
-                grupos[a.userId] = { nombre: a.nombre, iniciales: a.iniciales, dias: [] }
-            }
-            if (!grupos[a.userId].dias.find(d => d.fecha === a.fecha)) {
-                grupos[a.userId].dias.push(a)
-            }
-        })
-
-        Object.values(grupos).forEach(g => {
-            g.dias.sort((a,b) => new Date(a.fecha) - new Date(b.fecha))
-        })
-
-        resumenAnual.value = Object.values(grupos).sort((a,b) => a.nombre.localeCompare(b.nombre))
     } catch(e) {
         console.error("Error cargando resumen anual:", e)
     }
@@ -188,12 +166,19 @@ const abrirModal = (day) => {
 
 const procesarSolicitud = async (diasSolicitados) => {
     try {
+        
+        if(diasSolicitados.length > 15){
+            showToast('No se pueden solicitar más de 15 dias seguidos','error')
+            return
+        }
+
         const payload = {
             usuario_id: currentUser.id,
             fechas: diasSolicitados,
             tipo: form.value.tipo,
             comentario: form.value.comentario
         }
+
         
         const res = await AbsencesAPI.crearAusencia(payload)
         
@@ -207,6 +192,7 @@ const procesarSolicitud = async (diasSolicitados) => {
         }
     } catch(e) {
         showToast('Fallo en la conexión al servidor', 'error')
+        console.log(e)
     }
 }
 
@@ -255,42 +241,37 @@ const confirmarSolicitud = () => {
 }
 
 const confirmarEliminacion = async () => {
-    const start = new Date(form.value.fechaInicio)
-    const end = new Date(form.value.fechaFin)
-    const diasAEliminar = []
+    const inicioStr = form.value.fechaInicio
+    const finStr = form.value.fechaFin
 
-    for(let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
-        if (d.getDay() !== 0 && d.getDay() !== 6) {
-            const offset = d.getTimezoneOffset() * 60000
-            const iso = new Date(d.getTime() - offset).toISOString().split('T')[0]
-            
-            if (getMiAusencia(iso)) {
-                diasAEliminar.push(iso)
-            }
+    if (!inicioStr || !finStr) return showToast("Selecciona un rango válido", "error")
+
+    try {
+        const resCount = await AbsencesAPI.obtenerConteoRango(currentUser.id, inicioStr, finStr)
+        const count = resCount.count
+
+        if (count === 0) {
+            return showToast("No hay nada que eliminar en esas fechas", "info")
         }
-    }
 
-    if (diasAEliminar.length === 0) {
-        showToast("No tienes ausencias registradas en este rango de fechas.", "warning")
-        return
-    }
-
-    solicitarConfirmacion(
-        'Eliminar Ausencias',
-        `Vas a cancelar ${diasAEliminar.length} día(s) de tus ausencias. ¿Estás seguro?`,
-        'danger',
-        async () => {
-            try {
-                await AbsencesAPI.eliminarAusencia(currentUser.id, diasAEliminar)
-                mostrarModal.value = false
-                showToast('Ausencias eliminadas correctamente', 'success')
-                cargarAusencias()
-                cargarResumenAnual()
-            } catch(e) {
-                showToast('Error al conectar con el servidor', 'error')
+        solicitarConfirmacion(
+            'Eliminar Ausencias',
+            `Vas a cancelar ${count} día(s) de tus ausencias registradas. ¿Estás seguro?`,
+            'danger',
+            async () => {
+                try {
+                    await AbsencesAPI.eliminarAusencia(currentUser.id, inicioStr, finStr)
+                    mostrarModal.value = false
+                    showToast('Ausencias eliminadas correctamente', 'success')
+                    await Promise.all([cargarAusencias(), cargarResumenAnual()])
+                } catch(e) {
+                    showToast('Error al eliminar', 'error')
+                }
             }
-        }
-    )
+        )
+    } catch (e) {
+        showToast('Error al verificar días', 'error')
+    }
 }
 
 const prevMonth = () => currentDate.value = new Date(year.value, month.value - 1, 1)

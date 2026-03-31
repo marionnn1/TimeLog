@@ -13,35 +13,35 @@ services:
       - ./backend:/app 
     command: /bin/bash -c "/opt/mssql/bin/sqlservr & /app/init-db.sh; wait"
 
-  backend:
-    build:
-      context: ./backend
-    ports:
-      - "5000:5000"
-    volumes:
-      - ./backend:/app
-    environment:
-      - FLASK_ENV=development
-      - DB_SERVER=db
-      - DB_PORT=1433
-      - DB_NAME=timelog
-      - DB_USER=sa
-      - DB_PASSWORD=SuperPassword123!
-    depends_on:
-      - db 
+  # backend:
+  #   build:
+  #     context: ./backend
+  #   ports:
+  #     - "5000:5000"
+  #   volumes:
+  #     - ./backend:/app
+  #   environment:
+  #     - FLASK_ENV=development
+  #     - DB_SERVER=db
+  #     - DB_PORT=1433
+  #     - DB_NAME=timelog
+  #     - DB_USER=sa
+  #     - DB_PASSWORD=SuperPassword123!
+  #   depends_on:
+  #     - db 
 
-  frontend:
-    build:
-      context: ./frontend
-    ports:
-      - "5173:5173"
-    volumes:
-      - ./frontend:/app
-      - /app/node_modules
-    environment:
-      - VITE_API_URL=http://localhost:5000/api 
-    depends_on:
-      - backend
+  # frontend:
+  #   build:
+  #     context: ./frontend
+  #   ports:
+  #     - "5173:5173"
+  #   volumes:
+  #     - ./frontend:/app
+  #     - /app/node_modules
+  #   environment:
+  #     - VITE_API_URL=http://localhost:5000/api 
+  #   depends_on:
+  #     - backend
 
 volumes:
   sqldata:
