@@ -1,4 +1,5 @@
-from flask import Blueprint, request, jsonify
+from flask import Blueprint, request, jsonify, g
+from auth import require_auth
 from services.technical.absences_service import (
     obtener_ausencias_mes,
     guardar_ausencias,
@@ -9,8 +10,8 @@ from errors import APIError
 
 absences_bp = Blueprint("absences", __name__)
 
-
 @absences_bp.route("/api/absences", methods=["GET"])
+@require_auth
 def get_ausencias():
     try:
         mes = int(request.args.get("mes", datetime.now().month))
@@ -20,37 +21,30 @@ def get_ausencias():
         anio = datetime.now().year
 
     data = obtener_ausencias_mes(mes, anio)
-
     return jsonify({"status": "success", "data": data}), 200
 
 
 @absences_bp.route("/api/absences", methods=["POST"])
+@require_auth
 def create_ausencias():
     d = request.json
     if not d:
         raise APIError("No se enviaron datos en la petición", status_code=400)
 
+    # Inyectamos la identidad segura
     guardar_ausencias(
-        d.get("usuario_id"), d.get("fechas"), d.get("tipo"), d.get("comentario", "")
+        g.usuario_actual.id, d.get("fechas"), d.get("tipo"), d.get("comentario", "")
     )
-
-    return (
-        jsonify(
-            {"status": "success", "message": "Ausencias registradas correctamente"}
-        ),
-        200,
-    )
+    return jsonify({"status": "success", "message": "Ausencias registradas correctamente"}), 200
 
 
 @absences_bp.route("/api/absences", methods=["DELETE"])
+@require_auth
 def delete_ausencia():
     d = request.json
     if not d:
         raise APIError("No se enviaron datos en la petición", status_code=400)
 
-    eliminar_ausencias(d.get("usuario_id"), d.get("fechas"))
-
-    return (
-        jsonify({"status": "success", "message": "Ausencias eliminadas correctamente"}),
-        200,
-    )
+    # Inyectamos la identidad segura
+    eliminar_ausencias(g.usuario_actual.id, d.get("fechas"))
+    return jsonify({"status": "success", "message": "Ausencias eliminadas correctamente"}), 200
