@@ -305,11 +305,21 @@ const esHoy = (date) => {
     const hoy = new Date()
     return date.getDate() === hoy.getDate() && date.getMonth() === hoy.getMonth() && date.getFullYear() === hoy.getFullYear()
 }
+
 const esEditable = (index) => {
     const date = diasSemana.value[index]
-    const hoy = new Date(); hoy.setHours(0, 0, 0, 0)
-    const fComp = new Date(date); fComp.setHours(0, 0, 0, 0)
-    return !esFinDeSemana(date) && fComp >= hoy && !tiposDiasSemana.value[index]
+    
+    if (esFinDeSemana(date) || tiposDiasSemana.value[index]) return false;
+
+    const hoy = new Date();
+    hoy.setHours(0, 0, 0, 0);
+    const lunesReal = getLunesSemana(hoy);
+    lunesReal.setHours(0, 0, 0, 0);
+
+    const fComp = new Date(date);
+    fComp.setHours(0, 0, 0, 0);
+
+    return fComp >= lunesReal;
 }
 
 const esSeleccionado = (date) => date.getDate() === diaSeleccionado.value && date.getMonth() === fechaActual.value.getMonth()
@@ -343,28 +353,42 @@ const excedeLimiteSemanal = computed(() => totalSemanal.value > getMaxHorasSeman
 
 const hayErrores = computed(() => {
     const excedeHoras = Array.from({length:7}).some((_,i) => excedeLimiteDiario(i));
-    
     const tieneDecimalesMal = filas.value.some(f => f.horas.some((h, i) => esEditable(i) && esPasoInvalido(h)));
     
     return excedeHoras || tieneDecimalesMal;
 })
 
-const autocompletarFila = (fila) => {
-    const indexHoy = diasSemana.value.findIndex(d => esHoy(d))
 
-    if (indexHoy === -1) {
-        return showToast('El día de hoy no está en esta semana. Vuelve a la semana actual.', 'error')
+const autocompletarFila = (fila) => {
+    const hoy = new Date();
+    hoy.setHours(0, 0, 0, 0);
+
+    let diasRellenados = 0;
+
+    for (let i = 0; i < 7; i++) {
+        const fechaDia = new Date(diasSemana.value[i]);
+        fechaDia.setHours(0, 0, 0, 0);
+
+        if (esEditable(i) && fechaDia <= hoy && (parseFloat(fila.horas[i]) || 0) === 0) {
+            const maxDia = getMaxHorasDia(i);
+            
+            const horasOtrasFilas = filas.value
+                .filter(f => f.id !== fila.id)
+                .reduce((acc, f) => acc + (parseFloat(f.horas[i]) || 0), 0);
+                
+            const horasDisponibles = Math.max(0, maxDia - horasOtrasFilas);
+
+            if (horasDisponibles > 0) {
+                fila.horas[i] = horasDisponibles;
+                diasRellenados++;
+            }
+        }
     }
 
-    if (esEditable(indexHoy)) {
-        const maxDia = getMaxHorasDia(indexHoy)
-        const horasOtrasFilas = filas.value.filter(f => f.id !== fila.id).reduce((acc, f) => acc + (parseFloat(f.horas[indexHoy]) || 0), 0)
-        const horasDisponibles = Math.max(0, maxDia - horasOtrasFilas)
-
-        fila.horas[indexHoy] = horasDisponibles
-        showToast('Horas de hoy rellenadas según tu contrato', 'success')
+    if (diasRellenados > 0) {
+        showToast(`Se han autocompletado ${diasRellenados} días de la semana hasta hoy.`, 'success');
     } else {
-        showToast('El día de hoy no es un día laborable o ya está cerrado', 'error')
+        showToast('No hay días laborables libres hasta hoy para autocompletar.', 'info');
     }
 }
 
@@ -547,9 +571,10 @@ onMounted(() => {
                             <td class="p-2 relative group/cell">
                                 <div class="flex items-center justify-between pr-2">
                                     <span class="text-xs font-bold text-slate-700 px-2">{{ fila.proyecto }}</span>
+                                    
                                     <button @click="autocompletarFila(fila)"
                                         class="opacity-0 group-hover/cell:opacity-100 p-1.5 text-blue-600 hover:bg-blue-100 rounded-lg transition-all"
-                                        title="Autocompletar hoy (Varita mágica)">
+                                        title="Autocompletar semana hasta hoy">
                                         <Wand2 class="w-4 h-4" />
                                     </button>
                                 </div>
@@ -607,7 +632,7 @@ onMounted(() => {
 
             <div class="p-4 bg-gray-50 border-t flex justify-end gap-4 items-center">
                 <p v-if="hayErrores" class="text-xs font-bold text-red-600 animate-pulse flex items-center gap-1">
-                    <AlertCircle class="w-4 h-4"/> 
+                    <AlertCircle class="w-4 h-4" />
                     {{ filas.some(f => f.horas.some((h, i) => esEditable(i) && esPasoInvalido(h))) ? 'Solo se permiten incrementos de 0.5h (ej. 1.5)' : 'Corrige el exceso de horas' }}
                 </p>
                 <button @click="guardarCambios" :disabled="hayErrores || cargando"
