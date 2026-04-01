@@ -13,10 +13,13 @@ const store = useDataStore()
 const { logout } = useAuth()
 
 const currentUser = computed(() => store.getCurrentUser())
-const rolActual = computed(() => currentUser.value?.rol || 'user')
 
+// NORMALIZACIÓN: Convertimos el rol a minúsculas para una validación más robusta
+const rolActual = computed(() => currentUser.value?.rol?.toLowerCase() || 'tecnico')
+
+// VALIDACIÓN DE ROLES: Comprobamos contra el valor normalizado
 const esAdmin = computed(() => rolActual.value === 'admin')
-const esJefe = computed(() => rolActual.value === 'manager' || rolActual.value === 'admin' || rolActual.value === 'jp')
+const esJefe = computed(() => ['admin', 'jp', 'manager'].includes(rolActual.value))
 
 const claseLink = "flex items-center gap-3 px-3 py-2.5 rounded-r-lg text-slate-300 hover:text-white hover:bg-slate-800 transition group cursor-pointer border-l-4 border-transparent whitespace-nowrap"
 const claseIcono = "w-5 h-5 text-slate-400 group-hover:text-primary transition shrink-0"

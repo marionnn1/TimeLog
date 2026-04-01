@@ -1,5 +1,5 @@
 from flask import Blueprint, jsonify, request, g
-from auth import require_auth
+from auth import require_auth, require_role
 from services.manager.closing_service import get_closing_audit, toggle_closing_month
 from errors import APIError
 
@@ -7,15 +7,18 @@ closing_bp = Blueprint('manager_closing', __name__, url_prefix='/api/manager/clo
 
 @closing_bp.route('', methods=['GET'], strict_slashes=False)
 @require_auth
+@require_role(['Admin', 'JP'])
 def get_closing():
     mes = request.args.get('mes')
-    if not mes: raise APIError("Falta el parámetro 'mes'", status_code=400)
+    if not mes: 
+        raise APIError("Falta el parámetro 'mes'", status_code=400)
 
     data = get_closing_audit(mes)
     return jsonify({"status": "success", "data": data}), 200
 
 @closing_bp.route('', methods=['POST'], strict_slashes=False)
 @require_auth
+@require_role(['Admin', 'JP'])
 def toggle_closing():
     body = request.get_json()
     mes = body.get('mes')
