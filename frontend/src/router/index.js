@@ -1,6 +1,5 @@
 import { createRouter, createWebHistory } from 'vue-router'
 
-
 import LoginView from '../views/LoginView.vue'
 import DashboardView from '../views/DashboardView.vue'
 import ImputacionesView from '../views/ImputacionesView.vue'
@@ -37,7 +36,7 @@ const router = createRouter({
       redirect: '/dashboard'
     },
 
-    // --- RUTAS COMUNES (PROTEGIDAS) ---
+    // --- RUTAS COMUNES (PROTEGIDAS - Todos los roles) ---
     {
       path: '/dashboard',
       name: 'dashboard',
@@ -68,80 +67,94 @@ const router = createRouter({
       path: '/admin/dashboard',
       name: 'admin-dashboard',
       component: AdminDashboardView,
-      meta: { requiresAuth: true, role: 'admin' }
+      meta: { requiresAuth: true, roles: ['admin'] }
     },
     {
       path: '/admin/users',
       name: 'admin-users',
       component: AdminUsersView,
-      meta: { requiresAuth: true, role: 'admin' }
+      meta: { requiresAuth: true, roles: ['admin'] }
     },
     {
       path: '/admin/projects-manager',
       name: 'admin-projects',
       component: AdminProjectsView,
-      meta: { requiresAuth: true, role: 'admin' }
+      meta: { requiresAuth: true, roles: ['admin'] }
     },
     {
       path: '/admin/audit',
       name: 'admin-audit',
       component: AdminAuditView,
-      meta: { requiresAuth: true, role: 'admin' }
+      meta: { requiresAuth: true, roles: ['admin'] }
     },
     {
       path: '/admin/tickets', 
       name: 'admin-tickets',
       component: AdminTicketsView,
-      meta: { requiresAuth: true, role: 'admin' }
+      meta: { requiresAuth: true, roles: ['admin'] }
     },
 
     // --- RUTAS MANAGER ---
     {
       path: '/manager/analitica', 
       name: 'manager-analytics',
-      component: ManagerAnalyticsView
+      component: ManagerAnalyticsView,
+      meta: { requiresAuth: true, roles: ['admin', 'jp', 'manager'] }
     },
     {
       path: '/manager/cierre', 
       name: 'manager-closing',
-      component: ManagerClosingView
+      component: ManagerClosingView,
+      meta: { requiresAuth: true, roles: ['admin', 'jp', 'manager'] }
     },
     {
       path: '/manager/projects', 
       name: 'manager-projects',
-      component: ProjectsView
+      component: ProjectsView,
+      meta: { requiresAuth: true, roles: ['admin', 'jp', 'manager'] }
     },
     {
       path: '/manager/validaciones', 
       name: 'manager-validation',
-      component: ManagerValidationView
+      component: ManagerValidationView,
+      meta: { requiresAuth: true, roles: ['admin', 'jp', 'manager'] }
     }
   ]
 })
-
 
 router.beforeEach((to, from, next) => {
   const isAuthenticated = localStorage.getItem('isAuthenticated') === 'true'
 
   if (to.meta.requiresAuth && !isAuthenticated) {
-    next('/login')
+    return next('/login')
   } 
-  else if (to.path === '/login' && isAuthenticated) {
-    next('/')
-  } 
-  else {
-    next()
-  }
-})
-
-router.beforeEach((to, from, next) => {
-  const isAuthenticated = localStorage.getItem('isAuthenticated') === 'true'
   
-  if (to.path !== '/login' && !isAuthenticated) {
-    next('/login')
-  } else {
-    next()
+  if (to.path === '/login' && isAuthenticated) {
+    return next('/')
   }
+
+  if (to.meta.roles) {
+    try {
+      const savedState = localStorage.getItem('timeLog_state')
+      let userRole = 'tecnico'
+      
+      if (savedState) {
+        const parsedState = JSON.parse(savedState)
+        
+        userRole = parsedState.currentUser?.rol?.toLowerCase() || 'tecnico'
+      }
+
+      if (!to.meta.roles.includes(userRole)) {
+        console.warn(`Bloqueo de seguridad: El rol '${userRole}' intentó acceder a '${to.path}'`)
+        return next('/dashboard')
+      }
+    } catch (error) {
+      console.error('Error verificando roles en el router:', error)
+      return next('/dashboard')
+    }
+  }
+
+  next()
 })
 
 export default router
