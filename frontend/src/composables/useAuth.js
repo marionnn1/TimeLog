@@ -22,9 +22,8 @@ export function useAuth() {
     try {
       await msalInstance.initialize()
 
-
       localStorage.clear()
-
+      sessionStorage.clear()
       if (store.$reset) store.$reset()
 
       await msalInstance.logoutRedirect({
@@ -62,13 +61,17 @@ export function useAuth() {
   }
 
   const processLogin = async (account, callBackend = true) => {
+
+    const rolesAzure = account.idTokenClaims?.roles || ['Tecnico']
+    const rolPrincipal = rolesAzure[0]
+
     let userData = {
       id: null,
       oid_azure: account.localAccountId,
       nombre: account.name,
       email: account.username,
       iniciales: account.name ? account.name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase() : 'U',
-      rol: 'tecnico'
+      rol: rolPrincipal
     }
 
     if (callBackend) {
@@ -77,7 +80,6 @@ export function useAuth() {
 
         if (backendRes.status === 'success' && backendRes.data) {
           userData.id = backendRes.data.id
-          userData.rol = backendRes.data.rol
           userData.iniciales = backendRes.data.iniciales || userData.iniciales
         }
       } catch (e) {

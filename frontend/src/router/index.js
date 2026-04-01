@@ -1,4 +1,5 @@
 import { createRouter, createWebHistory } from 'vue-router'
+import { msalInstance } from '../auth/AuthConfig' // <-- Nueva importación obligatoria
 
 import LoginView from '../views/LoginView.vue'
 import DashboardView from '../views/DashboardView.vue'
@@ -11,12 +12,12 @@ import AdminUsersView from '../views/admin/AdminUsersView.vue'
 import AdminProjectsView from '@/views/admin/AdminProjectsView.vue'
 import AdminAuditView from '../views/admin/AdminAuditView.vue'
 import AdminDashboardView from '../views/admin/AdminDashboardView.vue'
-import AdminTicketsView from '../views/admin/AdminTicketsView.vue' 
+import AdminTicketsView from '../views/admin/AdminTicketsView.vue'
 
 // Vistas de Manager
 import ManagerAnalyticsView from '../views/manager/ManagerAnalyticsView.vue'
 import ManagerClosingView from '../views/manager/ManagerClosingView.vue'
-import ProjectsView from '../views/manager/ProjectsView.vue' 
+import ProjectsView from '../views/manager/ProjectsView.vue'
 import ManagerValidationView from '../views/manager/ManagerValidationView.vue'
 
 const router = createRouter({
@@ -27,7 +28,7 @@ const router = createRouter({
       path: '/login',
       name: 'login',
       component: LoginView,
-      meta: { layout: 'empty' } 
+      meta: { layout: 'empty' }
     },
 
     // --- REDIRECCIÓN INICIAL ---
@@ -36,7 +37,7 @@ const router = createRouter({
       redirect: '/dashboard'
     },
 
-    // --- RUTAS COMUNES (PROTEGIDAS - Todos los roles) ---
+    // --- RUTAS COMUNES
     {
       path: '/dashboard',
       name: 'dashboard',
@@ -88,7 +89,7 @@ const router = createRouter({
       meta: { requiresAuth: true, roles: ['admin'] }
     },
     {
-      path: '/admin/tickets', 
+      path: '/admin/tickets',
       name: 'admin-tickets',
       component: AdminTicketsView,
       meta: { requiresAuth: true, roles: ['admin'] }
@@ -96,25 +97,25 @@ const router = createRouter({
 
     // --- RUTAS MANAGER ---
     {
-      path: '/manager/analitica', 
+      path: '/manager/analitica',
       name: 'manager-analytics',
       component: ManagerAnalyticsView,
       meta: { requiresAuth: true, roles: ['admin', 'jp', 'manager'] }
     },
     {
-      path: '/manager/cierre', 
+      path: '/manager/cierre',
       name: 'manager-closing',
       component: ManagerClosingView,
       meta: { requiresAuth: true, roles: ['admin', 'jp', 'manager'] }
     },
     {
-      path: '/manager/projects', 
+      path: '/manager/projects',
       name: 'manager-projects',
       component: ProjectsView,
       meta: { requiresAuth: true, roles: ['admin', 'jp', 'manager'] }
     },
     {
-      path: '/manager/validaciones', 
+      path: '/manager/validaciones',
       name: 'manager-validation',
       component: ManagerValidationView,
       meta: { requiresAuth: true, roles: ['admin', 'jp', 'manager'] }
@@ -127,29 +128,30 @@ router.beforeEach((to, from, next) => {
 
   if (to.meta.requiresAuth && !isAuthenticated) {
     return next('/login')
-  } 
-  
+  }
+
   if (to.path === '/login' && isAuthenticated) {
     return next('/')
   }
 
   if (to.meta.roles) {
     try {
-      const savedState = localStorage.getItem('timeLog_state')
-      let userRole = 'tecnico'
-      
-      if (savedState) {
-        const parsedState = JSON.parse(savedState)
-        
-        userRole = parsedState.currentUser?.rol?.toLowerCase() || 'tecnico'
-      }
+      const activeAccount = msalInstance.getAllAccounts()[0]
 
-      if (!to.meta.roles.includes(userRole)) {
-        console.warn(`Bloqueo de seguridad: El rol '${userRole}' intentó acceder a '${to.path}'`)
+
+      const rolesAzure = activeAccount?.idTokenClaims?.roles || ['tecnico']
+      const userRoles = rolesAzure.map(r => r.toLowerCase())
+
+      const tienePermiso = to.meta.roles.some(rolPermitido =>
+        userRoles.includes(rolPermitido.toLowerCase())
+      )
+
+      if (!tienePermiso) {
+        console.warn(`Bloqueo de seguridad: El usuario intentó acceder a '${to.path}' sin los roles necesarios de Azure AD`)
         return next('/dashboard')
       }
     } catch (error) {
-      console.error('Error verificando roles en el router:', error)
+      console.error('Error verificando roles en el router con MSAL:', error)
       return next('/dashboard')
     }
   }
