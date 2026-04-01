@@ -55,15 +55,7 @@ from errors import register_error_handlers
 register_error_handlers(app)
 
 with app.app_context():
-    from models.users import Users
-    from models.clients import Clients
-    from models.projects import Projects
-    from models.assignments import Assignments
-    from models.time_entries import TimeEntries
-    from models.absences import Absences
-    from models.month_closings import MonthClosings
-    from models.audits import Audits
-    from models.logs import Logs
+    import models
 
 app.register_blueprint(users_bp)
 app.register_blueprint(projects_bp)

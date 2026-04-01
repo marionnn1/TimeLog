@@ -89,30 +89,6 @@ CREATE TABLE Ausencias (
     Comentario NVARCHAR(255)
 );
 
-
--- CREATE TABLE Ausencias (
---     Id INT PRIMARY KEY IDENTITY(1,1),
---     UsuarioId INT NOT NULL,
---     Fecha DATE NOT NULL,
---     Tipo NVARCHAR(20) NOT NULL CHECK (Tipo IN ('Vacaciones', 'Asuntos Propios', 'Festivo', 'Baja', 'Otros')),
---     Comentario NVARCHAR(255),
---     FechaCreacion DATETIME DEFAULT GETDATE(),
---     CONSTRAINT FK_Ausencias_Usuario FOREIGN KEY (UsuarioId) REFERENCES Usuarios(Id),
---     CONSTRAINT UQ_Usuario_Fecha_Ausencia UNIQUE (UsuarioId, Fecha)
--- );
-
--- CREATE TABLE DiasAnuales (
---     Id INT PRIMARY KEY IDENTITY(1,1),
---     UsuarioId INT NOT NULL,
---     Anio INT NOT NULL,
---     DiasVacacionesNuevas INT DEFAULT 22,
---     DiasVacacionesRemanentes INT DEFAULT 0,
---     DiasAsuntosPropiosTotales INT DEFAULT 2,
---     DiasFestivosTotales INT DEFAULT 14,
---     CONSTRAINT FK_DiasAnuales_Usuario FOREIGN KEY (UsuarioId) REFERENCES Usuarios(Id),
---     CONSTRAINT UQ_Usuario_Anio_DiasAnuales UNIQUE (UsuarioId, Anio)
--- )
-
 CREATE TABLE Logs (
     Id BIGINT PRIMARY KEY IDENTITY(1,1),
     Fecha DATETIME DEFAULT GETDATE(),
