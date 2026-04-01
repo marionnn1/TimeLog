@@ -1,6 +1,11 @@
 from flask import Flask
 from flask_cors import CORS
 
+# --- SEGURIDAD ---
+from flask_talisman import Talisman
+from flask_limiter import Limiter
+from flask_limiter.util import get_remote_address
+
 # --- SQLALCHEMY IMPORTS ---
 from config import SQLALCHEMY_DATABASE_URI
 from database.db import db
@@ -27,13 +32,26 @@ app = Flask(__name__)
 CORS(app)
 
 
-app.config['SQLALCHEMY_DATABASE_URI'] = SQLALCHEMY_DATABASE_URI
-app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+Talisman(app, force_https=False)
+
+
+limiter = Limiter(
+    get_remote_address,
+    app=app,
+    default_limits=["1000 per day", "100 per hour"],
+    storage_uri="memory://",
+)
+
+app.config["SQLALCHEMY_DATABASE_URI"] = SQLALCHEMY_DATABASE_URI
+app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 
 db.init_app(app)
 
 
+app.before_request(lambda: db.session.rollback())
+
 from errors import register_error_handlers
+
 register_error_handlers(app)
 
 with app.app_context():
@@ -61,5 +79,5 @@ app.register_blueprint(closing_bp)
 app.register_blueprint(manager_projects_bp)
 app.register_blueprint(validation_bp)
 
-if __name__ == '__main__':
-    app.run(debug=True, host='0.0.0.0', port=5000)
+if __name__ == "__main__":
+    app.run(debug=True, host="0.0.0.0", port=5000)

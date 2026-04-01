@@ -6,6 +6,7 @@ from functools import wraps
 from flask import request, g
 from errors import APIError
 from models.users import Users
+from database.db import db
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -13,10 +14,10 @@ load_dotenv()
 TENANT_ID = os.getenv("MSAL_TENANT_ID")
 CLIENT_ID = os.getenv("MSAL_CLIENT_ID")
 
-# --- CACHÉ DE LLAVES (Mantenemos tu mejora anterior) ---
 cached_jwks = None
 last_jwks_fetch = 0
-JWKS_CACHE_DURATION = 43200 
+JWKS_CACHE_DURATION = 43200
+
 
 def get_public_keys():
     global cached_jwks, last_jwks_fetch
@@ -30,10 +31,11 @@ def get_public_keys():
         last_jwks_fetch = current_time
         return cached_jwks
     except Exception as e:
-        if cached_jwks: return cached_jwks
+        if cached_jwks:
+            return cached_jwks
         raise e
 
-# --- DECORADOR DE AUTENTICACIÓN ---
+
 def require_auth(f):
     @wraps(f)
     def decorated(*args, **kwargs):
@@ -49,14 +51,24 @@ def require_auth(f):
         try:
             unverified_header = jwt.get_unverified_header(token)
             jwks = get_public_keys()
-            rsa_key = next((k for k in jwks["keys"] if k["kid"] == unverified_header["kid"]), None)
-            
+            rsa_key = next(
+                (k for k in jwks["keys"] if k["kid"] == unverified_header["kid"]), None
+            )
+
             if not rsa_key:
                 raise APIError("Firma de Azure no reconocida", status_code=401)
 
             from jwt.algorithms import RSAAlgorithm
+
             public_key = RSAAlgorithm.from_jwk(rsa_key)
-            payload = jwt.decode(token, public_key, algorithms=["RS256"], options={"verify_aud": False, "verify_issuer": False})
+
+            payload = jwt.decode(
+                token,
+                public_key,
+                algorithms=["RS256"],
+                audience=CLIENT_ID,
+                issuer=f"https://login.microsoftonline.com/{TENANT_ID}/v2.0",
+            )
 
             oid_azure = payload.get("oid")
             usuario = Users.query.filter_by(oid_azure=oid_azure).first()
@@ -64,38 +76,65 @@ def require_auth(f):
             if not usuario or not usuario.activo:
                 raise APIError("Usuario no autorizado o desactivado", status_code=403)
 
-            # Guardamos el objeto usuario completo para usarlo en los controladores
-            g.usuario_actual = usuario 
+            roles_azure = payload.get("roles")
+
+            if not roles_azure or len(roles_azure) == 0:
+                raise APIError(
+                    "Tu usuario no tiene un rol configurado en Azure AD. Acceso bloqueado.",
+                    status_code=403,
+                )
+
+            rol_principal_azure = roles_azure[0]
+
+            if usuario.rol != rol_principal_azure:
+                usuario.rol = rol_principal_azure
+                db.session.commit()
+
+            g.usuario_actual = usuario
+            g.token_payload = payload
 
         except jwt.ExpiredSignatureError:
             raise APIError("La sesión de Microsoft ha caducado", status_code=401)
+        except jwt.InvalidAudienceError:
+            raise APIError("Token no generado para esta aplicación", status_code=401)
+        except jwt.InvalidIssuerError:
+            raise APIError("Emisor del token no válido", status_code=401)
         except Exception as e:
             raise APIError(f"Token inválido: {str(e)}", status_code=401)
 
         return f(*args, **kwargs)
+
     return decorated
 
-# --- NUEVO DECORADOR DE ROLES (RBAC) ---
+
 def require_role(roles_permitidos):
-    """
-    Verifica que el usuario tenga uno de los roles permitidos.
-    Uso: @require_role(['Admin', 'JP'])
-    """
     def decorator(f):
         @wraps(f)
         def decorated(*args, **kwargs):
-            # Validamos que g.usuario_actual exista (require_auth debe ir antes)
-            usuario = getattr(g, 'usuario_actual', None)
-            if not usuario:
-                raise APIError("Error de seguridad: Usuario no identificado", status_code=500)
-            
-            # Normalizamos roles para evitar errores de mayúsculas/minúsculas
-            rol_actual = usuario.rol.lower() if usuario.rol else ""
-            roles_lista = [r.lower() for r in roles_permitidos]
+            payload = getattr(g, "token_payload", {})
 
-            if rol_actual not in roles_lista:
-                raise APIError(f"Acceso denegado. Se requiere uno de estos roles: {roles_permitidos}", status_code=403)
-            
+            roles_azure = payload.get("roles")
+            if not roles_azure:
+                raise APIError(
+                    "Acceso denegado. Azure no reporta ningún rol para este usuario.",
+                    status_code=403,
+                )
+
+            roles_usuario_norm = [r.lower() for r in roles_azure]
+            roles_permitidos_norm = [r.lower() for r in roles_permitidos]
+
+            tiene_permiso = any(
+                rol in roles_permitidos_norm for rol in roles_usuario_norm
+            )
+
+            if not tiene_permiso:
+                raise APIError(
+                    f"Acceso denegado. Se requiere uno de estos roles: {roles_permitidos}",
+                    status_code=403,
+                )
+
             return f(*args, **kwargs)
+
         return decorated
+
     return decorator
