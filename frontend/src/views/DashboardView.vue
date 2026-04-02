@@ -313,13 +313,14 @@ const esEditable = (index) => {
 
     const hoy = new Date();
     hoy.setHours(0, 0, 0, 0);
-    const lunesReal = getLunesSemana(hoy);
-    lunesReal.setHours(0, 0, 0, 0);
+
+    const limitePasado = new Date(hoy);
+    limitePasado.setDate(hoy.getDate() - 30);
 
     const fComp = new Date(date);
     fComp.setHours(0, 0, 0, 0);
 
-    return fComp >= lunesReal;
+    return fComp >= limitePasado;
 }
 
 const esSeleccionado = (date) => date.getDate() === diaSeleccionado.value && date.getMonth() === fechaActual.value.getMonth()
@@ -357,7 +358,6 @@ const hayErrores = computed(() => {
     
     return excedeHoras || tieneDecimalesMal;
 })
-
 
 const autocompletarFila = (fila) => {
     const hoy = new Date();
