@@ -18,9 +18,9 @@ jobs:
             username: ${{ secrets.REGISTRY_USERNAME }}
             password: ${{ secrets.REGISTRY_PASSWORD }}
         - run: |
-            docker build . -t ${{ secrets.REGISTRY_LOGIN_SERVER }}/timelog-backend:${{ github.sha }} -f ./backend/Dockerfile
+            docker build backend -t ${{ secrets.REGISTRY_LOGIN_SERVER }}/timelog-backend:${{ github.sha }} -f ./backend/Dockerfile
             docker push ${{ secrets.REGISTRY_LOGIN_SERVER }}/timelog-backend:${{ github.sha }}
 
         - run: |
-            docker build . -t ${{ secrets.REGISTRY_LOGIN_SERVER }}/timelog-frontend:${{ github.sha }} -f ./frontend/Dockerfile
+            docker build frontend -t ${{ secrets.REGISTRY_LOGIN_SERVER }}/timelog-frontend:${{ github.sha }} -f ./frontend/Dockerfile
             docker push ${{ secrets.REGISTRY_LOGIN_SERVER }}/timelog-frontend:${{ github.sha }}
