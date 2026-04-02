@@ -14,7 +14,7 @@ export const msalConfig = {
         postLogoutRedirectUri: import.meta.env.VITE_MSAL_POST_LOGOUT_REDIRECT_URI,
     },
     cache: {
-        cacheLocation: 'localStorage',
+        cacheLocation: 'sessionStorage',
         storeAuthStateInCookie: false,
     },
     system: {

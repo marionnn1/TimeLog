@@ -1,34 +1,20 @@
 <script setup>
-import { ref } from 'vue'
+import { ref, onMounted } from 'vue'
+import ManagerAPI from '../../services/ManagerAPI'
+import { useDataStore } from '../../stores/dataStore'
 import { 
     AlertOctagon, Check, X, FileEdit, MessageSquare, Calendar, Clock, Save,
-    CheckCircle2, AlertCircle, Trash2, AlertTriangle
+    ArrowRight, AlertTriangle
 } from 'lucide-vue-next'
+import ConfirmModal from '../../components/common/ConfirmModal.vue'
+import ToastNotification from '../../components/common/ToastNotification.vue'
 
-const solicitudes = ref([
-    { 
-        id: 1, 
-        usuario: 'Mario León', 
-        avatar: 'ML', 
-        fecha: '2026-02-02', 
-        proyecto: 'Migración Cloud', 
-        cliente: 'Banco Santander',
-        horasActuales: 8, 
-        motivo: 'Me equivoqué al imputar. Puse 8 horas pero estuve 4 en el médico. Deberían ser 4h.',
-        estado: 'pendiente'
-    },
-    { 
-        id: 2, 
-        usuario: 'Ana Ruiz', 
-        avatar: 'AR', 
-        fecha: '2026-01-28', 
-        proyecto: 'Inditex TPV', 
-        cliente: 'Inditex',
-        horasActuales: 0, 
-        motivo: 'Se me olvidó imputar este día y el mes ya está cerrado. ¿Podéis ponerme 8h?',
-        estado: 'pendiente'
-    }
-])
+const store = useDataStore()
+const currentUser = store.getCurrentUser()
+
+const solicitudes = ref([])
+const alertasVacaciones = ref([]) 
+const isLoading = ref(false)
 
 const toast = ref({ show: false, message: '', type: 'success' })
 let toastTimeout = null
@@ -36,21 +22,40 @@ let toastTimeout = null
 const showToast = (message, type = 'success') => {
     toast.value = { show: true, message, type }
     if (toastTimeout) clearTimeout(toastTimeout)
-    toastTimeout = setTimeout(() => {
-        toast.value.show = false
-    }, 3000)
+    toastTimeout = setTimeout(() => { toast.value.show = false }, 3000)
 }
 
-const confirmState = ref({ show: false, title: '', message: '', type: 'neutral', action: null, inputMode: false, inputValue: '' })
+const confirmState = ref({ show: false, title: '', message: '', type: 'neutral', action: null, inputMode: false })
 
 const solicitarConfirmacion = (title, message, type, callback, inputMode = false) => {
-    confirmState.value = { show: true, title, message, type, action: callback, inputMode, inputValue: '' }
+    confirmState.value = { show: true, title, message, type, action: callback, inputMode }
 }
 
-const ejecutarConfirmacion = () => {
-    if (confirmState.value.action) confirmState.value.action(confirmState.value.inputValue)
+const ejecutarConfirmacion = (valorInput) => {
+    if (confirmState.value.action) confirmState.value.action(valorInput)
     confirmState.value.show = false
 }
+
+const fetchValidations = async () => {
+    isLoading.value = true
+    try {
+        const response = await ManagerAPI.getValidations()
+        
+        if (response.data && response.data.solicitudes) {
+            solicitudes.value = response.data.solicitudes
+            alertasVacaciones.value = response.data.alertas_vacaciones || []
+        } else {
+            solicitudes.value = Array.isArray(response.data) ? response.data : []
+            alertasVacaciones.value = []
+        }
+    } catch (error) {
+        showToast("Error al cargar los datos", "error")
+    } finally {
+        isLoading.value = false
+    }
+}
+
+onMounted(() => { fetchValidations() })
 
 const solicitudSeleccionada = ref(null)
 const horasEditadas = ref(0)
@@ -58,7 +63,7 @@ const mostrarModal = ref(false)
 
 const abrirEditor = (solicitud) => {
     solicitudSeleccionada.value = solicitud
-    horasEditadas.value = solicitud.horasActuales
+    horasEditadas.value = solicitud.horasSolicitadas
     mostrarModal.value = true
 }
 
@@ -67,10 +72,15 @@ const cerrarModal = () => {
     solicitudSeleccionada.value = null
 }
 
-const guardarCorreccion = () => {
-    solicitudes.value = solicitudes.value.filter(s => s.id !== solicitudSeleccionada.value.id)
-    cerrarModal()
-    showToast(`Corrección aplicada correctamente`, 'success')
+const guardarCorreccion = async () => {
+    try {
+        await ManagerAPI.approveValidation(solicitudSeleccionada.value.id, horasEditadas.value, currentUser.id)
+        showToast(`Corrección aplicada correctamente`, 'success')
+        cerrarModal()
+        fetchValidations() 
+    } catch (error) {
+        showToast(error.response?.data?.error || `Error al guardar la corrección`, 'error')
+    }
 }
 
 const rechazarSolicitud = (id) => {
@@ -78,10 +88,15 @@ const rechazarSolicitud = (id) => {
         'Rechazar Solicitud',
         'Por favor, indica el motivo del rechazo para notificar al usuario:',
         'danger',
-        (motivo) => {
-            if (motivo) {
-                solicitudes.value = solicitudes.value.filter(s => s.id !== id)
-                showToast("Solicitud rechazada y notificada.", "success")
+        async (motivo) => {
+            if (motivo && motivo.trim() !== '') {
+                try {
+                    await ManagerAPI.rejectValidation(id, motivo, currentUser.id)
+                    showToast("Solicitud rechazada y notificada.", "success")
+                    fetchValidations() 
+                } catch (error) {
+                    showToast("Error al rechazar la solicitud.", "error")
+                }
             } else {
                 showToast("Debes indicar un motivo", "error")
             }
@@ -101,7 +116,40 @@ const rechazarSolicitud = (id) => {
         <p class="subtitle">Peticiones de usuarios para modificar horas en días cerrados o erróneos.</p>
     </div>
 
-    <div v-if="solicitudes.length > 0" class="grid gap-4">
+    <div v-if="alertasVacaciones.length > 0" class="bg-rose-50 border border-rose-200 p-4 rounded-xl shadow-sm shrink-0">
+        <h3 class="font-bold text-rose-700 flex items-center gap-2 mb-3">
+            <AlertTriangle class="w-5 h-5"/> ¡Atención! Exceso de vacaciones detectado
+        </h3>
+        <p class="text-sm text-rose-600 mb-4">Se ha detectado que 3 o más usuarios han solicitado vacaciones para los mismos días. Este es el orden en el que lo solicitaron:</p>
+        
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+            <div v-for="alerta in alertasVacaciones" :key="alerta.fecha" class="bg-white border border-rose-200 p-3 rounded-lg shadow-sm">
+                <div class="flex items-center gap-2 font-bold text-rose-700 mb-3 border-b border-rose-100 pb-2">
+                    <Calendar class="w-4 h-4"/> {{ alerta.fecha }}
+                    <span class="text-[10px] bg-rose-100 px-2 py-0.5 rounded-full ml-auto">{{ alerta.total }} personas</span>
+                </div>
+                <div class="flex flex-col gap-1.5">
+                    <div v-for="(user, idx) in alerta.usuarios" :key="idx" class="text-xs flex items-center gap-2" :class="idx === alerta.usuarios.length - 1 ? 'text-rose-700 font-bold' : 'text-slate-600'">
+                        <span class="w-4 h-4 rounded-full flex items-center justify-center text-[9px] font-black border shrink-0" 
+                              :class="idx === alerta.usuarios.length - 1 ? 'bg-rose-500 text-white border-rose-600' : 'bg-slate-100 text-slate-500 border-slate-200'">
+                            {{ idx + 1 }}
+                        </span>
+                        <span class="truncate" :title="user">{{ user }}</span>
+                        <span v-if="idx === alerta.usuarios.length - 1" class="text-[8px] uppercase bg-rose-100 text-rose-600 px-1.5 py-0.5 rounded ml-auto shrink-0 border border-rose-200">
+                            Último
+                        </span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div v-if="isLoading" class="flex-1 flex flex-col items-center justify-center">
+        <div class="animate-spin rounded-full h-10 w-10 border-b-2 border-primary mb-4"></div>
+        <p class="text-gray-500">Cargando solicitudes...</p>
+    </div>
+
+    <div v-else-if="solicitudes.length > 0" class="grid gap-4">
         <div v-for="solicitud in solicitudes" :key="solicitud.id" 
              class="card p-0 overflow-hidden flex flex-col md:flex-row shadow-md border-l-4 border-l-amber-400 group hover:shadow-lg transition">
             
@@ -115,14 +163,17 @@ const rechazarSolicitud = (id) => {
                         <p class="text-xs text-gray-500 font-mono">ID Solicitud: #{{ solicitud.id }}</p>
                     </div>
                 </div>
-                <div class="space-y-1">
-                    <div class="flex items-center gap-2 text-xs text-gray-500">
+                <div class="space-y-1 mt-2">
+                    <div class="flex items-center gap-2 text-xs text-gray-500 mb-1">
                         <Calendar class="w-3.5 h-3.5" />
                         <span class="font-bold text-dark">{{ solicitud.fecha }}</span>
                     </div>
-                    <div class="flex items-center gap-2 text-xs text-gray-500">
-                        <Clock class="w-3.5 h-3.5" />
-                        <span>Imputado actual: <b class="text-dark">{{ solicitud.horasActuales }}h</b></span>
+                    
+                    <div class="flex items-center gap-2 text-xs">
+                        <Clock class="w-3.5 h-3.5 text-gray-400" />
+                        <span class="text-gray-500 line-through">{{ solicitud.horasActuales }}h</span>
+                        <ArrowRight class="w-3 h-3 text-primary" />
+                        <span class="font-bold text-primary">{{ solicitud.horasSolicitadas }}h</span>
                     </div>
                 </div>
             </div>
@@ -162,7 +213,6 @@ const rechazarSolicitud = (id) => {
 
     <div v-if="mostrarModal" class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4">
         <div class="bg-white rounded-xl shadow-2xl w-full max-w-md overflow-hidden animate-in fade-in zoom-in duration-200">
-            
             <div class="bg-primary px-6 py-4 flex justify-between items-center">
                 <h3 class="text-lg font-bold text-white flex items-center gap-2">
                     <FileEdit class="w-5 h-5"/> Corregir Imputación
@@ -172,20 +222,20 @@ const rechazarSolicitud = (id) => {
 
             <div v-if="solicitudSeleccionada" class="p-6 space-y-4">
                 <div class="bg-gray-50 p-3 rounded border border-gray-200 text-sm space-y-1">
-                    <p><span class="font-bold text-gray-500 w--20 inline-block">Usuario:</span> {{ solicitudSeleccionada.usuario }}</p>
+                    <p><span class="font-bold text-gray-500 w-20 inline-block">Usuario:</span> {{ solicitudSeleccionada.usuario }}</p>
                     <p><span class="font-bold text-gray-500 w-20 inline-block">Proyecto:</span> {{ solicitudSeleccionada.proyecto }}</p>
                     <p><span class="font-bold text-gray-500 w-20 inline-block">Fecha:</span> {{ solicitudSeleccionada.fecha }}</p>
                 </div>
 
                 <div>
-                    <label class="label-std">Horas Correctas (Sobrescribir)</label>
-                    <div class="flex items-center gap-3">
-                        <input type="number" step="0.5" min="0" max="24" v-model="horasEditadas" 
+                    <label class="label-std">Horas Solicitadas (Aprobar o Editar)</label>
+                    <div class="flex items-center gap-3 mt-2">
+                        <input type="number" step="0.5" min="0" max="24" v-model.number="horasEditadas" 
                                class="input-std text-center text-lg font-bold w-32" />
                         <span class="text-sm text-gray-500">Horas</span>
                     </div>
                     <p class="text-xs text-gray-400 mt-2">
-                        Al guardar, se actualizará el registro del usuario y se marcará la solicitud como resuelta.
+                        Al guardar, se actualizará el registro con estas horas y se marcará como resuelta.
                     </p>
                 </div>
             </div>
@@ -199,43 +249,23 @@ const rechazarSolicitud = (id) => {
         </div>
     </div>
 
-    <div v-if="confirmState.show" class="fixed inset-0 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center z-[60] p-4">
-        <div class="bg-white w-full max-w-sm rounded-xl shadow-2xl p-6 animate-in zoom-in-95">
-            <div class="flex flex-col items-center text-center gap-3">
-                <div class="w-12 h-12 rounded-full flex items-center justify-center mb-2"
-                     :class="confirmState.type === 'danger' ? 'bg-red-100 text-red-600' : 'bg-amber-100 text-amber-600'">
-                    <component :is="confirmState.type === 'danger' ? Trash2 : AlertTriangle" class="w-6 h-6" />
-                </div>
-                <h3 class="text-lg font-bold text-slate-900">{{ confirmState.title }}</h3>
-                <p class="text-sm text-slate-500 leading-relaxed">{{ confirmState.message }}</p>
-                
-                <div v-if="confirmState.inputMode" class="w-full mt-2">
-                    <input v-model="confirmState.inputValue" type="text" placeholder="Motivo..." class="input-std w-full" autofocus>
-                </div>
+    <ConfirmModal 
+        :show="confirmState.show"
+        :title="confirmState.title"
+        :message="confirmState.message"
+        :type="confirmState.type"
+        :inputMode="confirmState.inputMode"
+        inputPlaceholder="Motivo del rechazo..."
+        @confirm="ejecutarConfirmacion"
+        @cancel="confirmState.show = false"
+    />
 
-                <div class="flex gap-3 w-full mt-4">
-                    <button @click="confirmState.show = false" class="btn-secondary flex-1 justify-center">Cancelar</button>
-                    <button @click="ejecutarConfirmacion" 
-                            class="flex-1 justify-center btn-primary"
-                            :class="confirmState.type === 'danger' ? 'bg-red-600 hover:bg-red-700' : 'bg-amber-600 hover:bg-amber-700'">
-                        Confirmar
-                    </button>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <transition enter-active-class="transform ease-out duration-300 transition" enter-from-class="translate-y-2 opacity-0 sm:translate-y-0 sm:translate-x-2" enter-to-class="translate-y-0 opacity-100 sm:translate-x-0" leave-active-class="transition ease-in duration-100" leave-from-class="opacity-100" leave-to-class="opacity-0">
-        <div v-if="toast.show" class="absolute bottom-6 right-6 z-50 flex items-center w-full max-w-xs p-4 space-x-3 text-gray-500 bg-white rounded-lg shadow-lg border border-gray-100" role="alert">
-            <div class="inline-flex items-center justify-center flex-shrink-0 w-8 h-8 rounded-lg" :class="toast.type === 'success' ? 'text-green-500 bg-green-100' : 'text-red-500 bg-red-100'">
-                <component :is="toast.type === 'success' ? CheckCircle2 : AlertCircle" class="w-5 h-5"/>
-            </div>
-            <div class="ml-3 text-sm font-bold text-gray-800">{{ toast.message }}</div>
-            <button @click="toast.show = false" type="button" class="ml-auto -mx-1.5 -my-1.5 bg-white text-gray-400 hover:text-gray-900 rounded-lg focus:ring-2 focus:ring-gray-300 p-1.5 hover:bg-gray-100 inline-flex h-8 w-8 items-center justify-center">
-                <X class="w-4 h-4"/>
-            </button>
-        </div>
-    </transition>
+    <ToastNotification
+        :show="toast.show"
+        :message="toast.message"
+        :type="toast.type"
+        @close="toast.show = false"
+    />
 
   </div>
 </template>

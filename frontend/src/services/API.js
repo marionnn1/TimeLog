@@ -1,8 +1,7 @@
 import axios from 'axios'
+import { msalInstance, graphScopes } from '../auth/AuthConfig'
 
-// Crea una instancia de Axios con la configuración base
 const api = axios.create({
-    // Lee la URL del .env o usa localhost por defecto
     baseURL: import.meta.env.VITE_API_URL || 'http://localhost:5000/api',
     headers: {
         'Content-Type': 'application/json',
@@ -10,15 +9,31 @@ const api = axios.create({
     }
 })
 
-// (Opcional) Interceptor para añadir el token de Azure en cada petición automáticamente
-/*
 api.interceptors.request.use(async (config) => {
-    // Aquí podrías inyectar el token si lo guardaras en localStorage
-    // const token = localStorage.getItem('msal_token')
-    // if (token) config.headers.Authorization = `Bearer ${token}`
+    try {
+        const activeAccount = msalInstance.getAllAccounts()[0]
+        if (activeAccount) {
+            const response = await msalInstance.acquireTokenSilent({
+                ...graphScopes,
+                account: activeAccount
+            })
+            config.headers.Authorization = `Bearer ${response.idToken}`
+        }
+    } catch (error) {
+        console.warn("Token no disponible")
+    }
     return config
 })
-*/
 
-// Exportamos una función que devuelve la instancia
-export default () => api
+api.interceptors.response.use(
+    (response) => response,
+    (error) => {
+        if (error.response && error.response.status === 401) {
+            localStorage.clear()
+            window.location.href = '/login'
+        }
+        return Promise.reject(error)
+    }
+)
+
+export default api

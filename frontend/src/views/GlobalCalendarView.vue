@@ -1,16 +1,19 @@
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { useDataStore } from '../stores/dataStore'
+import AbsencesAPI from '../services/AbsencesAPI'
+
 import { 
     Calendar as CalendarIcon, ChevronLeft, ChevronRight, 
-    AlertTriangle, UserPlus, X, Check, Palmtree, MapPin, Briefcase,
-    AlertCircle, CheckCircle2, Trash2
+    AlertTriangle, Plus, X, Check, Palmtree, MapPin, Briefcase,
+    AlertCircle, CheckCircle2, Trash2, Users
 } from 'lucide-vue-next'
+import ConfirmModal from '../components/common/ConfirmModal.vue'
+import ToastNotification from '../components/common/ToastNotification.vue'
 
 const store = useDataStore()
 const currentUser = store.getCurrentUser() 
 
-// --- SISTEMA DE NOTIFICACIONES (TOAST) ---
 const toast = ref({ show: false, message: '', type: 'success' })
 let toastTimeout = null
 
@@ -22,62 +25,117 @@ const showToast = (message, type = 'success') => {
     }, 3000)
 }
 
-// --- SISTEMA DE CONFIRMACIÓN ---
 const confirmState = ref({ show: false, title: '', message: '', type: 'neutral', action: null })
-
 const solicitarConfirmacion = (title, message, type, callback) => {
     confirmState.value = { show: true, title, message, type, action: callback }
 }
-
 const ejecutarConfirmacion = () => {
     if (confirmState.value.action) confirmState.value.action()
     confirmState.value.show = false
 }
 
-// --- FECHA Y CALENDARIO ---
 const currentDate = ref(new Date())
 const year = computed(() => currentDate.value.getFullYear())
 const month = computed(() => currentDate.value.getMonth())
 const monthNames = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"]
 
-// --- CONEXIÓN DE DATOS (LEER DEL STORE) ---
-const getAusenciasDia = (isoDate) => store.getAusenciasEquipoPorFecha(isoDate)
-const getMiAusencia = (isoDate) => store.getAusenciaPorFecha(isoDate, currentUser.id)
+const ausenciasDelMes = ref([])
+const resumenAnual = ref([])
 
-// --- MODAL ---
+const cargarAusencias = async () => {
+    if (!currentUser) return
+    try {
+        const mesApi = month.value + 1
+        const res = await AbsencesAPI.getAusenciasMes(mesApi, year.value)
+        if (res.status === 'success') {
+            ausenciasDelMes.value = res.data
+        }
+    } catch (e) {
+        console.error("Error al cargar ausencias:", e)
+    }
+}
+
+const cargarResumenAnual = async () => {
+    if (!currentUser) return
+    try {
+        const res = await AbsencesAPI.getResumenAnual(year.value)
+        if (res.status === 'success') {
+            resumenAnual.value = res.data
+        }
+    } catch(e) {
+        console.error("Error cargando resumen anual:", e)
+    }
+}
+
+watch([month, year], cargarAusencias)
+watch(year, cargarResumenAnual)
+
+onMounted(() => {
+    cargarAusencias()
+    cargarResumenAnual()
+})
+
+const getAusenciasDia = (isoDate) => ausenciasDelMes.value.filter(a => a.fecha === isoDate)
+const getMiAusencia = (isoDate) => getAusenciasDia(isoDate).find(a => a.userId === currentUser.id)
+
 const mostrarModal = ref(false)
+const tabActiva = ref('solicitar') 
+
 const form = ref({
     fechaInicio: '',
     fechaFin: '',
-    tipo: 'vacaciones', 
+    tipo: 'vacaciones',
+    comentario: ''
 })
 
-// --- ESTILOS VISUALES ---
-const getEstiloTipo = (tipo) => {
-    switch(tipo) {
-        case 'vacaciones': return 'bg-emerald-100 text-emerald-700 border-emerald-200'
-        case 'festivo': return 'bg-orange-100 text-orange-700 border-orange-200' 
-        case 'asuntos': return 'bg-blue-100 text-blue-700 border-blue-200'
-        default: return 'bg-gray-100'
-    }
+const minDateISO = computed(() => {
+    const d = new Date()
+    const offset = d.getTimezoneOffset() * 60000
+    return new Date(d.getTime() - offset).toISOString().split('T')[0]
+})
+
+const getMiEstiloTipo = (tipo) => {
+    const t = (tipo || '').toLowerCase()
+    if (t.includes('vacaciones')) return 'bg-emerald-500 text-white border-emerald-600 shadow-md ring-1 ring-emerald-300'
+    if (t.includes('festivo')) return 'bg-orange-500 text-white border-orange-600 shadow-md ring-1 ring-orange-300' 
+    if (t.includes('asuntos')) return 'bg-blue-500 text-white border-blue-600 shadow-md ring-1 ring-blue-300'
+    return 'bg-gray-700 text-white border-gray-800'
+}
+
+const getCompaneroEstiloTipo = (tipo) => {
+    const t = (tipo || '').toLowerCase()
+    if (t.includes('vacaciones')) return 'bg-emerald-50 text-emerald-700 border-emerald-200'
+    if (t.includes('festivo')) return 'bg-orange-50 text-orange-700 border-orange-200' 
+    if (t.includes('asuntos')) return 'bg-blue-50 text-blue-700 border-blue-200'
+    return 'bg-gray-50 text-gray-700 border-gray-200'
+}
+
+const getAvatarColor = (tipo) => {
+    const t = (tipo || '').toLowerCase()
+    if (t.includes('vacaciones')) return 'bg-emerald-500 text-white'
+    if (t.includes('festivo')) return 'bg-orange-500 text-white' 
+    if (t.includes('asuntos')) return 'bg-blue-500 text-white'
+    return 'bg-gray-500 text-white'
 }
 
 const getIconoTipo = (tipo) => {
-    switch(tipo) {
-        case 'vacaciones': return Palmtree
-        case 'festivo': return MapPin
-        case 'asuntos': return Briefcase
-    }
+    const t = (tipo || '').toLowerCase()
+    if (t.includes('vacaciones')) return Palmtree
+    if (t.includes('festivo')) return MapPin
+    return Briefcase
 }
 
-// --- CÁLCULOS CALENDARIO ---
+const formatShortDate = (isoString) => {
+    const d = new Date(isoString)
+    return d.toLocaleDateString('es-ES', { day: '2-digit', month: 'short' }).replace('.', '')
+}
+
 const daysInMonth = computed(() => {
     const days = new Date(year.value, month.value + 1, 0).getDate()
     return Array.from({ length: days }, (_, i) => {
         const d = new Date(year.value, month.value, i + 1)
         const offset = d.getTimezoneOffset() * 60000
         const isoDate = new Date(d.getTime() - offset).toISOString().split('T')[0]
-        
         return {
             dateObj: d, dayNum: i + 1, isoDate: isoDate,
             isWeekend: d.getDay() === 0 || d.getDay() === 6
@@ -90,50 +148,64 @@ const startPadding = computed(() => {
     return firstDay === 0 ? 6 : firstDay - 1 
 })
 
-// --- ACCIONES ---
-
 const abrirModal = (day) => {
     if (day.isWeekend) return
 
     const existing = getMiAusencia(day.isoDate)
+    
     if (existing) {
-        solicitarConfirmacion(
-            'Eliminar Ausencia',
-            `¿Estás seguro de eliminar tu ${existing.type} del día ${day.dayNum}?`,
-            'danger',
-            () => {
-                store.removeAusencia(day.isoDate, currentUser.id)
-                showToast('Ausencia eliminada correctamente', 'success')
-            }
-        )
-        return
+        tabActiva.value = 'eliminar'
+        form.value = { fechaInicio: day.isoDate, fechaFin: day.isoDate, tipo: existing.tipo, comentario: '' }
+    } else {
+        tabActiva.value = 'solicitar'
+        form.value = { fechaInicio: day.isoDate, fechaFin: day.isoDate, tipo: 'vacaciones', comentario: '' }
     }
-
-    form.value = {
-        fechaInicio: day.isoDate,
-        fechaFin: day.isoDate, 
-        tipo: 'vacaciones'
-    }
+    
     mostrarModal.value = true
 }
 
-const procesarSolicitud = (diasSolicitados) => {
-    diasSolicitados.forEach(date => {
-        store.addAusencia({
-            date: date,
-            userId: currentUser.id,
-            nombre: currentUser.nombre,
-            iniciales: currentUser.iniciales,
-            type: form.value.tipo
-        })
-    })
-    mostrarModal.value = false
-    showToast('Solicitud registrada con éxito', 'success')
+const procesarSolicitud = async (diasSolicitados) => {
+    try {
+        
+        if(diasSolicitados.length > 15){
+            showToast('No se pueden solicitar más de 15 dias seguidos','error')
+            return
+        }
+
+        const payload = {
+            usuario_id: currentUser.id,
+            fechas: diasSolicitados,
+            tipo: form.value.tipo,
+            comentario: form.value.comentario
+        }
+
+        
+        const res = await AbsencesAPI.crearAusencia(payload)
+        
+        if (res.status === 'success') {
+            mostrarModal.value = false
+            showToast('Solicitud registrada con éxito', 'success')
+            cargarAusencias()
+            cargarResumenAnual()
+        } else {
+            showToast('Error al guardar la solicitud', 'error')
+        }
+    } catch(e) {
+        showToast('Fallo en la conexión al servidor', 'error')
+        console.log(e)
+    }
 }
 
 const confirmarSolicitud = () => {
     const start = new Date(form.value.fechaInicio)
     const end = new Date(form.value.fechaFin)
+
+    const hoyObj = new Date()
+    hoyObj.setHours(0,0,0,0)
+    if (start < hoyObj) {
+        return showToast("No puedes pedir ausencias para días pasados.", "error")
+    }
+
     const diasSolicitados = []
 
     for(let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
@@ -168,15 +240,48 @@ const confirmarSolicitud = () => {
     procesarSolicitud(diasSolicitados)
 }
 
+const confirmarEliminacion = async () => {
+    const inicioStr = form.value.fechaInicio
+    const finStr = form.value.fechaFin
+
+    if (!inicioStr || !finStr) return showToast("Selecciona un rango válido", "error")
+
+    try {
+        const resCount = await AbsencesAPI.obtenerConteoRango(currentUser.id, inicioStr, finStr)
+        const count = resCount.count
+
+        if (count === 0) {
+            return showToast("No hay nada que eliminar en esas fechas", "info")
+        }
+
+        solicitarConfirmacion(
+            'Eliminar Ausencias',
+            `Vas a cancelar ${count} día(s) de tus ausencias registradas. ¿Estás seguro?`,
+            'danger',
+            async () => {
+                try {
+                    await AbsencesAPI.eliminarAusencia(currentUser.id, inicioStr, finStr)
+                    mostrarModal.value = false
+                    showToast('Ausencias eliminadas correctamente', 'success')
+                    await Promise.all([cargarAusencias(), cargarResumenAnual()])
+                } catch(e) {
+                    showToast('Error al eliminar', 'error')
+                }
+            }
+        )
+    } catch (e) {
+        showToast('Error al verificar días', 'error')
+    }
+}
 
 const prevMonth = () => currentDate.value = new Date(year.value, month.value - 1, 1)
 const nextMonth = () => currentDate.value = new Date(year.value, month.value + 1, 1)
 </script>
 
 <template>
-  <div class="h-full flex flex-col font-sans p-6 bg-slate-50 overflow-y-auto relative">
+  <div class="h-full flex flex-col font-sans p-6 bg-slate-50 overflow-y-auto relative pb-20">
     
-    <div class="flex justify-between items-center mb-6">
+    <div class="flex justify-between items-center mb-6 shrink-0">
         <div>
             <h1 class="h1-title flex items-center gap-2">
                 <CalendarIcon class="w-8 h-8 text-slate-400" /> 
@@ -198,13 +303,13 @@ const nextMonth = () => currentDate.value = new Date(year.value, month.value + 1
         </div>
     </div>
 
-    <div class="flex items-center justify-between bg-white p-4 rounded-t-xl border border-slate-200 border-b-0">
+    <div class="flex items-center justify-between bg-white p-4 rounded-t-xl border border-slate-200 border-b-0 shadow-sm shrink-0">
         <button @click="prevMonth" class="btn-ghost hover:bg-slate-100"><ChevronLeft/></button>
         <h2 class="text-xl font-bold text-slate-800 capitalize">{{ monthNames[month] }} {{ year }}</h2>
         <button @click="nextMonth" class="btn-ghost hover:bg-slate-100"><ChevronRight/></button>
     </div>
 
-    <div class="bg-white rounded-b-xl border border-slate-200 shadow-sm overflow-hidden select-none">
+    <div class="bg-white rounded-b-xl border border-slate-200 shadow-sm overflow-hidden select-none mb-8 shrink-0">
         
         <div class="grid grid-cols-7 bg-slate-50 border-b border-slate-200 text-center py-3">
             <div v-for="d in ['Lun','Mar','Mié','Jue','Vie','Sáb','Dom']" :key="d" 
@@ -214,12 +319,12 @@ const nextMonth = () => currentDate.value = new Date(year.value, month.value + 1
         </div>
 
         <div class="grid grid-cols-7 auto-rows-fr">
-            <div v-for="p in startPadding" :key="'pad-'+p" class="bg-slate-50/50 border-b border-r border-slate-100 min-h-[140px]"></div>
+            <div v-for="p in startPadding" :key="'pad-'+p" class="bg-slate-50/50 border-b border-r border-slate-100 min-h-[100px] xl:min-h-[120px]"></div>
 
             <div v-for="day in daysInMonth" :key="day.isoDate" 
                  @click="abrirModal(day)"
-                 class="relative border-b border-r border-slate-100 min-h-[140px] p-2 transition-all group hover:bg-slate-50 cursor-pointer"
-                 :class="{ 'bg-slate-50': day.isWeekend, 'bg-white': !day.isWeekend }">
+                 class="relative border-b border-r border-slate-100 min-h-[100px] xl:min-h-[120px] p-2 transition-all group hover:bg-slate-50 cursor-pointer"
+                 :class="{ 'bg-slate-50/50': day.isWeekend, 'bg-white': !day.isWeekend }">
                 
                 <div class="flex justify-between items-start mb-1">
                     <span class="text-sm font-bold" 
@@ -233,32 +338,33 @@ const nextMonth = () => currentDate.value = new Date(year.value, month.value + 1
                     </div>
                 </div>
 
-                <div v-if="getMiAusencia(day.isoDate)" 
-                     class="mb-2 p-1.5 rounded-md border text-xs font-bold flex items-center gap-1.5 animate-in zoom-in-95"
-                     :class="getEstiloTipo(getMiAusencia(day.isoDate).type)">
-                    <component :is="getIconoTipo(getMiAusencia(day.isoDate).type)" class="w-3 h-3" />
-                    <span class="capitalize">{{ getMiAusencia(day.isoDate).type }}</span>
-                </div>
+                <div class="flex flex-col gap-1 overflow-y-auto no-scrollbar max-h-[85px] pr-1 mt-1">
+                    <div v-for="aus in getAusenciasDia(day.isoDate)" :key="aus.userId"
+                         class="px-1.5 py-1 rounded text-[10px] font-bold flex items-center gap-1.5 truncate transition-all border"
+                         :class="aus.userId === currentUser.id ? getMiEstiloTipo(aus.tipo) : getCompaneroEstiloTipo(aus.tipo)"
+                         :title="`${aus.nombre} - ${aus.tipo} ${aus.comentario ? '('+aus.comentario+')' : ''}`">
+                        
+                        <template v-if="aus.userId === currentUser.id">
+                            <div class="w-3.5 h-3.5 rounded-full bg-white/20 flex items-center justify-center shrink-0">
+                                <component :is="getIconoTipo(aus.tipo)" class="w-2.5 h-2.5 text-white" />
+                            </div>
+                            <span class="truncate flex-1 uppercase tracking-wider">Tú - {{ aus.tipo }}</span>
+                        </template>
 
-                <div class="flex flex-wrap gap-1 content-start">
-                    <div v-for="aus in getAusenciasDia(day.isoDate)" :key="aus.userId">
-                        <div v-if="aus.userId !== currentUser.id" 
-                             class="w-6 h-6 rounded-full flex items-center justify-center text-[9px] font-bold border border-white shadow-sm ring-1 ring-white"
-                             :class="{
-                                 'bg-emerald-200 text-emerald-800': aus.type === 'vacaciones',
-                                 'bg-orange-200 text-orange-800': aus.type === 'festivo',
-                                 'bg-blue-200 text-blue-800': aus.type === 'asuntos'
-                             }"
-                             :title="`${aus.nombre} (${aus.type})`">
-                            {{ aus.iniciales }}
-                        </div>
+                        <template v-else>
+                            <div class="w-3.5 h-3.5 rounded-full flex items-center justify-center shrink-0 text-[7px]"
+                                 :class="getAvatarColor(aus.tipo)">
+                                {{ aus.iniciales }}
+                            </div>
+                            <span class="truncate flex-1">{{ aus.nombre }}</span>
+                        </template>
                     </div>
                 </div>
 
                 <div v-if="!day.isWeekend && !getMiAusencia(day.isoDate)" 
                      class="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity bg-slate-50/30">
                     <div class="bg-white rounded-full p-2 shadow-sm border border-slate-200 text-slate-400">
-                        <UserPlus class="w-5 h-5" />
+                        <Plus class="w-5 h-5 text-primary" />
                     </div>
                 </div>
 
@@ -266,28 +372,75 @@ const nextMonth = () => currentDate.value = new Date(year.value, month.value + 1
         </div>
     </div>
 
+    <div class="bg-white p-6 rounded-xl border border-slate-200 shadow-sm mt-4 shrink-0">
+        <h2 class="text-lg font-bold text-slate-800 mb-6 flex items-center gap-2">
+            <Users class="w-5 h-5 text-primary" />
+            Resumen Anual de Ausencias ({{ year }})
+        </h2>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+            <div v-for="user in resumenAnual" :key="user.nombre" class="p-5 rounded-xl border border-slate-100 bg-slate-50/50 hover:shadow-sm transition-all">
+                <div class="flex items-center gap-3 mb-4">
+                    <div class="w-10 h-10 rounded-full bg-slate-200 text-slate-700 font-bold flex items-center justify-center shadow-inner">
+                        {{ user.iniciales }}
+                    </div>
+                    <div>
+                        <h3 class="font-bold text-slate-800">{{ user.nombre }}</h3>
+                        <p class="text-xs text-slate-500">{{ user.dias.length }} días registrados</p>
+                    </div>
+                </div>
+
+                <div class="flex flex-wrap gap-1.5">
+                    <span v-for="dia in user.dias" :key="dia.fecha"
+                          class="px-2 py-1 rounded text-[10px] font-bold border flex items-center gap-1 cursor-default"
+                          :class="getCompaneroEstiloTipo(dia.tipo)"
+                          :title="dia.comentario || dia.tipo">
+                        {{ formatShortDate(dia.fecha) }}
+                    </span>
+                </div>
+            </div>
+        </div>
+
+        <div v-if="resumenAnual.length === 0" class="text-center py-10">
+            <p class="text-slate-400 font-medium">No hay ausencias registradas en todo el año.</p>
+        </div>
+    </div>
+
     <div v-if="mostrarModal" class="fixed inset-0 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center z-50 p-4">
         <div class="bg-white w-full max-w-md rounded-2xl shadow-2xl p-6 animate-in zoom-in-95">
             
-            <div class="flex justify-between items-center mb-6">
-                <h3 class="text-xl font-bold text-slate-800">Solicitar Días</h3>
+            <div class="flex justify-between items-center mb-4">
+                <h3 class="text-xl font-bold text-slate-800">Gestión de Ausencias</h3>
                 <button @click="mostrarModal=false" class="text-slate-400 hover:text-slate-600"><X class="w-6 h-6"/></button>
             </div>
 
-            <div class="space-y-6">
+            <div class="flex bg-slate-100 p-1 rounded-xl mb-6">
+                <button @click="tabActiva = 'solicitar'" 
+                        class="flex-1 py-2 rounded-lg text-sm font-bold transition-all" 
+                        :class="tabActiva === 'solicitar' ? 'bg-white shadow-sm text-primary' : 'text-slate-500 hover:text-slate-700'">
+                    Solicitar Días
+                </button>
+                <button @click="tabActiva = 'eliminar'" 
+                        class="flex-1 py-2 rounded-lg text-sm font-bold transition-all" 
+                        :class="tabActiva === 'eliminar' ? 'bg-white shadow-sm text-rose-600' : 'text-slate-500 hover:text-slate-700'">
+                    Cancelar Días
+                </button>
+            </div>
+
+            <div v-if="tabActiva === 'solicitar'" class="space-y-6">
                 <div class="grid grid-cols-2 gap-4">
                     <div>
-                        <label class="label-std">Desde</label>
-                        <input type="date" v-model="form.fechaInicio" class="input-std font-bold text-slate-700">
+                        <label class="block text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-2">Desde</label>
+                        <input type="date" v-model="form.fechaInicio" :min="minDateISO" class="w-full bg-slate-50 border border-slate-200 text-slate-800 rounded-lg px-3 py-2 font-bold focus:ring-2 focus:ring-primary outline-none">
                     </div>
                     <div>
-                        <label class="label-std">Hasta</label>
-                        <input type="date" v-model="form.fechaFin" class="input-std font-bold text-slate-700">
+                        <label class="block text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-2">Hasta</label>
+                        <input type="date" v-model="form.fechaFin" :min="form.fechaInicio || minDateISO" class="w-full bg-slate-50 border border-slate-200 text-slate-800 rounded-lg px-3 py-2 font-bold focus:ring-2 focus:ring-primary outline-none">
                     </div>
                 </div>
 
                 <div>
-                    <label class="label-std mb-2">Motivo de la Ausencia</label>
+                    <label class="block text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-2">Tipo de Ausencia</label>
                     <div class="grid grid-cols-3 gap-2">
                         <div @click="form.tipo = 'vacaciones'" 
                              class="cursor-pointer border rounded-xl p-3 flex flex-col items-center gap-2 transition-all"
@@ -299,7 +452,7 @@ const nextMonth = () => currentDate.value = new Date(year.value, month.value + 1
                              class="cursor-pointer border rounded-xl p-3 flex flex-col items-center gap-2 transition-all"
                              :class="form.tipo === 'festivo' ? 'border-orange-500 bg-orange-50 text-orange-700 ring-1 ring-orange-500' : 'border-slate-200 hover:border-slate-300 text-slate-500'">
                             <MapPin class="w-6 h-6" />
-                            <span class="text-[10px] font-bold uppercase">Festivo Local</span>
+                            <span class="text-[10px] font-bold uppercase">Festivo</span>
                         </div>
                         <div @click="form.tipo = 'asuntos'" 
                              class="cursor-pointer border rounded-xl p-3 flex flex-col items-center gap-2 transition-all"
@@ -310,46 +463,56 @@ const nextMonth = () => currentDate.value = new Date(year.value, month.value + 1
                     </div>
                 </div>
 
-                <button @click="confirmarSolicitud" class="w-full btn-primary py-3 justify-center text-base">
+                <div>
+                    <label class="block text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-2">Comentario (Opcional)</label>
+                    <input type="text" v-model="form.comentario" placeholder="Ej: Viaje a Londres..." maxlength="255"
+                           class="w-full bg-white border border-slate-200 text-slate-800 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-primary outline-none">
+                </div>
+
+                <button @click="confirmarSolicitud" class="w-full btn-primary py-3 justify-center text-base bg-primary text-white font-bold rounded-lg hover:bg-blue-700 shadow-md transition flex items-center">
                     <Check class="w-5 h-5 mr-2"/> Confirmar Solicitud
                 </button>
             </div>
+
+            <div v-else class="space-y-6">
+                <p class="text-sm text-slate-500 bg-rose-50 p-3 rounded-lg border border-rose-100 text-rose-800">
+                    Selecciona el rango de fechas en las que deseas <b>cancelar</b> tus ausencias. Solo se borrarán los días en los que tengas algo registrado.
+                </p>
+
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-2">Desde</label>
+                        <input type="date" v-model="form.fechaInicio" class="w-full bg-slate-50 border border-slate-200 text-slate-800 rounded-lg px-3 py-2 font-bold focus:ring-2 focus:ring-rose-500 outline-none">
+                    </div>
+                    <div>
+                        <label class="block text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-2">Hasta</label>
+                        <input type="date" v-model="form.fechaFin" class="w-full bg-slate-50 border border-slate-200 text-slate-800 rounded-lg px-3 py-2 font-bold focus:ring-2 focus:ring-rose-500 outline-none">
+                    </div>
+                </div>
+
+                <button @click="confirmarEliminacion" class="w-full btn-primary py-3 justify-center text-base bg-rose-500 text-white font-bold rounded-lg hover:bg-rose-600 shadow-md transition flex items-center">
+                    <Trash2 class="w-5 h-5 mr-2"/> Confirmar Eliminación
+                </button>
+            </div>
+
         </div>
     </div>
 
-    <div v-if="confirmState.show" class="fixed inset-0 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center z-[60] p-4">
-        <div class="bg-white w-full max-w-sm rounded-xl shadow-2xl p-6 animate-in zoom-in-95">
-            <div class="flex flex-col items-center text-center gap-3">
-                <div class="w-12 h-12 rounded-full flex items-center justify-center mb-2"
-                     :class="confirmState.type === 'danger' ? 'bg-red-100 text-red-600' : 'bg-amber-100 text-amber-600'">
-                    <component :is="confirmState.type === 'danger' ? Trash2 : AlertTriangle" class="w-6 h-6" />
-                </div>
-                <h3 class="text-lg font-bold text-slate-900">{{ confirmState.title }}</h3>
-                <p class="text-sm text-slate-500 leading-relaxed">{{ confirmState.message }}</p>
-                
-                <div class="flex gap-3 w-full mt-4">
-                    <button @click="confirmState.show = false" class="btn-secondary flex-1 justify-center">Cancelar</button>
-                    <button @click="ejecutarConfirmacion" 
-                            class="flex-1 justify-center btn-primary"
-                            :class="confirmState.type === 'danger' ? 'bg-red-600 hover:bg-red-700' : 'bg-amber-600 hover:bg-amber-700'">
-                        Confirmar
-                    </button>
-                </div>
-            </div>
-        </div>
-    </div>
+    <ConfirmModal 
+        :show="confirmState.show"
+        :title="confirmState.title"
+        :message="confirmState.message"
+        :type="confirmState.type"
+        @confirm="ejecutarConfirmacion"
+        @cancel="confirmState.show = false"
+    />
 
-    <transition enter-active-class="transform ease-out duration-300 transition" enter-from-class="translate-y-2 opacity-0 sm:translate-y-0 sm:translate-x-2" enter-to-class="translate-y-0 opacity-100 sm:translate-x-0" leave-active-class="transition ease-in duration-100" leave-from-class="opacity-100" leave-to-class="opacity-0">
-        <div v-if="toast.show" class="absolute bottom-6 right-6 z-50 flex items-center w-full max-w-xs p-4 space-x-3 text-gray-500 bg-white rounded-lg shadow-lg border border-gray-100">
-            <div class="inline-flex items-center justify-center flex-shrink-0 w-8 h-8 rounded-lg" :class="toast.type === 'success' ? 'text-green-500 bg-green-100' : 'text-red-500 bg-red-100'">
-                <component :is="toast.type === 'success' ? CheckCircle2 : AlertCircle" class="w-5 h-5"/>
-            </div>
-            <div class="ml-3 text-sm font-bold text-gray-800">{{ toast.message }}</div>
-            <button @click="toast.show = false" class="ml-auto -mx-1.5 -my-1.5 bg-white text-gray-400 hover:text-gray-900 rounded-lg focus:ring-2 focus:ring-gray-300 p-1.5 hover:bg-gray-100 inline-flex h-8 w-8 items-center justify-center">
-                <X class="w-4 h-4"/>
-            </button>
-        </div>
-    </transition>
+    <ToastNotification
+        :show="toast.show"
+        :message="toast.message"
+        :type="toast.type"
+        @close="toast.show = false"
+    />
 
   </div>
 </template>

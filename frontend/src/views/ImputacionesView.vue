@@ -1,7 +1,10 @@
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useDataStore } from '../stores/dataStore'
+import MyProjectsAPI from '../services/MyProjectsAPI'
+import AbsencesAPI from '../services/AbsencesAPI'
+
 import { 
   ChevronLeft, 
   ChevronRight, 
@@ -12,11 +15,13 @@ import {
   CheckCircle2,
   AlertCircle,
   X,
-  MessageSquare, // Icono para la solicitud
-  Send, // Icono para enviar
+  MessageSquare, 
+  Send, 
   Clock,
-  ArrowRight
+  ArrowRight,
+  Plus
 } from 'lucide-vue-next'
+import ToastNotification from '../components/common/ToastNotification.vue'
 
 const router = useRouter()
 const store = useDataStore()
@@ -32,31 +37,42 @@ const showToast = (message, type = 'success') => {
     }, 3000)
 }
 
-const getInfoDia = (date) => {
-  const currentUser = store.getCurrentUser()
-  if (!currentUser) return null
+const ausenciasPersonales = ref([])
 
-  const offset = date.getTimezoneOffset() * 60000
-  const isoDate = new Date(date.getTime() - offset).toISOString().split('T')[0]
-  
-  const ausencia = store.getAusenciaPorFecha(isoDate, currentUser.id)
-  
-  if (!ausencia) return null
-  
-  const mapLabels = {
-      'vacaciones': 'Vacaciones',
-      'festivo': 'Festivo',
-      'asuntos': 'Asuntos P.'
-  }
-  
-  return {
-      tipo: ausencia.type, 
-      label: mapLabels[ausencia.type] || 'Ausencia'
-  }
+const cargarAusenciasAPI = async () => {
+    const user = store.getCurrentUser()
+    if (!user) return
+    try {
+        const mesReal = mesActualIndex.value + 1
+        const res = await AbsencesAPI.getAusenciasMes(mesReal, anioActual.value)
+        if (res.status === 'success') {
+            ausenciasPersonales.value = res.data.filter(a => String(a.userId) === String(user.id))
+        }
+    } catch (e) {
+        console.error(e)
+    }
 }
 
-const getTipoDia = (date) => getInfoDia(date)?.tipo
-const getLabelDia = (date) => getInfoDia(date)?.label
+const ausenciasMesMap = computed(() => {
+    const map = {}
+    ausenciasPersonales.value.forEach(a => {
+        map[a.fecha] = (a.tipo === 'asuntos' || a.tipo === 'asuntos_propios') ? 'asuntos' : a.tipo
+    })
+    return map
+})
+
+const getTipoDia = (dateObj) => {
+    const offset = dateObj.getTimezoneOffset() * 60000
+    const iso = new Date(dateObj.getTime() - offset).toISOString().split('T')[0]
+    return ausenciasMesMap.value[iso] || null
+}
+
+const getLabelDia = (dateObj) => {
+    const tipo = getTipoDia(dateObj)
+    if (!tipo) return null
+    if (tipo === 'asuntos') return 'Asuntos P.'
+    return tipo.charAt(0).toUpperCase() + tipo.slice(1)
+}
 
 const fechaActual = ref(new Date()) 
 const hoy = new Date() 
@@ -82,17 +98,75 @@ const esFinDeSemana = (dia) => {
 }
 const esHoy = (dia) => dia === hoy.getDate() && mesActualIndex.value === hoy.getMonth() && anioActual.value === hoy.getFullYear()
 
+const esPasado = (dia) => {
+    const fecha = new Date(anioActual.value, mesActualIndex.value, dia)
+    const hoyTrunc = new Date()
+    hoyTrunc.setHours(0,0,0,0)
+    return fecha < hoyTrunc && !esFinDeSemana(dia) && !getTipoDia(fecha)
+}
+
 const mesAnterior = () => fechaActual.value = new Date(anioActual.value, mesActualIndex.value - 1, 1)
 const mesSiguiente = () => fechaActual.value = new Date(anioActual.value, mesActualIndex.value + 1, 1)
 const irAHoy = () => fechaActual.value = new Date()
 
-const imputaciones = ref([
-  { dia: 5, cliente: 'Banco Santander', codigo: 'SAN-001', proyecto: 'Auditoría Backend', horas: 8, color: 'bg-blue-50 text-blue-700 border-blue-100 hover:bg-blue-100' },
-  { dia: 6, cliente: 'Mapfre', codigo: 'MAP-220', proyecto: 'Migración Cloud', horas: 4, color: 'bg-cyan-50 text-cyan-800 border-cyan-100 hover:bg-cyan-100' },
-  { dia: 6, cliente: 'Interno', codigo: 'INT-999', proyecto: 'Formación Vue 3', horas: 4, color: 'bg-gray-50 text-gray-700 border-gray-200 hover:bg-gray-100' },
-  { dia: 12, cliente: 'Inditex', codigo: 'ITX-554', proyecto: 'API TPV', horas: 8.5, color: 'bg-fuchsia-50 text-fuchsia-800 border-fuchsia-100 hover:bg-fuchsia-100' },
-  { dia: 20, cliente: 'Banco Santander', codigo: 'SAN-001', proyecto: 'Auditoría Backend', horas: 4, color: 'bg-blue-50 text-blue-700 border-blue-100 hover:bg-blue-100' },
-])
+const imputaciones = ref([])
+const proyectosDisponibles = ref([])
+
+const coloresProyectos = [
+    'bg-blue-50 text-blue-700 border-blue-100 hover:bg-blue-100',
+    'bg-cyan-50 text-cyan-800 border-cyan-100 hover:bg-cyan-100',
+    'bg-emerald-50 text-emerald-800 border-emerald-100 hover:bg-emerald-100',
+    'bg-fuchsia-50 text-fuchsia-800 border-fuchsia-100 hover:bg-fuchsia-100',
+    'bg-amber-50 text-amber-800 border-amber-100 hover:bg-amber-100',
+    'bg-indigo-50 text-indigo-700 border-indigo-100 hover:bg-indigo-100'
+]
+
+const cargarProyectosActivos = async () => {
+    try {
+        const res = await MyProjectsAPI.getProyectosActivos()
+        if (res.status === 'success') {
+            proyectosDisponibles.value = res.data.filter(p => p.Estado === 'Activo')
+        }
+    } catch (e) {
+        console.error(e)
+    }
+}
+
+const cargarCalendario = async () => {
+    const user = store.getCurrentUser()
+    if (!user) return
+    
+    try {
+        const mesReal = mesActualIndex.value + 1
+        const res = await MyProjectsAPI.getCalendarioMensual(user.id, mesReal, anioActual.value)
+        
+        if (res.status === 'success') {
+            imputaciones.value = res.data.map(imp => {
+                const colorAsignado = coloresProyectos[imp.proyecto_id % coloresProyectos.length]
+                return {
+                    dia: imp.dia,
+                    cliente: imp.cliente,
+                    codigo: `PRJ-${String(imp.proyecto_id).padStart(3, '0')}`,
+                    proyecto: imp.proyecto,
+                    proyecto_id: imp.proyecto_id,
+                    horas: imp.horas,
+                    color: colorAsignado
+                }
+            })
+        }
+    } catch (e) {}
+}
+
+watch([mesActualIndex, anioActual], () => {
+    cargarCalendario()
+    cargarAusenciasAPI() 
+})
+
+onMounted(() => {
+    cargarCalendario()
+    cargarAusenciasAPI()
+    cargarProyectosActivos()
+})
 
 const getImputacionesPorDia = (dia) => imputaciones.value.filter(imp => imp.dia === dia)
 const getTotalHoras = (dia) => getImputacionesPorDia(dia).reduce((acc, curr) => acc + curr.horas, 0)
@@ -102,12 +176,7 @@ const resumenProyectos = computed(() => {
   imputaciones.value.forEach(imp => {
     const key = imp.codigo
     if (!grupos[key]) {
-      grupos[key] = {
-        cliente: imp.cliente,
-        codigo: imp.codigo,
-        proyecto: imp.proyecto,
-        horas: 0
-      }
+      grupos[key] = { cliente: imp.cliente, codigo: imp.codigo, proyecto: imp.proyecto, horas: 0 }
     }
     grupos[key].horas += imp.horas
   })
@@ -118,104 +187,108 @@ const totalHorasMes = computed(() => {
   return imputaciones.value.reduce((acc, curr) => acc + curr.horas, 0)
 })
 
-const irAlDashboard = (dia) => {
-  const fechaDestino = new Date(anioActual.value, mesActualIndex.value, dia)
-  const offset = fechaDestino.getTimezoneOffset()
-  const fechaLocal = new Date(fechaDestino.getTime() - (offset*60*1000))
-  router.push({ name: 'dashboard', query: { fecha: fechaLocal.toISOString().split('T')[0] } })
-}
-
 const exportarDatos = () => {
     const headers = ['Fecha', 'Cliente', 'Código Proyecto', 'Proyecto', 'Horas']
     const rows = imputaciones.value.map(imp => {
         const fechaStr = `${imp.dia}/${mesActualIndex.value + 1}/${anioActual.value}`
-        return [fechaStr, imp.cliente, imp.codigo, imp.proyecto, imp.horas]
+        return [fechaStr, `"${imp.cliente}"`, imp.codigo, `"${imp.proyecto}"`, imp.horas]
     })
-
-    const csvContent = [
-        headers.join(';'),
-        ...rows.map(row => row.join(';'))
-    ].join('\n')
-
+    const csvContent = [headers.join(';'), ...rows.map(row => row.join(';'))].join('\n')
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
     const url = URL.createObjectURL(blob)
     const link = document.createElement('a')
     link.setAttribute('href', url)
     link.setAttribute('download', `imputaciones_${nombreMes.value}_${anioActual.value}.csv`)
     document.body.appendChild(link)
-    
     link.click()
     document.body.removeChild(link)
-
     showToast('Informe exportado correctamente', 'success')
 }
 
-// --- SOLICITUD DE CAMBIOS ---
 const mostrarModalSolicitud = ref(false)
 const formSolicitud = ref({
-    fecha: '',
-    proyecto: '',
-    mensaje: '',
-    horasActuales: 0,
-    horasNuevas: 0
+    fechaVisible: '', fechaISO: '', proyecto: '', proyecto_id: '', mensaje: '', horasActuales: 0, horasNuevas: 0, esNuevo: false
 })
 
 const abrirSolicitud = (imputacion, dia) => {
-    const fecha = new Date(anioActual.value, mesActualIndex.value, dia).toLocaleDateString('es-ES', {
-        weekday: 'long', year: 'numeric', month: 'long', day: 'numeric'
-    })
+    const fechaObj = new Date(anioActual.value, mesActualIndex.value, dia)
+    if (getTipoDia(fechaObj)) return showToast(`No puedes modificar horas en un día de ${getLabelDia(fechaObj)}.`, 'error')
+
+    const offset = fechaObj.getTimezoneOffset() * 60000
+    const isoDate = new Date(fechaObj.getTime() - offset).toISOString().split('T')[0]
     
     formSolicitud.value = {
-        fecha: fecha,
-        proyecto: imputacion.proyecto,
-        mensaje: '',
-        horasActuales: imputacion.horas,
-        horasNuevas: imputacion.horas
+        fechaVisible: fechaObj.toLocaleDateString('es-ES', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }), 
+        fechaISO: isoDate, proyecto: imputacion.proyecto, proyecto_id: imputacion.proyecto_id,
+        mensaje: '', horasActuales: imputacion.horas, horasNuevas: imputacion.horas, esNuevo: false
     }
     mostrarModalSolicitud.value = true
 }
 
-const enviarSolicitudJefe = () => {
-    if (!formSolicitud.value.mensaje) {
-        showToast('Debes escribir un motivo para la solicitud', 'error')
-        return;
+const abrirSolicitudNueva = (dia) => {
+    const fechaObj = new Date(anioActual.value, mesActualIndex.value, dia)
+    const offset = fechaObj.getTimezoneOffset() * 60000
+    const isoDate = new Date(fechaObj.getTime() - offset).toISOString().split('T')[0]
+
+    formSolicitud.value = {
+        fechaVisible: fechaObj.toLocaleDateString('es-ES', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }), 
+        fechaISO: isoDate, proyecto: '', proyecto_id: '',
+        mensaje: '', horasActuales: 0, horasNuevas: 8, esNuevo: true 
     }
-    mostrarModalSolicitud.value = false
-    showToast('Solicitud enviada al Jefe de Proyecto', 'success')
+    mostrarModalSolicitud.value = true
+}
+
+const enviarSolicitudJefe = async () => {
+    if (formSolicitud.value.esNuevo && !formSolicitud.value.proyecto_id) return showToast('Debes seleccionar a qué proyecto quieres imputar', 'error')
+    if (!formSolicitud.value.mensaje) return showToast('Debes escribir un motivo para la solicitud', 'error')
+    
+    const user = store.getCurrentUser()
+    if (!user) return;
+
+    try {
+        const payload = {
+            usuario_id: user.id, 
+            proyecto_id: formSolicitud.value.proyecto_id, 
+            fecha: formSolicitud.value.fechaISO,
+            nuevas_horas: formSolicitud.value.horasNuevas, 
+            motivo: formSolicitud.value.mensaje
+        }
+        
+        const res = await MyProjectsAPI.solicitarCorreccion(payload)
+        
+        mostrarModalSolicitud.value = false
+        showToast(res.message || 'Solicitud enviada al responsable', 'success')
+        cargarCalendario() 
+        
+    } catch (error) {
+        showToast(error.response?.data?.error || 'Fallo en la conexión con el servidor', 'error')
+    }
 }
 </script>
 
 <template>
-  <div class="h-full flex flex-col font-sans bg-gray-50 p-6 overflow-y-auto relative">
+  <div class="h-full flex flex-col font-sans bg-gray-50 p-6 gap-6 overflow-y-auto relative">
     
-    <div class="flex justify-between items-center mb-6">
-      <div class="flex items-center gap-4">
-        <h1 class="text-3xl font-bold capitalize flex items-center gap-3 text-dark">
-          <div class="p-2 rounded-lg bg-white shadow-sm border border-gray-100">
+    <div class="flex justify-between items-center shrink-0">
+      <div class="flex items-center">
+        
+        <h1 class="text-3xl font-bold capitalize flex items-center gap-3 text-dark w-[350px]">
+          <div class="p-2 rounded-lg bg-white shadow-sm border border-gray-100 shrink-0">
             <CalendarIcon class="w-6 h-6 text-primary"/>
           </div>
-          {{ nombreMes }} <span class="font-light opacity-50">{{ anioActual }}</span>
+          <span>{{ nombreMes }} <span class="font-light opacity-50">{{ anioActual }}</span></span>
         </h1>
         
-        <div class="flex items-center bg-white rounded-lg shadow-sm border border-gray-200 ml-6">
-          <button @click="mesAnterior" class="p-2 hover:bg-gray-50 text-gray-600 rounded-l-lg border-r border-gray-200 transition">
-              <ChevronLeft class="w-5 h-5" />
-          </button>
-          <button @click="irAHoy" class="px-4 py-2 text-xs font-bold tracking-widest hover:bg-gray-50 transition uppercase text-dark">
-              Hoy
-          </button>
-          <button @click="mesSiguiente" class="p-2 hover:bg-gray-50 text-gray-600 rounded-r-lg border-l border-gray-200 transition">
-              <ChevronRight class="w-5 h-5" />
-          </button>
+        <div class="flex items-center bg-white rounded-lg shadow-sm border border-gray-200 shrink-0">
+          <button @click="mesAnterior" class="p-2 hover:bg-gray-50 text-gray-600 rounded-l-lg border-r border-gray-200 transition"><ChevronLeft class="w-5 h-5" /></button>
+          <button @click="irAHoy" class="w-20 py-2 text-xs font-bold tracking-widest hover:bg-gray-50 transition uppercase text-dark text-center">Hoy</button>
+          <button @click="mesSiguiente" class="p-2 hover:bg-gray-50 text-gray-600 rounded-r-lg border-l border-gray-200 transition"><ChevronRight class="w-5 h-5" /></button>
         </div>
+        
       </div>
-      
-      <button @click="exportarDatos" class="btn-secondary">
-        <FileText class="w-4 h-4"/> Exportar
-      </button>
+      <button @click="exportarDatos" class="btn-secondary"><FileText class="w-4 h-4"/> Exportar</button>
     </div>
-
-    <div class="bg-white p-3 rounded-lg border border-gray-200 shadow-sm mb-4 flex flex-wrap items-center gap-4 text-xs font-medium">
+    <div class="bg-white p-3 rounded-lg border border-gray-200 shadow-sm shrink-0 flex flex-wrap items-center gap-4 text-xs font-medium">
         <span class="uppercase text-gray-400 tracking-wider mr-2 font-bold">Leyenda:</span>
         <div class="flex items-center gap-2 px-2 py-1 rounded-md bg-gray-50 border border-gray-100">
             <div class="w-2.5 h-2.5 rounded-full bg-white border border-gray-300"></div><span class="text-gray-600">Laborable</span>
@@ -231,7 +304,7 @@ const enviarSolicitudJefe = () => {
         </div>
     </div>
 
-    <div class="card p-0 overflow-hidden mb-8 flex-none shadow-xl">
+    <div class="card p-0 overflow-hidden flex-none shadow-xl">
       <div class="grid grid-cols-7 border-b border-gray-200">
         <div v-for="dia in diasSemana.slice(0, 5)" :key="dia" class="py-4 text-center text-xs font-bold uppercase tracking-widest bg-white text-dark">{{ dia }}</div>
         <div v-for="dia in diasSemana.slice(5, 7)" :key="dia" class="py-4 text-center text-xs font-bold uppercase tracking-widest text-white/90 bg-dark">{{ dia }}</div>
@@ -240,28 +313,42 @@ const enviarSolicitudJefe = () => {
       <div class="grid grid-cols-7 auto-rows-fr">
         <div v-for="blank in diasEnBlanco" :key="`blank-${blank}`" class="bg-gray-50/50 border-b border-r border-gray-100"></div>
         <div v-for="dia in diasDelMes" :key="dia" 
-             class="min-h-[100px] p-2 border-b border-r border-gray-100 transition relative flex flex-col gap-1"
+             class="min-h-[100px] p-2 border-b border-r border-gray-100 transition relative flex flex-col gap-1 group"
              :class="[
                esFinDeSemana(dia) ? 'bg-slate-100 cursor-default' : 'bg-white',
                getTipoDia(new Date(anioActual, mesActualIndex, dia)) === 'festivo' ? 'bg-orange-50/40' : '',
                getTipoDia(new Date(anioActual, mesActualIndex, dia)) === 'vacaciones' ? 'bg-emerald-50/40' : '',
                getTipoDia(new Date(anioActual, mesActualIndex, dia)) === 'asuntos' ? 'bg-blue-50/40' : '',
-             ]"
-        >
-          <div class="flex justify-between items-start mb-2">
+             ]">
+          <div class="flex justify-between items-start mb-2 shrink-0">
             <span class="text-sm font-bold w-7 h-7 flex items-center justify-center rounded-full"
-                  :class="esHoy(dia) ? 'bg-primary text-white' : (esFinDeSemana(dia) ? 'text-slate-400' : 'text-dark')">
-              {{ dia }}
-            </span>
-            <span v-if="getTotalHoras(dia) > 0" class="text-[10px] font-bold px-2 py-0.5 rounded border bg-blue-50 text-dark border-blue-100">
-              {{ getTotalHoras(dia) }}h
-            </span>
+                  :class="esHoy(dia) ? 'bg-primary text-white' : (esFinDeSemana(dia) ? 'text-slate-400' : 'text-dark')">{{ dia }}</span>
+            
+            <div class="flex items-center gap-1">
+                <button v-if="esPasado(dia)" @click.stop="abrirSolicitudNueva(dia)" 
+                        class="opacity-0 group-hover:opacity-100 text-blue-600 bg-blue-50 hover:bg-blue-100 p-1 rounded-md transition-all" 
+                        title="Reclamar horas olvidadas">
+                    <Plus class="w-3.5 h-3.5" />
+                </button>
+                <span v-if="getTotalHoras(dia) > 0" class="text-[10px] font-bold px-2 py-0.5 rounded border bg-blue-50 text-dark border-blue-100">{{ getTotalHoras(dia) }}h</span>
+            </div>
           </div>
 
-          <div v-if="!esFinDeSemana(dia)">
+          <div v-if="getTipoDia(new Date(anioActual, mesActualIndex, dia))" class="flex-1 flex items-center justify-center mt-2 shrink-0">
+              <span class="text-[10px] font-bold uppercase tracking-widest px-2 py-1 rounded w-full text-center border shadow-sm"
+                    :class="{
+                        'text-emerald-700 bg-emerald-100/80 border-emerald-200': getTipoDia(new Date(anioActual, mesActualIndex, dia)) === 'vacaciones',
+                        'text-orange-700 bg-orange-100/80 border-orange-200': getTipoDia(new Date(anioActual, mesActualIndex, dia)) === 'festivo',
+                        'text-blue-700 bg-blue-100/80 border-blue-200': getTipoDia(new Date(anioActual, mesActualIndex, dia)) === 'asuntos'
+                    }">
+                  {{ getLabelDia(new Date(anioActual, mesActualIndex, dia)) }}
+              </span>
+          </div>
+
+          <div v-else-if="!esFinDeSemana(dia)" class="flex-1 overflow-y-auto scrollbar-thin pr-1">
              <div v-for="(item, idx) in getImputacionesPorDia(dia)" :key="idx" 
                   @click.stop="abrirSolicitud(item, dia)"
-                  class="text-[10px] p-1.5 rounded border-l-2 mb-1 truncate shadow-sm cursor-pointer transition transform hover:scale-105 flex justify-between items-center group"
+                  class="text-[10px] p-1.5 rounded border-l-2 mb-1 truncate shadow-sm cursor-pointer transition-all hover:brightness-95 hover:shadow-md flex justify-between items-center"
                   :class="item.color">
                <span class="truncate font-semibold">{{ item.proyecto }}</span>
                <span class="font-bold opacity-80 ml-1">{{ item.horas }}h</span>
@@ -271,24 +358,19 @@ const enviarSolicitudJefe = () => {
       </div>
     </div>
 
-    <div class="card p-0 overflow-hidden shadow-lg">
-        <div class="px-6 py-4 border-b border-gray-200 bg-gray-50/50 flex justify-between items-center">
-            <h2 class="font-bold text-lg text-dark flex items-center gap-2">
-                <FileText class="w-5 h-5 text-primary" />
-                Resumen de Proyectos
-            </h2>
+    <div class="card p-0 flex flex-col flex-1 overflow-hidden shadow-lg min-h-[250px]">
+        <div class="px-6 py-4 border-b border-gray-200 bg-gray-50/50 flex justify-between items-center shrink-0">
+            <h2 class="font-bold text-lg text-dark flex items-center gap-2"><FileText class="w-5 h-5 text-primary" /> Resumen de Proyectos</h2>
             <div class="flex items-center gap-2">
                 <span class="text-sm font-bold text-gray-500 uppercase tracking-wide">Total Mes:</span>
-                <span class="text-lg font-bold text-dark bg-blue-50 px-3 py-1 rounded-lg border border-blue-100">
-                    {{ totalHorasMes }}h
-                </span>
+                <span class="text-lg font-bold text-dark bg-blue-50 px-3 py-1 rounded-lg border border-blue-100">{{ totalHorasMes }}h</span>
             </div>
         </div>
 
-        <div class="overflow-x-auto">
+        <div class="overflow-auto flex-1 scrollbar-thin">
             <table class="w-full text-left border-collapse">
-                <thead>
-                    <tr class="bg-white text-xs uppercase tracking-wider border-b-2 border-gray-100 text-dark">
+                <thead class="bg-white sticky top-0 z-10 shadow-sm">
+                    <tr class="text-xs uppercase tracking-wider border-b-2 border-gray-100 text-dark">
                         <th class="px-6 py-3 font-bold">Cliente</th>
                         <th class="px-6 py-3 font-bold">Cód. Proyecto</th>
                         <th class="px-6 py-3 font-bold">Proyecto / Tarea</th>
@@ -297,29 +379,12 @@ const enviarSolicitudJefe = () => {
                 </thead>
                 <tbody class="text-sm text-gray-700 divide-y divide-gray-50">
                     <tr v-for="(item, index) in resumenProyectos" :key="index" class="hover:bg-blue-50/10 transition">
-                        <td class="px-6 py-3">
-                            <div class="flex items-center gap-2 font-medium text-dark">
-                                <Briefcase class="w-3.5 h-3.5 text-gray-400"/>
-                                <span>{{ item.cliente }}</span>
-                            </div>
-                        </td>
-                        <td class="px-6 py-3">
-                            <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-gray-100 text-gray-600 text-xs font-mono border border-gray-200">
-                                <Hash class="w-3 h-3 opacity-50"/> {{ item.codigo }}
-                            </span>
-                        </td>
+                        <td class="px-6 py-3"><div class="flex items-center gap-2 font-medium text-dark"><Briefcase class="w-3.5 h-3.5 text-gray-400"/><span>{{ item.cliente }}</span></div></td>
+                        <td class="px-6 py-3"><span class="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-gray-100 text-gray-600 text-xs font-mono border border-gray-200"><Hash class="w-3 h-3 opacity-50"/> {{ item.codigo }}</span></td>
                         <td class="px-6 py-3 font-medium">{{ item.proyecto }}</td>
-                        <td class="px-6 py-3 text-center">
-                            <span class="inline-flex items-center gap-1 font-bold text-dark bg-blue-50 px-3 py-1 rounded-full border border-blue-100 min-w-[3rem] justify-center">
-                                {{ item.horas }}h
-                            </span>
-                        </td>
+                        <td class="px-6 py-3 text-center"><span class="inline-flex items-center gap-1 font-bold text-dark bg-blue-50 px-3 py-1 rounded-full border border-blue-100 min-w-[3rem] justify-center">{{ item.horas }}h</span></td>
                     </tr>
-                    <tr v-if="resumenProyectos.length === 0">
-                        <td colspan="4" class="px-6 py-8 text-center text-gray-400 italic">
-                            No hay imputaciones registradas este mes.
-                        </td>
-                    </tr>
+                    <tr v-if="resumenProyectos.length === 0"><td colspan="4" class="px-6 py-8 text-center text-gray-400 italic">No hay imputaciones registradas este mes.</td></tr>
                 </tbody>
             </table>
         </div>
@@ -328,92 +393,59 @@ const enviarSolicitudJefe = () => {
     <div v-if="mostrarModalSolicitud" class="fixed inset-0 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center z-50 p-4">
         <div class="bg-white w-full max-w-md rounded-xl shadow-2xl p-6 animate-in zoom-in-95">
             <div class="flex justify-between items-center mb-6 border-b border-gray-100 pb-3">
-                <h3 class="text-lg font-bold text-dark flex items-center gap-2">
-                    <MessageSquare class="w-5 h-5 text-primary"/> Solicitar Corrección
-                </h3>
-                <button @click="mostrarModalSolicitud = false" class="text-gray-400 hover:text-red-500 transition">
-                    <X class="w-5 h-5"/>
-                </button>
+                <h3 class="text-lg font-bold text-dark flex items-center gap-2"><MessageSquare class="w-5 h-5 text-primary"/> Solicitar Corrección</h3>
+                <button @click="mostrarModalSolicitud = false" class="text-gray-400 hover:text-red-500 transition"><X class="w-5 h-5"/></button>
             </div>
-
             <div class="space-y-5">
                 <div class="p-3 bg-gray-50 rounded-lg border border-gray-200 text-sm">
-                    <p class="text-gray-500 font-bold mb-1 flex items-center gap-2"><CalendarIcon class="w-4 h-4"/> {{ formSolicitud.fecha }}</p>
-                    <p class="text-primary font-bold flex items-center gap-2"><Briefcase class="w-4 h-4"/> {{ formSolicitud.proyecto }}</p>
+                    <p class="text-gray-500 font-bold mb-2 flex items-center gap-2"><CalendarIcon class="w-4 h-4"/> {{ formSolicitud.fechaVisible }}</p>
+                    
+                    <div v-if="formSolicitud.esNuevo" class="mt-2">
+                        <label class="block text-[10px] font-black text-gray-400 uppercase mb-1">Elige un proyecto</label>
+                        <select v-model="formSolicitud.proyecto_id" class="w-full border border-gray-300 rounded-lg p-2 font-medium text-sm text-dark outline-none focus:border-primary bg-white shadow-sm cursor-pointer">
+                            <option value="" disabled>Selecciona el proyecto...</option>
+                            <option v-for="p in proyectosDisponibles" :key="p.Id" :value="p.Id">{{ p.Nombre }} ({{ p.Cliente || 'Sin Cliente' }})</option>
+                        </select>
+                    </div>
+                    <p v-else class="text-primary font-bold flex items-center gap-2 mt-1"><Briefcase class="w-4 h-4"/> {{ formSolicitud.proyecto }}</p>
                 </div>
 
                 <div class="flex items-center justify-between gap-4">
                     <div class="flex-1 text-center">
-                        <label class="block text-[10px] font-black text-gray-400 uppercase mb-1">Horas Imputadas</label>
-                        <div class="h-12 flex items-center justify-center bg-gray-100 rounded-xl border border-gray-200 text-gray-500 font-bold">
-                            {{ formSolicitud.horasActuales }}h
-                        </div>
+                        <label class="block text-[10px] font-black text-gray-400 uppercase mb-1">Horas Actuales</label>
+                        <div class="h-12 flex items-center justify-center bg-gray-100 rounded-xl border border-gray-200 text-gray-500 font-bold">{{ formSolicitud.horasActuales }}h</div>
                     </div>
-                    
-                    <div class="pt-4 text-gray-300">
-                        <ArrowRight class="w-5 h-5"/>
-                    </div>
-
+                    <div class="pt-4 text-gray-300"><ArrowRight class="w-5 h-5"/></div>
                     <div class="flex-1 text-center">
-                        <label class="block text-[10px] font-black uppercase mb-1"
-                               :class="formSolicitud.horasNuevas !== formSolicitud.horasActuales ? 'text-primary' : 'text-gray-400'">
-                            Horas a Solicitar
-                        </label>
-                        <input 
-                            v-model.number="formSolicitud.horasNuevas" 
-                            type="number" step="0.5"
-                            class="w-full h-12 text-center rounded-xl border-2 font-bold transition-all outline-none"
-                            :class="formSolicitud.horasNuevas !== formSolicitud.horasActuales 
-                                ? 'border-primary bg-blue-50 text-primary' 
-                                : 'border-gray-200 bg-white text-dark'"
-                        />
+                        <label class="block text-[10px] font-black uppercase mb-1" :class="formSolicitud.horasNuevas !== formSolicitud.horasActuales ? 'text-primary' : 'text-gray-400'">Horas a Solicitar</label>
+                        <input v-model.number="formSolicitud.horasNuevas" type="number" step="0.5" class="w-full h-12 text-center rounded-xl border-2 font-bold transition-all outline-none" :class="formSolicitud.horasNuevas !== formSolicitud.horasActuales ? 'border-primary bg-blue-50 text-primary' : 'border-gray-200 bg-white text-dark'"/>
                     </div>
                 </div>
-
-                <div v-if="formSolicitud.horasNuevas === formSolicitud.horasActuales" 
-                     class="flex items-center gap-2 text-[11px] font-bold text-gray-400 bg-gray-50 p-2 rounded-lg border border-dashed border-gray-200">
+                <div v-if="formSolicitud.horasNuevas === formSolicitud.horasActuales" class="flex items-center gap-2 text-[11px] font-bold text-gray-400 bg-gray-50 p-2 rounded-lg border border-dashed border-gray-200">
                     <Clock class="w-3.5 h-3.5"/> No has modificado las horas aún.
                 </div>
-
                 <div>
                     <label class="block text-xs font-bold text-gray-600 uppercase mb-1">Motivo del cambio</label>
-                    <textarea v-model="formSolicitud.mensaje" rows="3" 
-                        class="w-full border border-gray-200 rounded-xl p-3 text-sm focus:ring-2 focus:ring-primary focus:border-primary outline-none"
-                        placeholder="Explica detalladamente por qué solicitas el cambio..."></textarea>
+                    <textarea v-model="formSolicitud.mensaje" rows="3" class="w-full border border-gray-200 rounded-xl p-3 text-sm focus:ring-2 focus:ring-primary focus:border-primary outline-none" placeholder="Explica detalladamente por qué solicitas el cambio..."></textarea>
                 </div>
-
                 <div class="flex gap-3 pt-2">
                     <button @click="mostrarModalSolicitud = false" class="btn-secondary flex-1">Cancelar</button>
-                    <button @click="enviarSolicitudJefe" class="btn-primary flex-1">
-                        <Send class="w-4 h-4 mr-2"/> Enviar Solicitud
-                    </button>
+                    <button @click="enviarSolicitudJefe" class="btn-primary flex-1"><Send class="w-4 h-4 mr-2"/> Enviar Solicitud</button>
                 </div>
             </div>
         </div>
     </div>
 
-    <transition enter-active-class="transform ease-out duration-300 transition" enter-from-class="translate-y-2 opacity-0 sm:translate-y-0 sm:translate-x-2" enter-to-class="translate-y-0 opacity-100 sm:translate-x-0" leave-active-class="transition ease-in duration-100" leave-from-class="opacity-100" leave-to-class="opacity-0">
-        <div v-if="toast.show" class="absolute bottom-6 right-6 z-50 flex items-center w-full max-w-xs p-4 space-x-3 text-gray-500 bg-white rounded-lg shadow-lg border border-gray-100" role="alert">
-            <div class="inline-flex items-center justify-center flex-shrink-0 w-8 h-8 rounded-lg" :class="toast.type === 'success' ? 'text-green-500 bg-green-100' : 'text-red-500 bg-red-100'">
-                <component :is="toast.type === 'success' ? CheckCircle2 : AlertCircle" class="w-5 h-5"/>
-            </div>
-            <div class="ml-3 text-sm font-bold text-gray-800">{{ toast.message }}</div>
-            <button @click="toast.show = false" type="button" class="ml-auto -mx-1.5 -my-1.5 bg-white text-gray-400 hover:text-gray-900 rounded-lg focus:ring-2 focus:ring-gray-300 p-1.5 hover:bg-gray-100 inline-flex h-8 w-8 items-center justify-center">
-                <X class="w-4 h-4"/>
-            </button>
-        </div>
-    </transition>
-
+    <ToastNotification
+        :show="toast.show"
+        :message="toast.message"
+        :type="toast.type"
+        @close="toast.show = false"
+    />
   </div>
 </template>
 
 <style scoped>
-input::-webkit-outer-spin-button,
-input::-webkit-inner-spin-button {
-  -webkit-appearance: none;
-  margin: 0;
-}
-input[type=number] {
-  -moz-appearance: textfield;
-}
+input::-webkit-outer-spin-button, input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+input[type=number] { -moz-appearance: textfield; }
 </style>

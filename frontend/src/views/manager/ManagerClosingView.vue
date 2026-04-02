@@ -1,13 +1,25 @@
 <script setup>
-import { ref, computed, watch } from 'vue'
+import { ref, computed, watch, onMounted } from 'vue'
+import ManagerAPI from '../../services/ManagerAPI'
+import { useDataStore } from '../../stores/dataStore'
 import {
     Lock, Unlock, Search, Calendar, AlertCircle, CheckCircle2,
-    FileDown, XCircle, Ban, Trash2, AlertTriangle, X
+    FileDown, XCircle, Ban
 } from 'lucide-vue-next'
+import ConfirmModal from '../../components/common/ConfirmModal.vue'
+import ToastNotification from '../../components/common/ToastNotification.vue'
 
-const fechaCierre = ref('2026-01')
+const store = useDataStore()
+const user = store.getCurrentUser()
+
+const hoy = new Date()
+const mesActual = `${hoy.getFullYear()}-${String(hoy.getMonth() + 1).padStart(2, '0')}`
+
+const fechaCierre = ref(mesActual)
 const busqueda = ref('')
 const mesCerrado = ref(false)
+const auditoriaUsuarios = ref([])
+const isLoading = ref(false)
 
 const toast = ref({ show: false, message: '', type: 'success' })
 let toastTimeout = null
@@ -15,9 +27,7 @@ let toastTimeout = null
 const showToast = (message, type = 'success') => {
     toast.value = { show: true, message, type }
     if (toastTimeout) clearTimeout(toastTimeout)
-    toastTimeout = setTimeout(() => {
-        toast.value.show = false
-    }, 3000)
+    toastTimeout = setTimeout(() => { toast.value.show = false }, 3000)
 }
 
 const confirmState = ref({ show: false, title: '', message: '', type: 'neutral', action: null })
@@ -31,30 +41,22 @@ const ejecutarConfirmacion = () => {
     confirmState.value.show = false
 }
 
-const getDatosPorMes = (fecha) => {
-    if (fecha === '2026-01') {
-        return [
-            { id: 1, nombre: 'Mario León', rol: 'Dev', horasReales: 160, horasTeoricas: 160, diasFaltantes: [], estado: 'completo' },
-            { id: 2, nombre: 'Ana Ruiz', rol: 'QA', horasReales: 152, horasTeoricas: 160, diasFaltantes: ['12-Ene', '24-Ene'], estado: 'incompleto' },
-            { id: 3, nombre: 'Pedro Sola', rol: 'Junior', horasReales: 80, horasTeoricas: 160, diasFaltantes: ['02-Ene', '03-Ene', '04-Ene', '... (+10)'], estado: 'incompleto' },
-            { id: 4, nombre: 'Laura G.', rol: 'Manager', horasReales: 168, horasTeoricas: 160, diasFaltantes: [], estado: 'completo' }
-        ]
-    } else {
-        return [
-            { id: 1, nombre: 'Mario León', rol: 'Dev', horasReales: 0, horasTeoricas: 160, diasFaltantes: [], estado: 'vacio' },
-            { id: 2, nombre: 'Ana Ruiz', rol: 'QA', horasReales: 0, horasTeoricas: 160, diasFaltantes: [], estado: 'vacio' },
-            { id: 3, nombre: 'Pedro Sola', rol: 'Junior', horasReales: 0, horasTeoricas: 160, diasFaltantes: [], estado: 'vacio' },
-            { id: 4, nombre: 'Laura G.', rol: 'Manager', horasReales: 0, horasTeoricas: 160, diasFaltantes: [], estado: 'vacio' }
-        ]
+const fetchClosingData = async () => {
+    isLoading.value = true
+    try {
+        const response = await ManagerAPI.getClosingData(fechaCierre.value)
+        mesCerrado.value = response.data.mesCerrado
+        auditoriaUsuarios.value = response.data.usuarios || []
+    } catch (error) {
+        showToast("Error al conectar con el servidor", "error")
+        auditoriaUsuarios.value = []
+    } finally {
+        isLoading.value = false
     }
 }
 
-const auditoriaUsuarios = ref(getDatosPorMes(fechaCierre.value))
-
-watch(fechaCierre, (nuevoMes) => {
-    mesCerrado.value = false
-    auditoriaUsuarios.value = getDatosPorMes(nuevoMes)
-})
+onMounted(() => { fetchClosingData() })
+watch(fechaCierre, () => { fetchClosingData() })
 
 const usuariosFiltrados = computed(() => {
     return auditoriaUsuarios.value.filter(u =>
@@ -70,22 +72,26 @@ const resumenEstado = computed(() => {
     const total = auditoriaUsuarios.value.length
     const incompletos = auditoriaUsuarios.value.filter(u => u.estado === 'incompleto').length
     const vacios = auditoriaUsuarios.value.filter(u => u.estado === 'vacio').length
-
     return { total, incompletos, vacios, completos: total - incompletos - vacios }
 })
 
-const procesarCierre = () => {
-    mesCerrado.value = true
-    showToast(`Mes de ${fechaCierre.value} cerrado correctamente`, 'success')
+const procesarCierreToggle = async (accion) => {
+    try {
+        await ManagerAPI.toggleCierreMes(fechaCierre.value, accion, user.id)
+        mesCerrado.value = (accion === 'cerrar')
+        showToast(`Mes de ${fechaCierre.value} ${accion === 'cerrar' ? 'cerrado' : 'reabierto'} correctamente`, 'success')
+    } catch (error) {
+        showToast(`Error al ${accion} el mes`, 'error')
+    }
 }
 
 const ejecutarCierre = () => {
     if (!puedeCerrarMes.value) {
         solicitarConfirmacion(
             'Cierre Forzoso',
-            'Hay usuarios con días incompletos. ¿Estás seguro de que quieres forzar el cierre del mes? Esto bloqueará futuras imputaciones.',
+            'Hay usuarios con días pendientes de imputar. ¿Forzar el cierre del mes? Esto bloqueará futuras imputaciones.',
             'warning',
-            procesarCierre
+            () => procesarCierreToggle('cerrar')
         )
         return
     }
@@ -93,59 +99,48 @@ const ejecutarCierre = () => {
     if (resumenEstado.value.vacios === resumenEstado.value.total) {
         solicitarConfirmacion(
             'Mes Vacío',
-            'El mes parece no tener actividad registrada. ¿Cerrar igualmente?',
+            'El mes no tiene actividad registrada. ¿Cerrar igualmente?',
             'neutral',
-            procesarCierre
+            () => procesarCierreToggle('cerrar')
         )
         return
     }
     
-    procesarCierre()
+    procesarCierreToggle('cerrar')
 }
 
 const reabrirMes = () => {
     solicitarConfirmacion(
         'Reabrir Mes',
-        '¿Estás seguro de que quieres reabrir este periodo? Los usuarios podrán volver a editar sus imputaciones.',
+        '¿Quieres reabrir este mes?',
         'neutral',
-        () => {
-            mesCerrado.value = false
-            showToast('Mes reabierto correctamente', 'success')
-        }
+        () => procesarCierreToggle('reabrir')
     )
 }
 
 const exportarExcel = () => {   
-    const headers = ['ID', 'Nombre', 'Rol', 'Horas Reales', 'Horas Teoricas', 'Estado', 'Dias Faltantes']
-    const rows = auditoriaUsuarios.value.map(u => [
-        u.id,
-        u.nombre,
-        u.rol,
-        u.horasReales,
-        u.horasTeoricas,
-        u.estado,
-        u.diasFaltantes.join(' | ') 
-    ])
+    const headers = ['ID Empleado', 'Nombre Empleado', 'Rol', 'Estado Periodo', 'Días Faltantes', 'Horas Totales Mes', 'Cliente', 'Proyecto', 'Horas Proyecto']
+    const rows = []
 
-    const csvContent = [
-        headers.join(';'),
-        ...rows.map(row => row.join(';'))
-    ].join('\n')
+    auditoriaUsuarios.value.forEach(u => {
+        const baseData = [ u.id, `"${u.nombre}"`, `"${u.rol}"`, `"${u.estado}"`, `"${u.diasFaltantes.join(', ')}"`, u.horasReales ]
+        if (u.desgloseProyectos && u.desgloseProyectos.length > 0) {
+            u.desgloseProyectos.forEach(p => { rows.push([ ...baseData, `"${p.cliente}"`, `"${p.proyecto}"`, p.horas ]) })
+        } else {
+            rows.push([ ...baseData, '""', '""', 0 ])
+        }
+    })
 
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
+    const csvContent = [headers.join(';'), ...rows.map(row => row.join(';'))].join('\n')
+    const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' })
     const url = URL.createObjectURL(blob)
     const link = document.createElement('a')
     link.setAttribute('href', url)
-    link.setAttribute('download', `auditoria_cierre_${fechaCierre.value}.csv`)
+    link.setAttribute('download', `Cierre_Mensual_${fechaCierre.value}.csv`)
     document.body.appendChild(link)
-
     link.click() 
     document.body.removeChild(link) 
-    showToast('Archivo CSV descargado', 'success')
-}
-
-const notificarUsuario = (nombre) => {
-    showToast(`Recordatorio enviado a ${nombre}`, 'success')
+    showToast('Reporte descargado correctamente', 'success')
 }
 </script>
 
@@ -232,10 +227,9 @@ const notificarUsuario = (nombre) => {
                     <thead class="bg-white sticky top-0 z-10 shadow-sm">
                         <tr class="text-xs uppercase tracking-wider text-gray-400 border-b border-gray-100">
                             <th class="px-6 py-4 font-bold">Empleado</th>
-                            <th class="px-6 py-4 font-bold text-center">Progreso (Horas)</th>
-                            <th class="px-6 py-4 font-bold w-1/3">Auditoría Días</th>
+                            <th class="px-6 py-4 font-bold text-center">Horas Reales</th>
+                            <th class="px-6 py-4 font-bold w-1/3">Días Pendientes</th>
                             <th class="px-6 py-4 font-bold text-center">Estado</th>
-                            <th class="px-6 py-4 font-bold text-right" v-if="!mesCerrado">Acción</th>
                         </tr>
                     </thead>
                     <tbody class="text-sm divide-y divide-gray-50">
@@ -254,36 +248,24 @@ const notificarUsuario = (nombre) => {
                                 </div>
                             </td>
 
-                            <td class="px-6 py-4">
-                                <div class="flex flex-col items-center gap-1">
-                                    <span class="font-mono font-bold"
-                                        :class="user.horasReales === 0 ? 'text-gray-300' : 'text-dark'">
-                                        {{ user.horasReales }} <span class="text-gray-300">/ {{ user.horasTeoricas
-                                            }}</span>
-                                    </span>
-                                    <div class="w-24 h-1.5 bg-gray-100 rounded-full overflow-hidden">
-                                        <div class="h-full rounded-full transition-all" :class="{
-                                                'bg-emerald-500': user.estado === 'completo',
-                                                'bg-amber-500': user.estado === 'incompleto',
-                                                'bg-transparent': user.estado === 'vacio'
-                                            }"
-                                            :style="`width: ${Math.min((user.horasReales / user.horasTeoricas) * 100, 100)}%`">
-                                        </div>
-                                    </div>
-                                </div>
+                            <td class="px-6 py-4 text-center">
+                                <span class="font-mono font-bold text-lg"
+                                    :class="user.horasReales === 0 ? 'text-gray-300' : 'text-dark'">
+                                    {{ user.horasReales }}h
+                                </span>
                             </td>
 
                             <td class="px-6 py-4">
                                 <div v-if="user.estado === 'completo'">
                                     <span class="flex items-center gap-1 text-emerald-600 text-xs font-bold w-fit">
-                                        <CheckCircle2 class="w-3.5 h-3.5" /> Completo
+                                        <CheckCircle2 class="w-3.5 h-3.5" /> Todo al día
                                     </span>
                                 </div>
                                 <div v-else-if="user.estado === 'incompleto'" class="flex flex-col gap-1">
                                     <span class="text-[10px] font-bold text-gray-400 uppercase flex items-center gap-1">
-                                        <XCircle class="w-3 h-3 text-red-400" /> Faltan registros:
+                                        <XCircle class="w-3 h-3 text-red-400" /> Días sin registrar:
                                     </span>
-                                    <div class="flex flex-wrap gap-1">
+                                    <div class="flex flex-wrap gap-1 max-w-[200px]">
                                         <span v-for="dia in user.diasFaltantes" :key="dia"
                                             class="bg-red-50 text-red-600 border border-red-100 px-1.5 py-0.5 rounded text-[10px] font-mono font-bold">
                                             {{ dia }}
@@ -311,53 +293,27 @@ const notificarUsuario = (nombre) => {
                                 </span>
                             </td>
 
-                            <td class="px-6 py-4 text-right" v-if="!mesCerrado">
-                                <button v-if="user.estado === 'incompleto'" @click="notificarUsuario(user.nombre)"
-                                    class="text-xs font-bold text-blue-600 hover:text-blue-800 hover:bg-blue-50 px-3 py-1.5 rounded transition border border-transparent hover:border-blue-100 ml-auto">
-                                    Notificar
-                                </button>
-                                <span v-else class="text-gray-300 text-xs">-</span>
-                            </td>
-
                         </tr>
                     </tbody>
                 </table>
             </div>
         </div>
 
-        <div v-if="confirmState.show" class="fixed inset-0 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center z-[60] p-4">
-            <div class="bg-white w-full max-w-sm rounded-xl shadow-2xl p-6 animate-in zoom-in-95">
-                <div class="flex flex-col items-center text-center gap-3">
-                    <div class="w-12 h-12 rounded-full flex items-center justify-center mb-2"
-                         :class="confirmState.type === 'warning' ? 'bg-amber-100 text-amber-600' : 'bg-slate-100 text-slate-600'">
-                        <component :is="confirmState.type === 'warning' ? AlertTriangle : CheckCircle2" class="w-6 h-6" />
-                    </div>
-                    <h3 class="text-lg font-bold text-slate-900">{{ confirmState.title }}</h3>
-                    <p class="text-sm text-slate-500 leading-relaxed">{{ confirmState.message }}</p>
-                    
-                    <div class="flex gap-3 w-full mt-4">
-                        <button @click="confirmState.show = false" class="btn-secondary flex-1 justify-center">Cancelar</button>
-                        <button @click="ejecutarConfirmacion" 
-                                class="flex-1 justify-center btn-primary"
-                                :class="confirmState.type === 'warning' ? 'bg-amber-600 hover:bg-amber-700' : 'bg-slate-700 hover:bg-slate-800'">
-                            Confirmar
-                        </button>
-                    </div>
-                </div>
-            </div>
-        </div>
+        <ConfirmModal 
+            :show="confirmState.show"
+            :title="confirmState.title"
+            :message="confirmState.message"
+            :type="confirmState.type"
+            @confirm="ejecutarConfirmacion"
+            @cancel="confirmState.show = false"
+        />
 
-        <transition enter-active-class="transform ease-out duration-300 transition" enter-from-class="translate-y-2 opacity-0 sm:translate-y-0 sm:translate-x-2" enter-to-class="translate-y-0 opacity-100 sm:translate-x-0" leave-active-class="transition ease-in duration-100" leave-from-class="opacity-100" leave-to-class="opacity-0">
-            <div v-if="toast.show" class="absolute bottom-6 right-6 z-50 flex items-center w-full max-w-xs p-4 space-x-3 text-gray-500 bg-white rounded-lg shadow-lg border border-gray-100" role="alert">
-                <div class="inline-flex items-center justify-center flex-shrink-0 w-8 h-8 rounded-lg" :class="toast.type === 'success' ? 'text-green-500 bg-green-100' : 'text-red-500 bg-red-100'">
-                    <component :is="toast.type === 'success' ? CheckCircle2 : AlertCircle" class="w-5 h-5"/>
-                </div>
-                <div class="ml-3 text-sm font-bold text-gray-800">{{ toast.message }}</div>
-                <button @click="toast.show = false" type="button" class="ml-auto -mx-1.5 -my-1.5 bg-white text-gray-400 hover:text-gray-900 rounded-lg focus:ring-2 focus:ring-gray-300 p-1.5 hover:bg-gray-100 inline-flex h-8 w-8 items-center justify-center">
-                    <X class="w-4 h-4"/>
-                </button>
-            </div>
-        </transition>
+        <ToastNotification
+            :show="toast.show"
+            :message="toast.message"
+            :type="toast.type"
+            @close="toast.show = false"
+        />
 
     </div>
 </template>

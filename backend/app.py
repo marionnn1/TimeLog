@@ -1,73 +1,75 @@
-from flask import Flask, jsonify, request
+from flask import Flask
 from flask_cors import CORS
-from dotenv import load_dotenv
-# import pyodbc  # <-- No hace falta para SQLite
-import os
-import sqlite3
 
-# variables
-load_dotenv()
+# --- SEGURIDAD ---
+from flask_talisman import Talisman
+from flask_limiter import Limiter
+from flask_limiter.util import get_remote_address
+
+# --- SQLALCHEMY IMPORTS ---
+from config import SQLALCHEMY_DATABASE_URI
+from database.db import db
+
+# --- TECHNICAL ---
+from controllers.technical.time_entries_user_controller import time_entries_user_bp
+from controllers.technical.myprojects_controller import myprojects_bp
+from controllers.technical.absences_controller import absences_bp
+
+# --- ADMIN ---
+from controllers.admin.users_controller import users_bp
+from controllers.admin.projects_controller import projects_bp
+from controllers.admin.audit_controller import audit_bp
+from controllers.admin.dashboard_controller import dashboard_bp
+from controllers.admin.tickets_controller import tickets_bp
+
+# --- MANAGER ---
+from controllers.manager.analytics_controller import manager_analytics_bp
+from controllers.manager.closing_controller import closing_bp
+from controllers.manager.projects_controller import manager_projects_bp
+from controllers.manager.validation_controller import validation_bp
 
 app = Flask(__name__)
 CORS(app)
 
-# Configuración SQLite
-DB_FILE = 'timelog.db'
 
-def get_db_connection():
-    conn = sqlite3.connect(DB_FILE)
-    conn.row_factory = sqlite3.Row # Para acceder a las columnas por nombre
-    return conn
+Talisman(app, force_https=False)
 
-def init_db():
-    """Inicializa la base de datos con el archivo schema.sql si no existe"""
-    if not os.path.exists(DB_FILE):
-        with app.app_context():
-            conn = get_db_connection()
-            try:
-                with open('schema.sql', mode='r') as f:
-                    conn.cursor().executescript(f.read())
-                conn.commit()
-                print("Base de datos inicializada correctamente.")
-            except FileNotFoundError:
-                print("Error: No se encontró el archivo 'schema.sql'.")
-            finally:
-                conn.close()
 
-# --- RUTAS DE EJEMPLO ---
+limiter = Limiter(
+    get_remote_address,
+    app=app,
+    default_limits=["1000 per day", "100 per hour"],
+    storage_uri="memory://",
+)
 
-@app.route('/api/status', methods=['GET'])
-def status():
-    return jsonify({"status": "ok", "database": "SQLite conectada"})
+app.config["SQLALCHEMY_DATABASE_URI"] = SQLALCHEMY_DATABASE_URI
+app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 
-@app.route('/api/test', methods=['GET'])
-def test():
-    return jsonify({"mensaje": "¡Backend en Flask funcionando correctamente!"})
+db.init_app(app)
 
-# --- RUTAS DE PRUEBA PARA AZURE SQL (COMENTADAS) ---
-# def get_connection():
-#     conn_str = (
-#         f"DRIVER={DB_CONFIG['driver']};"
-#         f"SERVER={DB_CONFIG['server']};"
-#         f"DATABASE={DB_CONFIG['database']};"
-#         f"UID={DB_CONFIG['username']};"
-#         f"PWD={DB_CONFIG['password']};"
-#         "Encrypt=yes;"
-#         "TrustServerCertificate=no;"
-#         "Connection Timeout=30;"
-#     )
-#     return pyodbc.connect(conn_str)
 
-# @app.route('/api/db-test', methods=['GET'])
-# def db_test():
-#     try:
-#         conn = get_connection()
-#         cursor = conn.cursor()
-#         cursor.execute("SELECT 1")
-#         return jsonify({"db": "Conexión a Azure SQL OK"})
-#     except Exception as e:
-#         return jsonify({"error": str(e)}), 500
+app.before_request(lambda: db.session.rollback())
 
-if __name__ == '__main__':
-    init_db() # Aseguramos que se crea la DB al arrancar
-    app.run(debug=True, port=5000)
+from errors import register_error_handlers
+
+register_error_handlers(app)
+
+with app.app_context():
+    import models
+
+app.register_blueprint(users_bp)
+app.register_blueprint(projects_bp)
+app.register_blueprint(audit_bp)
+app.register_blueprint(dashboard_bp)
+app.register_blueprint(time_entries_user_bp)
+app.register_blueprint(myprojects_bp)
+app.register_blueprint(absences_bp)
+app.register_blueprint(tickets_bp)
+
+app.register_blueprint(manager_analytics_bp)
+app.register_blueprint(closing_bp)
+app.register_blueprint(manager_projects_bp)
+app.register_blueprint(validation_bp)
+
+if __name__ == "__main__":
+    app.run(debug=True, host="0.0.0.0", port=5000)
