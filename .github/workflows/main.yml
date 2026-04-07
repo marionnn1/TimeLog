@@ -25,8 +25,8 @@ jobs:
             docker build frontend \
               -t ${{ secrets.REGISTRY_LOGIN_SERVER }}/timelog-frontend:${{ github.sha }} \
               -f ./frontend/Dockerfile \
-              --build-arg VITE_MSAL_CLIENT_ID=${{ secrets.VITE_MSAL_CLIENT_ID }} \
-              --build-arg VITE_MSAL_TENANT_ID=${{ secrets.VITE_MSAL_TENANT_ID }} \
-              --build-arg VITE_MSAL_REDIRECT_URI=${{ secrets.VITE_MSAL_REDIRECT_URI }} \
-              --build-arg VITE_MSAL_POST_LOGOUT_REDIRECT_URI=${{ secrets.VITE_MSAL_POST_LOGOUT_REDIRECT_URI }}
+              --build-arg VITE_MSAL_CLIENT_ID="${{ secrets.VITE_MSAL_CLIENT_ID }}" \
+              --build-arg VITE_MSAL_TENANT_ID="${{ secrets.VITE_MSAL_TENANT_ID }}" \
+              --build-arg VITE_MSAL_REDIRECT_URI="${{ secrets.VITE_MSAL_REDIRECT_URI }}" \
+              --build-arg VITE_MSAL_POST_LOGOUT_REDIRECT_URI="${{ secrets.VITE_MSAL_POST_LOGOUT_REDIRECT_URI }}"
             docker push ${{ secrets.REGISTRY_LOGIN_SERVER }}/timelog-frontend:${{ github.sha }}
