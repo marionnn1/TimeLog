@@ -2,7 +2,6 @@ import { reactive, watch } from 'vue'
 
 const STORAGE_KEY = 'timeLog_state'
 
-// --- CARGA INICIAL (Solo recuperamos la sesión del usuario) ---
 const loadState = () => {
     const saved = localStorage.getItem(STORAGE_KEY)
     if (saved) {
