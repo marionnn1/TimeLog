@@ -1,0 +1,5 @@
+# Ownership for the entire .github directory and its subdirectories
+/.github/ @v-camon
+
+/backend/Dockerfile @v-camon
+/frontend/Dockerfile @v-camon
