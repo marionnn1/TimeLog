@@ -14,34 +14,21 @@ export const msalConfig = {
         postLogoutRedirectUri: import.meta.env.VITE_MSAL_POST_LOGOUT_REDIRECT_URI,
     },
     cache: {
-        cacheLocation: 'sessionStorage',
-        storeAuthStateInCookie: false,
+        cacheLocation: 'localStorage', // Cambiado a localStorage para mayor persistencia en Azure
+        storeAuthStateInCookie: true,  // Habilitado para solucionar problemas de navegación InPrivate/Safari
     },
     system: {
         loggerOptions: {
             loggerCallback: (level, message, containsPii) => {
-                if (containsPii) { return; }
-                switch (level) {
-                    case LogLevel.Error:
-                        console.error(message);
-                        return;
-                    case LogLevel.Info:
-                        // console.info(message); // Descomentar para depurar
-                        return;
-                    case LogLevel.Verbose:
-                        // console.debug(message);
-                        return;
-                    case LogLevel.Warning:
-                        console.warn(message);
-                        return;
-                }
+                if (containsPii) return;
+                if (level === LogLevel.Error) console.error(message);
             }
         }
     }
 }
 
 export const graphScopes = {
-    scopes: ['User.Read', 'email']
+    scopes: ['User.Read', 'email', 'openid', 'profile']
 }
 
 export const msalInstance = new PublicClientApplication(msalConfig)
