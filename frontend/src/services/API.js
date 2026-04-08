@@ -29,8 +29,10 @@ api.interceptors.response.use(
     (response) => response,
     (error) => {
         if (error.response && error.response.status === 401) {
-            localStorage.clear()
-            window.location.href = '/login'
+            console.warn("Token inválido")
+            console.error(error)
+            // localStorage.clear()
+            // window.location.href = '/login'
         }
         return Promise.reject(error)
     }
