@@ -49,7 +49,6 @@ export function useAuth() {
         const currentAccounts = msalInstance.getAllAccounts()
         if (currentAccounts.length > 0) {
           const account = currentAccounts[0]
-
           await processLogin(account, true)
           return true
         }
@@ -61,9 +60,9 @@ export function useAuth() {
   }
 
   const processLogin = async (account, callBackend = true) => {
-
-    const rolesAzure = account.idTokenClaims?.roles || ['Tecnico']
-    const rolPrincipal = rolesAzure[0]
+    // Normalización: Usamos 'tecnico' en minúsculas por defecto
+    const rolesAzure = account.idTokenClaims?.roles || ['tecnico']
+    const rolPrincipal = rolesAzure[0].toLowerCase() 
 
     let userData = {
       id: null,
@@ -71,7 +70,7 @@ export function useAuth() {
       nombre: account.name,
       email: account.username,
       iniciales: account.name ? account.name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase() : 'U',
-      rol: rolPrincipal
+      rol: rolPrincipal // Guardamos el rol siempre en minúsculas
     }
 
     if (callBackend) {
@@ -80,6 +79,8 @@ export function useAuth() {
 
         if (backendRes.status === 'success' && backendRes.data) {
           userData.id = backendRes.data.id
+          // El backend ya devuelve el rol normalizado en minúsculas
+          userData.rol = backendRes.data.rol || userData.rol
           userData.iniciales = backendRes.data.iniciales || userData.iniciales
         }
       } catch (e) {

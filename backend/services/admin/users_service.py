@@ -132,7 +132,7 @@ def sincronizar_usuario(datos):
         nuevo_usuario = Users(
             nombre=datos["nombre"],
             oid_azure=datos["oid_azure"],
-            rol="Tecnico",
+            rol="tecnico", 
             sede="Remoto",
             activo=True,
             fecha_creacion=datetime.utcnow(),
@@ -143,7 +143,6 @@ def sincronizar_usuario(datos):
 
     if not usuario.activo:
         from errors import APIError
-
         raise APIError(
             "Tu usuario ha sido desactivado del sistema. Contacta con el administrador.",
             status_code=403,
