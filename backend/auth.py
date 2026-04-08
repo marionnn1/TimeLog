@@ -1,7 +1,6 @@
 import os
 import jwt
 import requests
-import sys
 import time
 from functools import wraps
 from flask import request, g
@@ -95,20 +94,14 @@ def require_auth(f):
             g.token_payload = payload
 
         except jwt.ExpiredSignatureError:
-            print("1", file=sys.stderr)
-            print("1", flush=True)
             raise APIError("La sesión de Microsoft ha caducado", status_code=401)
         except jwt.InvalidAudienceError:
-            print("2", file=sys.stderr)
-            print("2", flush=True)
             raise APIError("Token no generado para esta aplicación", status_code=401)
         except jwt.InvalidIssuerError:
-            print("3", file=sys.stderr)
-            print("3", flush=True)
             raise APIError("Emisor del token no válido", status_code=401)
         except Exception as e:
-            print("4", file=sys.stderr)
-            print("4", flush=True)
+            print("Error:", flush=True)
+            print(e, flush=True)
             raise APIError(f"Token inválido: {str(e)}", status_code=401)
 
         return f(*args, **kwargs)
