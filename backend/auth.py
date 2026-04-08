@@ -1,4 +1,5 @@
 import os
+import traceback
 import jwt
 import requests
 import time
@@ -100,8 +101,12 @@ def require_auth(f):
         except jwt.InvalidIssuerError:
             raise APIError("Emisor del token no válido", status_code=401)
         except Exception as e:
-            print("Error:", flush=True)
-            print(e, flush=True)
+            print("--- ERROR CRÍTICO DE AUTENTICACIÓN ---", flush=True)
+            print(f"Tipo de error: {type(e).__name__}", flush=True)
+            print(f"Mensaje: {str(e)}", flush=True)
+            # Esto imprimirá la línea exacta donde falla el código
+            traceback.print_exc() 
+            print("---------------------------------------", flush=True)
             raise APIError(f"Token inválido: {str(e)}", status_code=401)
 
         return f(*args, **kwargs)
