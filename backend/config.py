@@ -25,8 +25,8 @@ password = get_secret_from_key_vault("DB-PASSWORD")
 port = "1433"
 driver = "ODBC Driver 17 for SQL Server"
 
-pwd_encoded = password
-driver_encoded = driver
+pwd_encoded = quote_plus(password)
+driver_encoded = quote_plus(driver)
 
 SQLALCHEMY_DATABASE_URI = (
     f"mssql+pyodbc://{username}:{pwd_encoded}@{server}:{port}/{database}"
