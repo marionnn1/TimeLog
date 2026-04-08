@@ -29,11 +29,26 @@ from controllers.manager.projects_controller import manager_projects_bp
 from controllers.manager.validation_controller import validation_bp
 
 app = Flask(__name__)
-CORS(app)
 
+# 1. CONFIGURACIÓN EXPLÍCITA DE CORS
+# Esto soluciona el error "Response to preflight request doesn't pass access control check"
+CORS(app, resources={
+    r"/api/*": {
+        "origins": [
+            "https://timelog-frontend.agreeablesea-20b4e4bb.spaincentral.azurecontainerapps.io",
+            "http://localhost:5173"
+        ],
+        "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+        "allow_headers": ["Content-Type", "Authorization"]
+    }
+})
 
-Talisman(app, force_https=False)
-
+# 2. CONFIGURACIÓN DE TALISMAN PARA AZURE
+# Desactivamos force_https porque Azure gestiona el SSL en el balanceador y
+# eliminamos el CSP estricto que suele bloquear las peticiones Preflight en producción.
+Talisman(app, 
+         force_https=False, 
+         content_security_policy=None)
 
 limiter = Limiter(
     get_remote_address,
@@ -47,16 +62,17 @@ app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 
 db.init_app(app)
 
-
-app.before_request(lambda: db.session.rollback())
+@app.before_request
+def handle_before_request():
+    db.session.rollback()
 
 from errors import register_error_handlers
-
 register_error_handlers(app)
 
 with app.app_context():
     import models
 
+# Registro de Blueprints
 app.register_blueprint(users_bp)
 app.register_blueprint(projects_bp)
 app.register_blueprint(audit_bp)
