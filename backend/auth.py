@@ -94,12 +94,20 @@ def require_auth(f):
             g.token_payload = payload
 
         except jwt.ExpiredSignatureError:
+            print(f"1")
+            print("1")
             raise APIError("La sesión de Microsoft ha caducado", status_code=401)
         except jwt.InvalidAudienceError:
+            print(f"2")
+            print("2")
             raise APIError("Token no generado para esta aplicación", status_code=401)
         except jwt.InvalidIssuerError:
+            print(f"3")
+            print("3")
             raise APIError("Emisor del token no válido", status_code=401)
         except Exception as e:
+            print(f"4")
+            print("4")
             raise APIError(f"Token inválido: {str(e)}", status_code=401)
 
         return f(*args, **kwargs)
