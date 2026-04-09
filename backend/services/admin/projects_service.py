@@ -41,7 +41,7 @@ def crear_cliente(datos):
     nuevo_cliente = Clients(nombre=nombre, codigo=datos.get('codigo', ''), estado=True, fecha_creacion=datetime.utcnow())
     db.session.add(nuevo_cliente)
     db.session.commit()
-    registrar_log(1, 'Admin', 'CREAR_CLIENTE', 'info', f"Se creó el cliente: {nombre}.")
+    registrar_log('Crear Cliente', 'info', f"Se creó el cliente: {nombre}.")
     return True
 
 def actualizar_cliente(id_cliente, datos):
@@ -51,7 +51,7 @@ def actualizar_cliente(id_cliente, datos):
     cliente.nombre = datos.get('nombre', cliente.nombre)
     cliente.codigo = datos.get('codigo', cliente.codigo)
     db.session.commit()
-    registrar_log(1, 'Admin', 'ACTUALIZAR_CLIENTE', 'info', f"Se actualizó el cliente ID {id_cliente}.")
+    registrar_log('Actualizar Cliente', 'info', f"Se actualizó el cliente ID {id_cliente}.")
     return True
 
 def eliminar_cliente(id_cliente):
@@ -64,7 +64,7 @@ def eliminar_cliente(id_cliente):
         
     db.session.delete(cliente)
     db.session.commit()
-    registrar_log(1, 'Admin', 'ELIMINAR_CLIENTE', 'warning', f"Se eliminó el cliente ID {id_cliente}.")
+    registrar_log('Eliminar Cliente', 'warning', f"Se eliminó el cliente ID {id_cliente}.")
     return True
 
 def crear_proyecto(datos):
@@ -88,7 +88,7 @@ def crear_proyecto(datos):
         db.session.add(nueva_asignacion)
 
     db.session.commit()
-    registrar_log(1, 'Admin', 'CREAR_PROYECTO', 'info', f"Se creó el proyecto: {datos.get('nombre')}.")
+    registrar_log('Crear Proyecto', 'info', f"Se creó el proyecto: {datos.get('nombre')}.")
     return True
 
 def actualizar_proyecto(id_proyecto, datos):
@@ -114,7 +114,7 @@ def actualizar_proyecto(id_proyecto, datos):
         db.session.add(nueva_asignacion)
         
     db.session.commit()
-    registrar_log(1, 'Admin', 'ACTUALIZAR_PROYECTO', 'info', f"Se actualizó el proyecto: {datos.get('nombre')} y su equipo.")
+    registrar_log('Actualizar Proyecto', 'info', f"Se actualizó el proyecto: {datos.get('nombre')} y su equipo.")
     return True
 
 def eliminar_proyecto_fisico(id_proyecto):
@@ -134,7 +134,7 @@ def eliminar_proyecto_fisico(id_proyecto):
     db.session.delete(proyecto)
     db.session.commit()
     
-    registrar_log(1, 'Admin', 'BORRADO_FISICO', 'danger', f"El proyecto '{proyecto.nombre}' con ID {id_proyecto} fue eliminado de la BD.")
+    registrar_log('Borrado Físico', 'danger', f"El proyecto '{proyecto.nombre}' con ID {id_proyecto} fue eliminado de la BD.")
     return True
 
 def cambiar_estado_proyecto(id_proyecto, nuevo_estado):
@@ -145,5 +145,5 @@ def cambiar_estado_proyecto(id_proyecto, nuevo_estado):
     proyecto.fecha_desactivacion = datetime.utcnow() if nuevo_estado in ['Cerrado', 'Inactivo'] else None
         
     db.session.commit()
-    registrar_log(1, 'Admin', 'CAMBIO_ESTADO', 'warning' if nuevo_estado != 'Activo' else 'info', f"El proyecto '{proyecto.nombre}' ha pasado a estado: {nuevo_estado}.")
+    registrar_log('Cambio Estado', 'warning' if nuevo_estado != 'Activo' else 'info', f"El proyecto '{proyecto.nombre}' ha pasado a estado: {nuevo_estado}.")
     return True
