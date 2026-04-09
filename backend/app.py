@@ -1,4 +1,4 @@
-from flask import Flask
+from flask import Flask, jsonify
 from flask_cors import CORS
 from flask_talisman import Talisman
 from flask_limiter import Limiter
@@ -63,9 +63,10 @@ db.init_app(app)
 def get_try():
     try:
         print("Works", flush=True)
+        return jsonify({"state":True})
     except Exception as e:
         print(f"Error: {e}", flush=True)
-    
+        return  jsonify({"Error":e})
 
 @app.before_request
 def handle_before_request():
