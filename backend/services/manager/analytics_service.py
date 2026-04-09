@@ -73,6 +73,34 @@ def get_analytics_data(mes):
                 }
             )
 
+        distribucion_query = (
+            db.session.query(
+                Users.id.label("usuario_id"),
+                Projects.nombre.label("proyecto_nombre"),
+                func.sum(TimeEntries.horas).label("horas_proyecto")
+            )
+            .join(TimeEntries.proyecto)
+            .join(TimeEntries.usuario)
+            .filter(
+                extract("year", TimeEntries.fecha) == anio,
+                extract("month", TimeEntries.fecha) == mes_num,
+                Users.activo == True
+            )
+            .group_by(Users.id, Projects.id, Projects.nombre)
+            .all()
+        )
+
+        desglose_por_empleado = {}
+        for row in distribucion_query:
+            uid = row.usuario_id
+            if uid not in desglose_por_empleado:
+                desglose_por_empleado[uid] = []
+            
+            desglose_por_empleado[uid].append({
+                "proyecto": row.proyecto_nombre,
+                "horas": float(row.horas_proyecto)
+            })
+
         empleados_query = (
             db.session.query(
                 Users.id,
@@ -117,6 +145,8 @@ def get_analytics_data(mes):
                     "rol": u.rol,
                     "avatar": avatar,
                     "trend": "equal",
+                    # Añadimos el desglose aquí:
+                    "desglose_proyectos": desglose_por_empleado.get(u.id, [])
                 }
             )
 

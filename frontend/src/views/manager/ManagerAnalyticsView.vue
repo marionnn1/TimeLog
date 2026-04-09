@@ -114,7 +114,7 @@ const exportarReporte = () => {
 
         <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 flex-1">
             <h3 class="font-bold text-slate-800 mb-6 flex items-center gap-2">
-                <Users class="w-5 h-5 text-slate-400" /> Desglose Individual
+                <Users class="w-5 h-5 text-slate-400" /> Desglose Individual por Proyectos
             </h3>
             
             <div v-if="isLoading" class="flex flex-col items-center justify-center py-10 opacity-50">
@@ -123,18 +123,43 @@ const exportarReporte = () => {
             </div>
 
             <div v-else class="grid grid-cols-1 lg:grid-cols-2 gap-x-12 gap-y-8">
-                <div v-for="emp in cargaEmpleados" :key="emp.nombre" class="flex flex-col gap-2">
+                <div v-for="emp in cargaEmpleados" :key="emp.nombre" class="flex flex-col gap-3 p-4 border border-slate-100 rounded-xl hover:shadow-md transition">
                     <div class="flex justify-between items-center">
                         <div class="flex items-center gap-3">
-                            <div class="w-9 h-9 rounded-full bg-slate-100 flex items-center justify-center text-xs font-bold text-slate-600">{{ emp.avatar }}</div>
-                            <span class="font-bold text-slate-700">{{ emp.nombre }}</span>
+                            <div class="w-9 h-9 rounded-full bg-slate-100 flex items-center justify-center text-xs font-bold text-slate-600">
+                                {{ emp.avatar }}
+                            </div>
+                            <div>
+                                <span class="font-bold text-slate-700 block">{{ emp.nombre }}</span>
+                                <span class="text-xs text-slate-400">{{ emp.rol }}</span>
+                            </div>
                         </div>
-                        <div class="text-right">
-                            <span class="font-mono font-bold" :class="emp.horas > emp.capacidad ? 'text-rose-600' : 'text-slate-800'">{{ emp.horas }}h</span>
-                            <span class="font-mono text-xs font-bold text-slate-400"> / {{ emp.capacidad }}h</span>
+                        <div class="text-right flex flex-col">
+                            <div>
+                                <span class="font-mono font-bold" :class="emp.horas > emp.capacidad ? 'text-rose-600' : 'text-slate-800'">
+                                    {{ emp.horas }}h
+                                </span>
+                                <span class="font-mono text-xs font-bold text-slate-400"> / {{ emp.capacidad }}h</span>
+                            </div>
+                            <span class="text-[10px] font-bold mt-1 uppercase" :class="emp.horas >= emp.capacidad ? 'text-emerald-500' : 'text-amber-500'">
+                                {{ Math.round((emp.horas / (emp.capacidad || 1)) * 100) }}% Ocupación
+                            </span>
                         </div>
                     </div>
-                    <div class="w-full h-2 bg-slate-100 rounded-full overflow-hidden">
+
+                    <div class="flex flex-wrap gap-2 mt-2">
+                        <div v-for="proj in emp.desglose_proyectos" :key="proj.proyecto" 
+                             class="flex items-center gap-1 bg-slate-100 px-2 py-1 rounded-md text-xs font-medium text-slate-600 border border-slate-200">
+                            <span class="w-2 h-2 rounded-full bg-indigo-400"></span>
+                            <span class="truncate max-w-[120px]" :title="proj.proyecto">{{ proj.proyecto }}</span>
+                            <span class="font-bold ml-1">{{ proj.horas }}h</span>
+                        </div>
+                        <div v-if="!emp.desglose_proyectos || emp.desglose_proyectos.length === 0" class="text-xs text-slate-400 italic">
+                            Sin imputaciones a proyectos
+                        </div>
+                    </div>
+                    
+                    <div class="w-full h-2 bg-slate-100 rounded-full overflow-hidden mt-1">
                         <div class="h-full transition-all duration-1000" 
                              :class="getBarColor(emp.horas, emp.capacidad)" 
                              :style="`width: ${Math.min((emp.horas / (emp.capacidad || 1)) * 100, 100)}%`">
