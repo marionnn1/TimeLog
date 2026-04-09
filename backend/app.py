@@ -1,8 +1,8 @@
 from flask import Flask, jsonify
 from flask_cors import CORS
 from flask_talisman import Talisman
-from flask_limiter import Limiter
-from flask_limiter.util import get_remote_address
+# from flask_limiter import Limiter
+# from flask_limiter.util import get_remote_address
 
 from config import SQLALCHEMY_DATABASE_URI
 from database.db import db
@@ -48,12 +48,12 @@ Talisman(app,
          force_https=False, # Azure ya gestiona SSL/HTTPS en el Ingress
          content_security_policy=None) # Evita bloqueos de recursos externos
 
-limiter = Limiter(
-    get_remote_address,
-    app=app,
-    default_limits=["1000 per day", "100 per hour"],
-    storage_uri="memory://",
-)
+# limiter = Limiter(
+#     get_remote_address,
+#     app=app,
+#     default_limits=["1000 per day", "100 per hour"],
+#     storage_uri="memory://",
+# )
 
 app.config["SQLALCHEMY_DATABASE_URI"] = SQLALCHEMY_DATABASE_URI
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
