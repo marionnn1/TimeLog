@@ -100,8 +100,6 @@ def require_auth(f):
         except jwt.InvalidIssuerError:
             raise APIError("Emisor del token no válido", status_code=401)
         except Exception as e:
-            print("Error:", flush=True)
-            print(e, flush=True)
             raise APIError(f"Token inválido: {str(e)}", status_code=401)
 
         return f(*args, **kwargs)
