@@ -59,6 +59,13 @@ app.config["SQLALCHEMY_DATABASE_URI"] = SQLALCHEMY_DATABASE_URI
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 
 db.init_app(app)
+@app.get("/api")
+def get_try():
+    try:
+        print("Works", flush=True)
+    except Exception as e:
+        print(f"Error: {e}", flush=True)
+    
 
 @app.before_request
 def handle_before_request():
