@@ -31,13 +31,7 @@ def crear_usuario(datos):
     )
     db.session.add(nuevo_usuario)
     db.session.commit()
-    registrar_log(
-        1,
-        "Admin",
-        "CREAR_USUARIO",
-        "info",
-        f"Se ha dado de alta al usuario: {datos['nombre']}.",
-    )
+    registrar_log("Crear Usuario", "info", f"Se ha dado de alta al usuario: {datos['nombre']}.")
     return True
 
 
@@ -52,13 +46,7 @@ def actualizar_usuario(id_usuario, datos):
     usuario.sede = datos["sede"]
 
     db.session.commit()
-    registrar_log(
-        1,
-        "Admin",
-        "ACTUALIZAR_USUARIO",
-        "info",
-        f"Se actualizaron los datos del usuario: {datos['nombre']}.",
-    )
+    registrar_log("Actualizar Usuario", "info", f"Se actualizaron los datos del usuario: {datos['nombre']}.")
     return True
 
 
@@ -72,13 +60,7 @@ def eliminar_usuario(id_usuario):
     usuario.fecha_desactivacion = datetime.utcnow()
 
     db.session.commit()
-    registrar_log(
-        1,
-        "Admin",
-        "BAJA_LÓGICA",
-        "danger",
-        f"El usuario '{nombre}' fue dado de baja del sistema.",
-    )
+    registrar_log("Baja Lógica", "danger", f"El usuario '{nombre}' fue dado de baja del sistema.")
     return True
 
 
@@ -90,15 +72,9 @@ def toggle_estado_usuario(id_usuario):
     usuario.activo = not usuario.activo
     db.session.commit()
 
-    accion = "ACTIVAR_USUARIO" if usuario.activo else "DESACTIVAR_USUARIO"
+    accion = "Activar Usuario" if usuario.activo else "Desactivar Usuario"
     gravedad = "info" if usuario.activo else "warning"
-    registrar_log(
-        1,
-        "Admin",
-        accion,
-        gravedad,
-        f"Se cambió el acceso del usuario '{usuario.nombre}'.",
-    )
+    registrar_log(accion, gravedad, f"Se cambió el acceso del usuario '{usuario.nombre}'.")
     return True
 
 
@@ -111,13 +87,7 @@ def eliminar_usuario_fisico(id_usuario):
     db.session.delete(usuario)
     db.session.commit()
 
-    registrar_log(
-        1,
-        "Admin",
-        "BORRADO_FISICO",
-        "danger",
-        f"El usuario '{nombre}' fue borrado físicamente.",
-    )
+    registrar_log("Borrado Físico", "danger", f"El usuario '{nombre}' fue borrado físicamente.")
     return True
 
 
