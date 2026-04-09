@@ -13,7 +13,6 @@ from errors import APIError
 absences_bp = Blueprint("absences", __name__)
 
 @absences_bp.route("/api/absences/annual-summary", methods=["GET"])
-
 @require_auth
 def get_resumen_anual():
     u_id = g.usuario_actual.id
