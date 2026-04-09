@@ -3,7 +3,7 @@ import { msalInstance, graphScopes } from '../auth/AuthConfig'
 
 const api = axios.create({
     // Eliminamos cualquier barra final para evitar errores de preflight
-    baseURL: (import.meta.env.VITE_API_URL || 'https://timelog-backend.agreeablesea-20b4e4bb.spaincentral.azurecontainerapps.io/api').replace(/\/$/, ""),
+    baseURL: (import.meta.env.VITE_API_URL || '/api'),
     headers: {
         'Content-Type': 'application/json',
         'Accept': 'application/json'
