@@ -20,6 +20,7 @@ def obtener_ausencias_mes(mes, anio):
             "comentario": a.comentario or "",
             "userId": a.usuario_id,
             "nombre": a.usuario.nombre if a.usuario else "Desconocido",
+            "foto": getattr(a.usuario, 'foto', None) if a.usuario else None, # AÑADIDO
             "iniciales": (
                 "".join([n[0] for n in a.usuario.nombre.split()[:2]]).upper()
                 if a.usuario
@@ -31,17 +32,16 @@ def obtener_ausencias_mes(mes, anio):
 
 def obtener_resumen_anual(anio, userId):
     usuarios = Users.query.filter_by(activo=True).all()
-    
     ausencias = Absences.query.filter(extract("year", Absences.fecha) == anio).all()
     resumen = []
     for user in usuarios:
         aus_usuario = [a for a in ausencias if a.usuario_id == user.id]
-        
         iniciales = "".join([n[0] for n in user.nombre.split()[:2]]).upper() if user.nombre else "XX"
         if user.ausencias or user.id == userId:
             resumen.append({
                 "userId": user.id,
                 "nombre": user.nombre,
+                "foto": getattr(user, 'foto', None), # AÑADIDO
                 "iniciales": iniciales,
                 "dias": [
                     {
@@ -51,7 +51,6 @@ def obtener_resumen_anual(anio, userId):
                     } for a in sorted(aus_usuario, key=lambda x: x.fecha)
                 ]
             })
-    
     return sorted(resumen, key=lambda x: x['nombre'])
 
 def contar_ausencias(usuario_id, fecha_inicio, fecha_fin):

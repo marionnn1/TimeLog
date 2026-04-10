@@ -64,7 +64,7 @@ const cargarDatos = async () => {
             proyectos.value = jsonProj.data.map(p => ({
                 id: p.Id, nombre: p.Nombre, cliente: p.Cliente, estado: p.Estado,
                 equipo: p.Equipo ? p.Equipo.map(u => ({
-                    id: u.id, nombre: u.nombre,
+                    id: u.id, nombre: u.nombre, foto: u.foto, // FOTO AÑADIDA
                     iniciales: u.nombre.split(' ').map(n => n[0]).join('').toUpperCase().substring(0, 2),
                     color: 'bg-indigo-100 text-indigo-700'
                 })) : []
@@ -74,7 +74,7 @@ const cargarDatos = async () => {
         const jsonUser = await AdminAPI.getUsuarios()
         if (jsonUser.status === 'success') {
             usuarios_db.value = jsonUser.data.map(u => ({
-                id: u.Id, nombre: u.Nombre,
+                id: u.Id, nombre: u.Nombre, foto: u.Foto, // FOTO AÑADIDA
                 iniciales: u.Nombre.split(' ').map(n => n[0]).join('').toUpperCase().substring(0, 2),
                 color: 'bg-indigo-100 text-indigo-700'
             }))
@@ -345,9 +345,12 @@ const obtenerEquipoVisual = (proyecto) => proyecto.equipo || []
                                         <template v-if="obtenerEquipoVisual(proyecto).length > 0">
                                             <div v-for="miembro in obtenerEquipoVisual(proyecto)" :key="miembro.id"
                                                 class="flex items-center gap-2 p-1.5 rounded-md hover:bg-gray-50 transition-colors">
-                                                <div class="h-6 w-6 rounded-full flex items-center justify-center text-[9px] font-bold shadow-sm shrink-0" :class="miembro.color">
+                                                
+                                                <img v-if="miembro.foto" :src="'data:image/jpeg;base64,' + miembro.foto" class="h-6 w-6 rounded-full object-cover shadow-sm shrink-0" />
+                                                <div v-else class="h-6 w-6 rounded-full flex items-center justify-center text-[9px] font-bold shadow-sm shrink-0" :class="miembro.color">
                                                     {{ miembro.iniciales }}
                                                 </div>
+
                                                 <span class="text-xs font-medium text-slate-600 truncate">{{ miembro.nombre }}</span>
                                             </div>
                                         </template>
@@ -432,9 +435,12 @@ const obtenerEquipoVisual = (proyecto) => proyecto.equipo || []
                                     :class="esMiembroSeleccionado(user.id) ? 'bg-blue-600 border-blue-600' : 'bg-white border-gray-300'">
                                     <Check v-if="esMiembroSeleccionado(user.id)" class="w-3 h-3 text-white" />
                                 </div>
-                                <div class="h-6 w-6 rounded-full flex items-center justify-center text-[9px] font-bold bg-blue-100 text-blue-700">
+
+                                <img v-if="user.foto" :src="'data:image/jpeg;base64,' + user.foto" class="h-6 w-6 rounded-full object-cover shrink-0" />
+                                <div v-else class="h-6 w-6 rounded-full flex items-center justify-center text-[9px] font-bold bg-blue-100 text-blue-700 shrink-0">
                                     {{ user.iniciales }}
                                 </div>
+                                
                                 <span class="text-[11px] font-bold truncate" :class="esMiembroSeleccionado(user.id) ? 'text-blue-700' : 'text-gray-600'">{{ user.nombre }}</span>
                             </div>
                         </div>

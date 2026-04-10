@@ -41,14 +41,13 @@ const showToast = (message, type = 'success') => {
     toastTimeout = setTimeout(() => { toast.value.show = false }, 3000)
 }
 
-
 const cargarUsuariosDesdeAPI = async () => {
     try {
         cargando.value = true
         const json = await AdminAPI.getUsuarios()
         if (json.status === 'success') {
             usuarios.value = json.data.map(u => ({
-                id: u.Id, nombre: u.Nombre, email: u.OidAzure, rol: u.Rol, sede: u.Sede, activo: u.Activo 
+                id: u.Id, nombre: u.Nombre, email: u.OidAzure, rol: u.Rol, sede: u.Sede, activo: u.Activo, foto: u.Foto
             }))
         }
     } catch (error) {
@@ -206,11 +205,20 @@ const obtenerEstiloRol = (rol) => {
 
                     <tr v-for="user in usuariosFiltrados" :key="user.id" class="hover:bg-slate-50 transition" :class="{'opacity-50': user.activo === 0 || user.activo === false}">
                         <td class="px-6 py-4">
-                            <div class="flex items-center gap-2">
-                                <p class="font-bold text-slate-800" :class="{'line-through text-slate-400': user.activo === 0 || user.activo === false}">{{ user.nombre }}</p>
-                                <span v-if="user.activo === 0 || user.activo === false" class="bg-red-100 text-red-600 border border-red-200 text-[10px] px-2 py-0.5 rounded-full font-bold uppercase">Inactivo</span>
+                            <div class="flex items-center gap-3">
+                                <img v-if="user.foto" :src="'data:image/jpeg;base64,' + user.foto" alt="Avatar" class="w-9 h-9 rounded-full object-cover shadow-sm shrink-0" />
+                                <div v-else class="w-9 h-9 rounded-full bg-slate-200 flex items-center justify-center text-xs font-bold text-slate-600 shrink-0">
+                                    {{ user.nombre.charAt(0).toUpperCase() }}
+                                </div>
+                                
+                                <div>
+                                    <div class="flex items-center gap-2">
+                                        <p class="font-bold text-slate-800" :class="{'line-through text-slate-400': user.activo === 0 || user.activo === false}">{{ user.nombre }}</p>
+                                        <span v-if="user.activo === 0 || user.activo === false" class="bg-red-100 text-red-600 border border-red-200 text-[10px] px-2 py-0.5 rounded-full font-bold uppercase">Inactivo</span>
+                                    </div>
+                                    <p class="text-xs text-gray-400">{{ user.email }}</p>
+                                </div>
                             </div>
-                            <p class="text-xs text-gray-400">{{ user.email }}</p>
                         </td>
                         <td class="px-6 py-4">
                             <span :class="obtenerEstiloRol(user.rol)" class="px-2 py-1 rounded-md text-[10px] font-bold uppercase border">

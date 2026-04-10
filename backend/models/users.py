@@ -1,7 +1,6 @@
 from database.db import db
 from datetime import datetime
 
-
 class Users(db.Model):
     __tablename__ = "Usuarios"
 
@@ -15,9 +14,9 @@ class Users(db.Model):
     tipo_contrato = db.Column("TipoContrato", db.String(20), default="40H")
     horas_verano = db.Column("HorasDiariasVerano", db.Numeric(4, 2), default=7.00)
     horas_invierno_lj = db.Column("HorasInvierno_L_J", db.Numeric(4, 2), default=8.50)
-    horas_invierno_v = db.Column(
-        "HorasInvierno_Viernes", db.Numeric(4, 2), default=6.50
-    )
+    horas_invierno_v = db.Column("HorasInvierno_Viernes", db.Numeric(4, 2), default=6.50)
+
+    foto = db.Column("Foto", db.String(None), nullable=True)
 
     fecha_creacion = db.Column("FechaCreacion", db.DateTime, default=datetime.utcnow)
     fecha_desactivacion = db.Column("FechaDesactivacion", db.DateTime, nullable=True)
@@ -36,4 +35,5 @@ class Users(db.Model):
             "Rol": self.rol,
             "Sede": self.sede,
             "Activo": self.activo,
+            "Foto": self.foto  
         }

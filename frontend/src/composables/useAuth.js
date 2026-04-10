@@ -70,18 +70,32 @@ export function useAuth() {
       nombre: account.name,
       email: account.username,
       iniciales: account.name ? account.name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase() : 'U',
-      rol: rolPrincipal // Guardamos el rol siempre en minúsculas
+      rol: rolPrincipal,
+      foto: null // NUEVO: Inicializamos la foto
     }
 
     if (callBackend) {
       try {
-        const backendRes = await UsersAPI.syncUser(account)
+        // NUEVO: Intentamos obtener el token para leer el perfil (Graph API)
+        let accessToken = null;
+        try {
+            const tokenResponse = await msalInstance.acquireTokenSilent({
+                scopes: ['User.Read'],
+                account: account
+            });
+            accessToken = tokenResponse.accessToken;
+        } catch (tokenError) {
+            console.warn("No se pudo obtener el token silencioso para la foto:", tokenError);
+        }
+
+        // Le pasamos al API el account y el token de acceso que acabamos de conseguir
+        const backendRes = await UsersAPI.syncUser(account, accessToken)
 
         if (backendRes.status === 'success' && backendRes.data) {
           userData.id = backendRes.data.id
-          // El backend ya devuelve el rol normalizado en minúsculas
           userData.rol = backendRes.data.rol || userData.rol
           userData.iniciales = backendRes.data.iniciales || userData.iniciales
+          userData.foto = backendRes.data.foto || null // NUEVO: Guardamos la foto base64
         }
       } catch (e) {
         console.error('Error al sincronizar con el backend:', e)
