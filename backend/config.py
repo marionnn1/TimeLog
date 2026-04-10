@@ -9,10 +9,8 @@ load_dotenv()
 KV_URL = os.getenv("AZURE_KEYVAULT_URL")
 
 if os.getenv('DEBUG') == 'true':
-    print("local")
     credential = AzureCliCredential()
 else:
-    print("prod")
     credential = DefaultAzureCredential()
 
 client = SecretClient(vault_url=KV_URL, credential=credential)

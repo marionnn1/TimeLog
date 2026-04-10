@@ -8,36 +8,48 @@ from sqlalchemy import extract
 from datetime import datetime 
 from errors import APIError
 
-def obtener_ausencias_mes(mes, anio):
-    ausencias = Absences.query.filter(
-        extract("month", Absences.fecha) == mes,
-        extract("year", Absences.fecha) == anio,
-    ).all()
-
-    return [
-        {
-            "fecha": a.fecha.strftime("%Y-%m-%d") if a.fecha else None,
-            "tipo": a.tipo,
-            "comentario": a.comentario or "",
-            "userId": a.usuario_id,
-            "nombre": a.usuario.nombre if a.usuario else "Desconocido",
-            "foto": getattr(a.usuario, 'foto', None) if a.usuario else None, # AÑADIDO
-            "iniciales": (
-                "".join([n[0] for n in a.usuario.nombre.split()[:2]]).upper()
-                if a.usuario
-                else "XX"
-            ),
-        }
-        for a in ausencias
-    ]
-
-def obtener_resumen_anual(anio, userId):
-    # 1. Identificar IDs de proyectos donde el usuario está activo
+def obtener_ausencias_mes(mes, anio, userId):
     proyectos_usuario = db.session.query(Assignments.proyecto_id)\
         .filter(Assignments.usuario_id == userId, Assignments.activo == True)\
         .subquery()
 
-    # 2. Identificar IDs de compañeros que comparten esos proyectos (incluido el propio usuario)
+    companeros_ids = db.session.query(Assignments.usuario_id)\
+        .filter(Assignments.proyecto_id.in_(proyectos_usuario), Assignments.activo == True)\
+        .distinct().subquery()
+
+    ausencias = Absences.query.filter(
+        Absences.usuario_id.in_(companeros_ids),
+        extract("month", Absences.fecha) == mes,
+        extract("year", Absences.fecha) == anio,
+    ).all()
+
+    resultado = []
+    for a in ausencias:
+        comentario_final = a.comentario or ""
+
+        nombre_usuario = a.usuario.nombre if a.usuario else "Desconocido"
+        nombres_split = nombre_usuario.split()
+        iniciales = "".join([n[0] for n in nombres_split[:2]]).upper() if nombres_split else "XX"
+
+        resultado.append({
+            "fecha": a.fecha.strftime("%Y-%m-%d") if a.fecha else None,
+            "tipo": a.tipo,
+            "comentario": comentario_final,
+            "userId": a.usuario_id,
+            "nombre": nombre_usuario,
+            "foto": getattr(a.usuario, 'foto', None) if a.usuario else None,
+            "iniciales": iniciales
+        })
+
+    return resultado
+
+
+
+def obtener_resumen_anual(anio, userId):
+    proyectos_usuario = db.session.query(Assignments.proyecto_id)\
+        .filter(Assignments.usuario_id == userId, Assignments.activo == True)\
+        .subquery()
+
     companeros_ids = db.session.query(Assignments.usuario_id)\
         .filter(Assignments.proyecto_id.in_(proyectos_usuario), Assignments.activo == True)\
         .distinct().all()
@@ -45,44 +57,36 @@ def obtener_resumen_anual(anio, userId):
     lista_ids = [c[0] for c in companeros_ids]
 
     if not lista_ids:
-        # Si el usuario no tiene proyectos, solo se ve a sí mismo
         lista_ids = [userId]
 
-    # 3. Obtener usuarios y sus ausencias filtradas por año y por pertenencia a proyecto
     usuarios = Users.query.filter(Users.id.in_(lista_ids), Users.activo == True).all()
     
-    # 4. Traer solo las ausencias de esos compañeros para ese año
     ausencias = Absences.query.filter(
         Absences.usuario_id.in_(lista_ids),
         extract("year", Absences.fecha) == anio
     ).all()
 
-    usuarios = Users.query.filter_by(activo=True).all()
-    ausencias = Absences.query.filter(extract("year", Absences.fecha) == anio).all()
     resumen = []
     for user in usuarios:
-        # Filtrar ausencias del usuario actual del bucle
         aus_usuario = [a for a in ausencias if a.usuario_id == user.id]
         
-        # Generar iniciales
         nombres = user.nombre.split() if user.nombre else []
         iniciales = "".join([n[0] for n in nombres[:2]]).upper() if nombres else "XX"
         
-        # Solo añadir al resumen si tiene ausencias o es el propio usuario logueado
         if aus_usuario or user.id == userId:
             resumen.append({
                 "userId": user.id,
                 "nombre": user.nombre,
-                "foto": getattr(user, 'foto', None), # AÑADIDO
                 "iniciales": iniciales,
                 "dias": [
                     {
                         "fecha": a.fecha.strftime("%Y-%m-%d"),
                         "tipo": a.tipo,
-                        "comentario": a.comentario # Aquí va el motivo si es "Baja"
+                        "comentario": a.comentario
                     } for a in sorted(aus_usuario, key=lambda x: x.fecha)
                 ]
             })
+    
     return sorted(resumen, key=lambda x: x['nombre'])
 
 def contar_ausencias(usuario_id, fecha_inicio, fecha_fin):
