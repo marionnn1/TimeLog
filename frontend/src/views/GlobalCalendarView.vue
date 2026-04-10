@@ -6,7 +6,7 @@ import AbsencesAPI from '../services/AbsencesAPI'
 import {
     Calendar as CalendarIcon, ChevronLeft, ChevronRight,
     AlertTriangle, Plus, X, Check, Palmtree, MapPin, Briefcase,
-    AlertCircle, CheckCircle2, Trash2, Users
+    AlertCircle, CheckCircle2, Trash2, Users, Stethoscope
 } from 'lucide-vue-next'
 import ConfirmModal from '../components/common/ConfirmModal.vue'
 import ToastNotification from '../components/common/ToastNotification.vue'
@@ -85,8 +85,20 @@ const form = ref({
     fechaInicio: '',
     fechaFin: '',
     tipo: 'vacaciones',
+    motivoBaja: '',
     comentario: ''
 })
+
+const motivosBaja = [
+    "Baja médica",
+    "Baja laboral",
+    "Maternidad/Paternidad",
+    "Riesgo durante el embarazo/lactancia",
+    "Permiso por fallecimiento de familiar",
+    "Permiso por enfermedad u hospitalización de familiar",
+    "Cuidado familiar",
+    "Otros"
+]
 
 const minDateISO = computed(() => {
     const d = new Date()
@@ -99,6 +111,7 @@ const getMiEstiloTipo = (tipo) => {
     if (t.includes('vacaciones')) return 'bg-emerald-500 text-white border-emerald-600 shadow-md ring-1 ring-emerald-300'
     if (t.includes('festivo')) return 'bg-orange-500 text-white border-orange-600 shadow-md ring-1 ring-orange-300'
     if (t.includes('asuntos')) return 'bg-blue-500 text-white border-blue-600 shadow-md ring-1 ring-blue-300'
+    if (t.includes('baja')) return 'bg-purple-600 text-white border-purple-700 shadow-md ring-1 ring-purple-400'
     return 'bg-gray-700 text-white border-gray-800'
 }
 
@@ -107,6 +120,7 @@ const getCompaneroEstiloTipo = (tipo) => {
     if (t.includes('vacaciones')) return 'bg-emerald-50 text-emerald-700 border-emerald-200'
     if (t.includes('festivo')) return 'bg-orange-50 text-orange-700 border-orange-200'
     if (t.includes('asuntos')) return 'bg-blue-50 text-blue-700 border-blue-200'
+    if (t.includes('baja')) return 'bg-purple-50 text-purple-700 border-purple-200'
     return 'bg-gray-50 text-gray-700 border-gray-200'
 }
 
@@ -122,6 +136,7 @@ const getIconoTipo = (tipo) => {
     const t = (tipo || '').toLowerCase()
     if (t.includes('vacaciones')) return Palmtree
     if (t.includes('festivo')) return MapPin
+    if (t.includes('baja')) return Stethoscope
     return Briefcase
 }
 
@@ -172,6 +187,17 @@ const procesarSolicitud = async (diasSolicitados) => {
             return
         }
 
+        let comentarioFinal = ''
+        
+        if (form.value.tipo === 'baja') {
+            if (!form.value.motivoBaja) {
+                return showToast('El motivo de la baja es obligatorio', 'error')
+            }
+            comentarioFinal = form.value.motivoBaja
+        } else {
+            comentarioFinal = form.value.comentario
+        }
+
         const payload = {
             usuario_id: currentUser.id,
             fechas: diasSolicitados,
@@ -185,8 +211,9 @@ const procesarSolicitud = async (diasSolicitados) => {
         if (res.status === 'success') {
             mostrarModal.value = false
             showToast('Solicitud registrada con éxito', 'success')
-            cargarAusencias()
-            cargarResumenAnual()
+            await Promise.all([cargarAusencias(), cargarResumenAnual()])
+            form.value.motivoBaja = ''
+            form.value.comentario = ''
         } else {
             showToast('Error al guardar la solicitud', 'error')
         }
@@ -301,6 +328,9 @@ const nextMonth = () => currentDate.value = new Date(year.value, month.value + 1
                 <div class="flex items-center gap-1.5 font-medium text-blue-700">
                     <div class="w-2 h-2 rounded-full bg-blue-500"></div> Asuntos P.
                 </div>
+            </div>
+            <div class="flex items-center gap-1.5 font-medium text-purple-700">
+                <div class="w-2 h-2 rounded-full bg-purple-500"></div> Baja
             </div>
         </div>
 
@@ -499,32 +529,55 @@ const nextMonth = () => currentDate.value = new Date(year.value, month.value + 1
                     </button>
                 </div>
 
-                <div v-else class="space-y-6">
-                    <p class="text-sm text-slate-500 bg-rose-50 p-3 rounded-lg border border-rose-100 text-rose-800">
-                        Selecciona el rango de fechas en las que deseas <b>cancelar</b> tus ausencias. Solo se borrarán
-                        los días
-                        en los que tengas algo registrado.
-                    </p>
-
-                    <div class="grid grid-cols-2 gap-4">
-                        <div>
-                            <label
-                                class="block text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-2">Desde</label>
-                            <input type="date" v-model="form.fechaInicio"
-                                class="w-full bg-slate-50 border border-slate-200 text-slate-800 rounded-lg px-3 py-2 font-bold focus:ring-2 focus:ring-rose-500 outline-none">
+                <div>
+                    <label class="block text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-2">Tipo de Ausencia</label>
+                    <div class="grid grid-cols-2 gap-2"> <div @click="form.tipo = 'vacaciones'" 
+                            class="cursor-pointer border rounded-xl p-3 flex flex-col items-center gap-2 transition-all"
+                            :class="form.tipo === 'vacaciones' ? 'border-emerald-500 bg-emerald-50 text-emerald-700 ring-1 ring-emerald-500' : 'border-slate-200 text-slate-500'">
+                            <Palmtree class="w-5 h-5" />
+                            <span class="text-[10px] font-bold uppercase">Vacaciones</span>
                         </div>
-                        <div>
-                            <label
-                                class="block text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-2">Hasta</label>
-                            <input type="date" v-model="form.fechaFin"
-                                class="w-full bg-slate-50 border border-slate-200 text-slate-800 rounded-lg px-3 py-2 font-bold focus:ring-2 focus:ring-rose-500 outline-none">
+                        
+                        <div @click="form.tipo = 'festivo'" 
+                            class="cursor-pointer border rounded-xl p-3 flex flex-col items-center gap-2 transition-all"
+                            :class="form.tipo === 'festivo' ? 'border-orange-500 bg-orange-50 text-orange-700 ring-1 ring-orange-500' : 'border-slate-200 text-slate-500'">
+                            <MapPin class="w-5 h-5" />
+                            <span class="text-[10px] font-bold uppercase">Festivo</span>
+                        </div>
+
+                        <div @click="form.tipo = 'asuntos'" 
+                            class="cursor-pointer border rounded-xl p-3 flex flex-col items-center gap-2 transition-all"
+                            :class="form.tipo === 'asuntos' ? 'border-blue-500 bg-blue-50 text-blue-700 ring-1 ring-blue-500' : 'border-slate-200 text-slate-500'">
+                            <Briefcase class="w-5 h-5" />
+                            <span class="text-[10px] font-bold uppercase">Asuntos P.</span>
+                        </div>
+
+                        <div @click="form.tipo = 'baja'" 
+                            class="cursor-pointer border rounded-xl p-3 flex flex-col items-center gap-2 transition-all"
+                            :class="form.tipo === 'baja' ? 'border-purple-500 bg-purple-50 text-purple-700 ring-1 ring-purple-500' : 'border-slate-200 text-slate-500'">
+                            <Stethoscope class="w-5 h-5" />
+                            <span class="text-[10px] font-bold uppercase">Baja / Médica</span>
                         </div>
                     </div>
 
-                    <button @click="confirmarEliminacion"
-                        class="w-full btn-primary py-3 justify-center text-base bg-rose-500 text-white font-bold rounded-lg hover:bg-rose-600 shadow-md transition flex items-center">
-                        <Trash2 class="w-5 h-5 mr-2" /> Confirmar Eliminación
-                    </button>
+                <div v-if="form.tipo === 'baja'" class="space-y-2 animate-in fade-in slide-in-from-top-2">
+                    <label class="block text-[11px] font-bold text-slate-400 uppercase tracking-widest">Motivo de la baja</label>
+                    <select v-model="form.motivoBaja" 
+                            class="w-full bg-slate-50 border border-slate-200 text-slate-800 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-violet-500 outline-none font-bold">
+                        <option value="" disabled>Selecciona un motivo...</option>
+                        <option v-for="motivo in motivosBaja" :key="motivo" :value="motivo">
+                            {{ motivo }}
+                        </option>
+                    </select>
+                </div>
+
+                <div v-else>
+                    <label class="block text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-2">Comentario (Opcional)</label>
+                    <input type="text" 
+                        v-model="form.comentario" 
+                        placeholder="Ej: Viaje, trámites, etc..." 
+                        maxlength="255"
+                        class="w-full bg-white border border-slate-200 text-slate-800 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-primary outline-none">
                 </div>
 
             </div>
