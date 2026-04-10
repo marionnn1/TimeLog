@@ -202,7 +202,7 @@ const procesarSolicitud = async (diasSolicitados) => {
             usuario_id: currentUser.id,
             fechas: diasSolicitados,
             tipo: form.value.tipo,
-            comentario: form.value.comentario
+            comentario: comentarioFinal
         }
 
 
@@ -317,8 +317,7 @@ const nextMonth = () => currentDate.value = new Date(year.value, month.value + 1
                 <p class="subtitle">Coordina tus días libres con el resto del equipo.</p>
             </div>
 
-            <div
-                class="flex gap-4 text-xs items-center bg-white px-4 py-2 rounded-lg border border-slate-200 shadow-sm">
+            <div class="flex gap-4 text-xs items-center bg-white px-4 py-2 rounded-lg border border-slate-200 shadow-sm">
                 <div class="flex items-center gap-1.5 font-medium text-emerald-700">
                     <div class="w-2 h-2 rounded-full bg-emerald-500"></div> Vacaciones
                 </div>
@@ -328,9 +327,9 @@ const nextMonth = () => currentDate.value = new Date(year.value, month.value + 1
                 <div class="flex items-center gap-1.5 font-medium text-blue-700">
                     <div class="w-2 h-2 rounded-full bg-blue-500"></div> Asuntos P.
                 </div>
-            </div>
-            <div class="flex items-center gap-1.5 font-medium text-purple-700">
-                <div class="w-2 h-2 rounded-full bg-purple-500"></div> Baja
+                <div class="flex items-center gap-1.5 font-medium text-purple-700">
+                    <div class="w-2 h-2 rounded-full bg-purple-500"></div> Baja
+                </div>
             </div>
         </div>
 
@@ -476,48 +475,63 @@ const nextMonth = () => currentDate.value = new Date(year.value, month.value + 1
                 <div v-if="tabActiva === 'solicitar'" class="space-y-6">
                     <div class="grid grid-cols-2 gap-4">
                         <div>
-                            <label
-                                class="block text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-2">Desde</label>
+                            <label class="block text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-2">Desde</label>
                             <input type="date" v-model="form.fechaInicio" :min="minDateISO"
                                 class="w-full bg-slate-50 border border-slate-200 text-slate-800 rounded-lg px-3 py-2 font-bold focus:ring-2 focus:ring-primary outline-none">
                         </div>
                         <div>
-                            <label
-                                class="block text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-2">Hasta</label>
+                            <label class="block text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-2">Hasta</label>
                             <input type="date" v-model="form.fechaFin" :min="form.fechaInicio || minDateISO"
                                 class="w-full bg-slate-50 border border-slate-200 text-slate-800 rounded-lg px-3 py-2 font-bold focus:ring-2 focus:ring-primary outline-none">
                         </div>
                     </div>
 
                     <div>
-                        <label class="block text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-2">Tipo de
-                            Ausencia</label>
-                        <div class="grid grid-cols-3 gap-2">
-                            <div @click="form.tipo = 'vacaciones'"
+                        <label class="block text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-2">Tipo de Ausencia</label>
+                        <div class="grid grid-cols-2 gap-2"> 
+                            <div @click="form.tipo = 'vacaciones'" 
                                 class="cursor-pointer border rounded-xl p-3 flex flex-col items-center gap-2 transition-all"
-                                :class="form.tipo === 'vacaciones' ? 'border-emerald-500 bg-emerald-50 text-emerald-700 ring-1 ring-emerald-500' : 'border-slate-200 hover:border-slate-300 text-slate-500'">
-                                <Palmtree class="w-6 h-6" />
+                                :class="form.tipo === 'vacaciones' ? 'border-emerald-500 bg-emerald-50 text-emerald-700 ring-1 ring-emerald-500' : 'border-slate-200 text-slate-500 hover:border-slate-300'">
+                                <Palmtree class="w-5 h-5" />
                                 <span class="text-[10px] font-bold uppercase">Vacaciones</span>
                             </div>
-                            <div @click="form.tipo = 'festivo'"
+                            
+                            <div @click="form.tipo = 'festivo'" 
                                 class="cursor-pointer border rounded-xl p-3 flex flex-col items-center gap-2 transition-all"
-                                :class="form.tipo === 'festivo' ? 'border-orange-500 bg-orange-50 text-orange-700 ring-1 ring-orange-500' : 'border-slate-200 hover:border-slate-300 text-slate-500'">
-                                <MapPin class="w-6 h-6" />
+                                :class="form.tipo === 'festivo' ? 'border-orange-500 bg-orange-50 text-orange-700 ring-1 ring-orange-500' : 'border-slate-200 text-slate-500 hover:border-slate-300'">
+                                <MapPin class="w-5 h-5" />
                                 <span class="text-[10px] font-bold uppercase">Festivo</span>
                             </div>
-                            <div @click="form.tipo = 'asuntos'"
+
+                            <div @click="form.tipo = 'asuntos'" 
                                 class="cursor-pointer border rounded-xl p-3 flex flex-col items-center gap-2 transition-all"
-                                :class="form.tipo === 'asuntos' ? 'border-blue-500 bg-blue-50 text-blue-700 ring-1 ring-blue-500' : 'border-slate-200 hover:border-slate-300 text-slate-500'">
-                                <Briefcase class="w-6 h-6" />
+                                :class="form.tipo === 'asuntos' ? 'border-blue-500 bg-blue-50 text-blue-700 ring-1 ring-blue-500' : 'border-slate-200 text-slate-500 hover:border-slate-300'">
+                                <Briefcase class="w-5 h-5" />
                                 <span class="text-[10px] font-bold uppercase">Asuntos P.</span>
+                            </div>
+
+                            <div @click="form.tipo = 'baja'" 
+                                class="cursor-pointer border rounded-xl p-3 flex flex-col items-center gap-2 transition-all"
+                                :class="form.tipo === 'baja' ? 'border-purple-500 bg-purple-50 text-purple-700 ring-1 ring-purple-500' : 'border-slate-200 text-slate-500 hover:border-slate-300'">
+                                <Stethoscope class="w-5 h-5" />
+                                <span class="text-[10px] font-bold uppercase">Baja / Médica</span>
                             </div>
                         </div>
                     </div>
 
-                    <div>
-                        <label
-                            class="block text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-2">Comentario
-                            (Opcional)</label>
+                    <div v-if="form.tipo === 'baja'" class="space-y-2 animate-in fade-in slide-in-from-top-2">
+                        <label class="block text-[11px] font-bold text-slate-400 uppercase tracking-widest">Motivo de la baja</label>
+                        <select v-model="form.motivoBaja" 
+                                class="w-full bg-slate-50 border border-slate-200 text-slate-800 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-violet-500 outline-none font-bold">
+                            <option value="" disabled>Selecciona un motivo...</option>
+                            <option v-for="motivo in motivosBaja" :key="motivo" :value="motivo">
+                                {{ motivo }}
+                            </option>
+                        </select>
+                    </div>
+
+                    <div v-else>
+                        <label class="block text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-2">Comentario (Opcional)</label>
                         <input type="text" v-model="form.comentario" placeholder="Ej: Viaje a Londres..."
                             maxlength="255"
                             class="w-full bg-white border border-slate-200 text-slate-800 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-primary outline-none">
@@ -529,55 +543,23 @@ const nextMonth = () => currentDate.value = new Date(year.value, month.value + 1
                     </button>
                 </div>
 
-                <div>
-                    <label class="block text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-2">Tipo de Ausencia</label>
-                    <div class="grid grid-cols-2 gap-2"> <div @click="form.tipo = 'vacaciones'" 
-                            class="cursor-pointer border rounded-xl p-3 flex flex-col items-center gap-2 transition-all"
-                            :class="form.tipo === 'vacaciones' ? 'border-emerald-500 bg-emerald-50 text-emerald-700 ring-1 ring-emerald-500' : 'border-slate-200 text-slate-500'">
-                            <Palmtree class="w-5 h-5" />
-                            <span class="text-[10px] font-bold uppercase">Vacaciones</span>
-                        </div>
-                        
-                        <div @click="form.tipo = 'festivo'" 
-                            class="cursor-pointer border rounded-xl p-3 flex flex-col items-center gap-2 transition-all"
-                            :class="form.tipo === 'festivo' ? 'border-orange-500 bg-orange-50 text-orange-700 ring-1 ring-orange-500' : 'border-slate-200 text-slate-500'">
-                            <MapPin class="w-5 h-5" />
-                            <span class="text-[10px] font-bold uppercase">Festivo</span>
-                        </div>
-
-                        <div @click="form.tipo = 'asuntos'" 
-                            class="cursor-pointer border rounded-xl p-3 flex flex-col items-center gap-2 transition-all"
-                            :class="form.tipo === 'asuntos' ? 'border-blue-500 bg-blue-50 text-blue-700 ring-1 ring-blue-500' : 'border-slate-200 text-slate-500'">
-                            <Briefcase class="w-5 h-5" />
-                            <span class="text-[10px] font-bold uppercase">Asuntos P.</span>
-                        </div>
-
-                        <div @click="form.tipo = 'baja'" 
-                            class="cursor-pointer border rounded-xl p-3 flex flex-col items-center gap-2 transition-all"
-                            :class="form.tipo === 'baja' ? 'border-purple-500 bg-purple-50 text-purple-700 ring-1 ring-purple-500' : 'border-slate-200 text-slate-500'">
-                            <Stethoscope class="w-5 h-5" />
-                            <span class="text-[10px] font-bold uppercase">Baja / Médica</span>
+                <div v-if="tabActiva === 'eliminar'" class="space-y-6">
+                    <div class="bg-rose-50 p-4 rounded-xl border border-rose-200">
+                        <p class="text-sm text-rose-700 font-medium mb-3">Selecciona el rango de fechas de las ausencias que deseas cancelar.</p>
+                        <div class="grid grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-[10px] font-bold text-rose-500 uppercase tracking-widest mb-1">Desde</label>
+                                <input type="date" v-model="form.fechaInicio" class="w-full bg-white border border-rose-200 text-rose-900 rounded-lg px-3 py-2 font-bold focus:ring-2 focus:ring-rose-500 outline-none">
+                            </div>
+                            <div>
+                                <label class="block text-[10px] font-bold text-rose-500 uppercase tracking-widest mb-1">Hasta</label>
+                                <input type="date" v-model="form.fechaFin" class="w-full bg-white border border-rose-200 text-rose-900 rounded-lg px-3 py-2 font-bold focus:ring-2 focus:ring-rose-500 outline-none">
+                            </div>
                         </div>
                     </div>
-
-                <div v-if="form.tipo === 'baja'" class="space-y-2 animate-in fade-in slide-in-from-top-2">
-                    <label class="block text-[11px] font-bold text-slate-400 uppercase tracking-widest">Motivo de la baja</label>
-                    <select v-model="form.motivoBaja" 
-                            class="w-full bg-slate-50 border border-slate-200 text-slate-800 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-violet-500 outline-none font-bold">
-                        <option value="" disabled>Selecciona un motivo...</option>
-                        <option v-for="motivo in motivosBaja" :key="motivo" :value="motivo">
-                            {{ motivo }}
-                        </option>
-                    </select>
-                </div>
-
-                <div v-else>
-                    <label class="block text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-2">Comentario (Opcional)</label>
-                    <input type="text" 
-                        v-model="form.comentario" 
-                        placeholder="Ej: Viaje, trámites, etc..." 
-                        maxlength="255"
-                        class="w-full bg-white border border-slate-200 text-slate-800 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-primary outline-none">
+                    <button @click="confirmarEliminacion" class="w-full py-3 justify-center text-base bg-rose-600 text-white font-bold rounded-lg hover:bg-rose-700 shadow-md transition flex items-center">
+                        <Trash2 class="w-5 h-5 mr-2" /> Cancelar Ausencias
+                    </button>
                 </div>
 
             </div>
