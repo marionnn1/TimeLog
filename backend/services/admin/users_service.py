@@ -3,6 +3,8 @@ from models.users import Users
 from services.admin.audit_service import registrar_log
 from datetime import datetime
 from errors import APIError
+import requests
+import base64
 
 
 def obtener_usuarios():
@@ -91,6 +93,35 @@ def eliminar_usuario_fisico(id_usuario):
     return True
 
 
+def descargar_y_guardar_foto_azure(access_token, usuario_bd):
+    """
+    Descarga la foto de perfil desde Microsoft Graph y la guarda en Base64.
+    """
+    if not access_token:
+        return False
+        
+    url = "https://graph.microsoft.com/v1.0/me/photo/$value"
+    headers = {"Authorization": f"Bearer {access_token}"}
+    
+    try:
+        respuesta = requests.get(url, headers=headers)
+        
+        # 200 OK significa que tiene foto configurada
+        if respuesta.status_code == 200:
+            imagen_b64 = base64.b64encode(respuesta.content).decode('utf-8')
+            # Solo guardamos en BD si la foto ha cambiado (para ahorrar operaciones en la BD)
+            if getattr(usuario_bd, 'foto', None) != imagen_b64:
+                usuario_bd.foto = imagen_b64
+                db.session.commit()
+            return True
+        else:
+            return False
+            
+    except Exception as e:
+        print(f"Error al descargar la foto de Azure: {e}")
+        return False
+
+
 def sincronizar_usuario(datos):
     from models.users import Users
     from database.db import db
@@ -118,10 +149,15 @@ def sincronizar_usuario(datos):
             status_code=403,
         )
 
+    access_token = datos.get("access_token")
+    if access_token:
+        descargar_y_guardar_foto_azure(access_token, usuario)
+
     return {
         "id": usuario.id,
         "nombre": usuario.nombre,
         "rol": usuario.rol.lower() if usuario.rol else "tecnico",
+        "foto": getattr(usuario, 'foto', None),
         "iniciales": (
             "".join([n[0] for n in usuario.nombre.split()[:2]]).upper()
             if usuario.nombre
