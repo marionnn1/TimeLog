@@ -8,7 +8,7 @@ import ToastNotification from '../components/common/ToastNotification.vue'
 
 import {
     ChevronLeft, ChevronRight, Plus, Trash2, Save, Building2, Info, X, RotateCcw,
-    Check, AlertCircle, CheckCircle2, Loader2, Wand2, Settings2, Briefcase, Clock
+    Check, AlertCircle, AlertTriangle, CheckCircle2, Loader2, Wand2, Settings2, Briefcase, Clock
 } from 'lucide-vue-next'
 
 const route = useRoute()
@@ -26,6 +26,17 @@ const showToast = (message, type = 'success') => {
         toast.value.show = false
     }, 3000)
 }
+
+const mostrarAvisoSAP = computed(() => {
+  const hoy = new Date();
+  const anio = hoy.getFullYear();
+  const mes = hoy.getMonth();
+  
+  const ultimoDiaMes = new Date(anio, mes + 1, 0).getDate();
+  const diaActual = hoy.getDate();
+
+  return diaActual === ultimoDiaMes || diaActual === (ultimoDiaMes - 1);
+});
 
 const configJornada = ref({
     tipoContrato: '40H',
@@ -311,16 +322,7 @@ const esEditable = (index) => {
     
     if (esFinDeSemana(date) || tiposDiasSemana.value[index]) return false;
 
-    const hoy = new Date();
-    hoy.setHours(0, 0, 0, 0);
-
-    const limitePasado = new Date(hoy);
-    limitePasado.setDate(hoy.getDate() - 30);
-
-    const fComp = new Date(date);
-    fComp.setHours(0, 0, 0, 0);
-
-    return fComp >= limitePasado;
+    return true;
 }
 
 const esSeleccionado = (date) => date.getDate() === diaSeleccionado.value && date.getMonth() === fechaActual.value.getMonth()
@@ -477,6 +479,19 @@ onMounted(() => {
                             <ChevronRight class="w-5 h-5" />
                         </button>
                     </div>
+                </div>
+            </div>
+
+            <div v-if="mostrarAvisoSAP" class="bg-amber-50 border border-amber-200 p-4 rounded-xl shadow-sm shrink-0 flex items-start gap-4 animate-pulse-slow">
+                <div class="bg-amber-100 p-2 rounded-lg text-amber-600 mt-0.5">
+                    <AlertTriangle class="w-6 h-6" />
+                </div>
+                <div>
+                    <h3 class="font-bold text-amber-800 text-lg">Recordatorio de Cierre de Mes</h3>
+                    <p class="text-sm text-amber-700 mt-1">
+                        Faltan muy pocos días para terminar el mes. Por favor, asegúrate de tener todas tus horas registradas aquí e 
+                        <span class="font-bold underline">imputadas correctamente en SAP</span> antes del cierre.
+                    </p>
                 </div>
             </div>
 
@@ -791,5 +806,13 @@ input[type=number]::-webkit-inner-spin-button,
 input[type=number]::-webkit-outer-spin-button {
     -webkit-appearance: none;
     margin: 0;
+}
+
+@keyframes pulse-slow {
+  0%, 100% { opacity: 1; }
+  50% { opacity: .85; }
+}
+.animate-pulse-slow {
+  animation: pulse-slow 3s cubic-bezier(0.4, 0, 0.6, 1) infinite;
 }
 </style>
