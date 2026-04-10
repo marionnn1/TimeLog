@@ -70,8 +70,6 @@ def obtener_resumen_anual(anio, userId):
         
         # Solo añadir al resumen si tiene ausencias o es el propio usuario logueado
         if aus_usuario or user.id == userId:
-        iniciales = "".join([n[0] for n in user.nombre.split()[:2]]).upper() if user.nombre else "XX"
-        if user.ausencias or user.id == userId:
             resumen.append({
                 "userId": user.id,
                 "nombre": user.nombre,
