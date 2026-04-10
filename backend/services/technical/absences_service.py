@@ -1,5 +1,6 @@
 from database.db import db
 from models.absences import Absences
+from models.assignments import Assignments
 from models.time_entries import TimeEntries
 from models.audits import Audits
 from models.users import Users
@@ -31,11 +32,44 @@ def obtener_ausencias_mes(mes, anio):
     ]
 
 def obtener_resumen_anual(anio, userId):
+    # 1. Identificar IDs de proyectos donde el usuario está activo
+    proyectos_usuario = db.session.query(Assignments.proyecto_id)\
+        .filter(Assignments.usuario_id == userId, Assignments.activo == True)\
+        .subquery()
+
+    # 2. Identificar IDs de compañeros que comparten esos proyectos (incluido el propio usuario)
+    companeros_ids = db.session.query(Assignments.usuario_id)\
+        .filter(Assignments.proyecto_id.in_(proyectos_usuario), Assignments.activo == True)\
+        .distinct().all()
+    
+    lista_ids = [c[0] for c in companeros_ids]
+
+    if not lista_ids:
+        # Si el usuario no tiene proyectos, solo se ve a sí mismo
+        lista_ids = [userId]
+
+    # 3. Obtener usuarios y sus ausencias filtradas por año y por pertenencia a proyecto
+    usuarios = Users.query.filter(Users.id.in_(lista_ids), Users.activo == True).all()
+    
+    # 4. Traer solo las ausencias de esos compañeros para ese año
+    ausencias = Absences.query.filter(
+        Absences.usuario_id.in_(lista_ids),
+        extract("year", Absences.fecha) == anio
+    ).all()
+
     usuarios = Users.query.filter_by(activo=True).all()
     ausencias = Absences.query.filter(extract("year", Absences.fecha) == anio).all()
     resumen = []
     for user in usuarios:
+        # Filtrar ausencias del usuario actual del bucle
         aus_usuario = [a for a in ausencias if a.usuario_id == user.id]
+        
+        # Generar iniciales
+        nombres = user.nombre.split() if user.nombre else []
+        iniciales = "".join([n[0] for n in nombres[:2]]).upper() if nombres else "XX"
+        
+        # Solo añadir al resumen si tiene ausencias o es el propio usuario logueado
+        if aus_usuario or user.id == userId:
         iniciales = "".join([n[0] for n in user.nombre.split()[:2]]).upper() if user.nombre else "XX"
         if user.ausencias or user.id == userId:
             resumen.append({
@@ -47,7 +81,7 @@ def obtener_resumen_anual(anio, userId):
                     {
                         "fecha": a.fecha.strftime("%Y-%m-%d"),
                         "tipo": a.tipo,
-                        "comentario": a.comentario
+                        "comentario": a.comentario # Aquí va el motivo si es "Baja"
                     } for a in sorted(aus_usuario, key=lambda x: x.fecha)
                 ]
             })
