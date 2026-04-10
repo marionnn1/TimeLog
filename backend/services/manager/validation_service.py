@@ -51,6 +51,7 @@ def get_pending_validations():
 
         solicitudes.append({
             "id": s.id, "usuario": usuario_nombre, "avatar": avatar,
+            "foto": getattr(s.usuario, 'foto', None) if s.usuario else None, # AÑADIDO
             "fecha": s.fecha.strftime("%Y-%m-%d") if s.fecha else "",
             "proyecto": proyecto_nombre, "cliente": cliente_nombre,
             "horasActuales": float(s.horas) if s.horas is not None else 0.0,

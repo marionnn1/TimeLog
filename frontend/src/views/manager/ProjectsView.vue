@@ -394,7 +394,8 @@ const getColorClass = (nombre) => {
                                 <template v-if="proy.equipo.length > 0">
                                     <div v-for="(user, index) in proy.equipo" :key="index" class="flex items-center justify-between group/user bg-slate-50/50 p-1.5 rounded-lg border border-transparent hover:border-slate-200 hover:bg-white transition-all">
                                         <div class="flex items-center gap-3">
-                                            <div class="w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0"
+                                            <img v-if="user.foto" :src="'data:image/jpeg;base64,' + user.foto" class="w-7 h-7 rounded-full object-cover border border-slate-200 shrink-0" />
+                                            <div v-else class="w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0"
                                                 :class="getColorClass(user.nombre)">
                                                 {{ user.iniciales }}
                                             </div>
@@ -510,7 +511,8 @@ const getColorClass = (nombre) => {
                                     :class="esMiembroSeleccionado(user.id) ? 'bg-[#26AA9B] border-[#26AA9B]' : 'bg-white border-slate-300'">
                                     <Check v-if="esMiembroSeleccionado(user.id)" class="w-3 h-3 text-white" />
                                 </div>
-                                <div class="h-6 w-6 rounded-full flex items-center justify-center text-[9px] font-bold shrink-0" :class="getColorClass(user.nombre)">
+                                <img v-if="user.foto" :src="'data:image/jpeg;base64,' + user.foto" class="h-6 w-6 rounded-full object-cover shrink-0" />
+                                <div v-else class="h-6 w-6 rounded-full flex items-center justify-center text-[9px] font-bold shrink-0" :class="getColorClass(user.nombre)">
                                     {{ user.iniciales }}
                                 </div>
                                 <span class="text-[11px] font-bold truncate" :class="esMiembroSeleccionado(user.id) ? 'text-[#26AA9B]' : 'text-slate-600'">{{ user.nombre }}</span>

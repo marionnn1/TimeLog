@@ -156,7 +156,7 @@ const exportarReporte = () => {
                             </div>
                             <div class="text-right">
                                 <span class="text-2xl font-black text-indigo-600">{{ cliente.horas_totales }}<span class="text-sm font-medium text-indigo-400 ml-1">h</span></span>
-                                <span class="text-[10px] text-slate-400 block uppercase tracking-widest font-bold">Total Facturable</span>
+                                <span class="text-[10px] text-slate-400 block uppercase tracking-widest font-bold">Total Imputado</span>
                             </div>
                         </div>
 

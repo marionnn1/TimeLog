@@ -17,7 +17,13 @@ def get_all_projects_data():
             if a.activo and a.fecha_desactivacion is None and a.usuario:
                 nombres = a.usuario.nombre.split() if a.usuario.nombre else []
                 iniciales = "".join([n[0] for n in nombres[:2]]).upper() if nombres else "XX"
-                equipo.append({"id": a.usuario.id, "nombre": a.usuario.nombre, "rol": a.usuario.rol, "iniciales": iniciales})
+                equipo.append({
+                    "id": a.usuario.id, 
+                    "nombre": a.usuario.nombre, 
+                    "rol": a.usuario.rol, 
+                    "iniciales": iniciales,
+                    "foto": getattr(a.usuario, 'foto', None) # AÑADIDO: Foto del equipo
+                })
 
         proyectos.append({
             "id": p.id,
@@ -34,7 +40,13 @@ def get_all_projects_data():
     for u in usuarios_db:
         nombres = u.nombre.split() if u.nombre else []
         iniciales = "".join([n[0] for n in nombres[:2]]).upper() if nombres else "XX"
-        usuarios.append({"id": u.id, "nombre": u.nombre, "rol": u.rol, "iniciales": iniciales})
+        usuarios.append({
+            "id": u.id, 
+            "nombre": u.nombre, 
+            "rol": u.rol, 
+            "iniciales": iniciales,
+            "foto": getattr(u, 'foto', None) # AÑADIDO: Foto de usuarios disponibles
+        })
 
     clientes_db = Clients.query.all()
     clientes_list = [{"id": c.id, "nombre": c.nombre, "codigo": c.codigo} for c in clientes_db]

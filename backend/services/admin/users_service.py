@@ -6,7 +6,6 @@ from errors import APIError
 import requests
 import base64
 
-
 def obtener_usuarios():
     usuarios = Users.query.all()
     return [
@@ -17,10 +16,10 @@ def obtener_usuarios():
             "Rol": u.rol,
             "Sede": u.sede,
             "Activo": u.activo,
+            "Foto": getattr(u, 'foto', None) # <--- ¡AQUÍ FALTABA ESTO!
         }
         for u in usuarios
     ]
-
 
 def crear_usuario(datos):
     nuevo_usuario = Users(
@@ -36,7 +35,6 @@ def crear_usuario(datos):
     registrar_log("Crear Usuario", "info", f"Se ha dado de alta al usuario: {datos['nombre']}.")
     return True
 
-
 def actualizar_usuario(id_usuario, datos):
     usuario = Users.query.get(id_usuario)
     if not usuario:
@@ -51,7 +49,6 @@ def actualizar_usuario(id_usuario, datos):
     registrar_log("Actualizar Usuario", "info", f"Se actualizaron los datos del usuario: {datos['nombre']}.")
     return True
 
-
 def eliminar_usuario(id_usuario):
     usuario = Users.query.get(id_usuario)
     if not usuario:
@@ -64,7 +61,6 @@ def eliminar_usuario(id_usuario):
     db.session.commit()
     registrar_log("Baja Lógica", "danger", f"El usuario '{nombre}' fue dado de baja del sistema.")
     return True
-
 
 def toggle_estado_usuario(id_usuario):
     usuario = Users.query.get(id_usuario)
@@ -79,7 +75,6 @@ def toggle_estado_usuario(id_usuario):
     registrar_log(accion, gravedad, f"Se cambió el acceso del usuario '{usuario.nombre}'.")
     return True
 
-
 def eliminar_usuario_fisico(id_usuario):
     usuario = Users.query.get(id_usuario)
     if not usuario:
@@ -91,7 +86,6 @@ def eliminar_usuario_fisico(id_usuario):
 
     registrar_log("Borrado Físico", "danger", f"El usuario '{nombre}' fue borrado físicamente.")
     return True
-
 
 def descargar_y_guardar_foto_azure(access_token, usuario_bd):
     """
@@ -120,7 +114,6 @@ def descargar_y_guardar_foto_azure(access_token, usuario_bd):
     except Exception as e:
         print(f"Error al descargar la foto de Azure: {e}")
         return False
-
 
 def sincronizar_usuario(datos):
     from models.users import Users

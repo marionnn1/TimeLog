@@ -16,7 +16,7 @@ def obtener_proyectos():
         equipo = []
         for a in p.asignaciones:
             if a.activo and a.usuario:
-                equipo.append({"id": a.usuario.id, "nombre": a.usuario.nombre})
+                equipo.append({"id": a.usuario.id, "nombre": a.usuario.nombre, "foto": getattr(a.usuario, 'foto', None)})
         
         resultado.append({
             "Id": p.id,
