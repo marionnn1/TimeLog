@@ -1,14 +1,23 @@
 import os
 from urllib.parse import quote_plus
 from azure.keyvault.secrets import SecretClient
-from azure.identity import DefaultAzureCredential
+from azure.identity import DefaultAzureCredential, AzureCliCredential
 from dotenv import load_dotenv
 
 load_dotenv()
 
 KV_URL = os.getenv("AZURE_KEYVAULT_URL")
-credential = DefaultAzureCredential()
+
+if os.getenv('DEBUG') == 'true':
+    print("local")
+    credential = AzureCliCredential()
+else:
+    print("prod")
+    credential = DefaultAzureCredential()
+
 client = SecretClient(vault_url=KV_URL, credential=credential)
+
+
 
 def get_secret_from_key_vault(secret_name):
     try:
@@ -16,6 +25,8 @@ def get_secret_from_key_vault(secret_name):
     except Exception as e:
         print(f"Error retrieving secret {secret_name} from Key Vault: {e}")
         return None
+
+
 
 
 server = get_secret_from_key_vault("DB-SERVER")
