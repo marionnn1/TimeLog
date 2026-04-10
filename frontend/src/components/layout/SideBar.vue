@@ -129,13 +129,15 @@ const handleLogout = async () => {
 
     <div class="p-4 border-t border-slate-800 bg-slate-950 shrink-0">
       <div class="flex items-center gap-3 mb-4 pl-1" v-if="currentUser">
-        <div
-          class="w-9 h-9 rounded-full flex items-center justify-center font-bold text-sm text-white shadow-lg relative bg-primary shrink-0 transition-transform hover:scale-105">
-          {{ currentUser.iniciales || 'U' }}
-          <div v-if="esAdmin"
-            class="absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full border-2 border-slate-900">
-          </div>
+        
+        <div class="relative shrink-0 transition-transform hover:scale-105">
+            <img v-if="currentUser.foto" :src="'data:image/jpeg;base64,' + currentUser.foto" alt="Foto perfil" class="w-9 h-9 rounded-full object-cover border-2 border-slate-800 shadow-lg" />
+            <div v-else class="w-9 h-9 rounded-full flex items-center justify-center font-bold text-sm text-white shadow-lg bg-primary">
+              {{ currentUser.iniciales || 'U' }}
+            </div>
+            <div v-if="esAdmin" class="absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full border-2 border-slate-900"></div>
         </div>
+        
         <div class="overflow-hidden">
           <p class="text-sm font-bold text-white truncate">{{ currentUser.nombre || 'Usuario' }}</p>
           <p class="text-[10px] text-slate-400 truncate uppercase font-black tracking-tighter">{{ currentUser.rol }}</p>

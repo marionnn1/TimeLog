@@ -79,6 +79,7 @@ def get_closing_audit(mes):
 
         usuarios_auditoria.append({
             "id": u.id, "nombre": u.nombre, "rol": u.rol,
+            "foto": getattr(u, 'foto', None),
             "horasReales": horas_reales, "estado": estado,
             "diasFaltantes": dias_faltantes, "desgloseProyectos": desglose_proyectos 
         })
