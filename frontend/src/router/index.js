@@ -1,5 +1,5 @@
 import { createRouter, createWebHistory } from 'vue-router'
-import { msalInstance } from '../auth/AuthConfig' // <-- Nueva importación obligatoria
+import { msalInstance } from '../auth/AuthConfig'
 
 import LoginView from '../views/LoginView.vue'
 import DashboardView from '../views/DashboardView.vue'
@@ -23,103 +23,21 @@ import ManagerValidationView from '../views/manager/ManagerValidationView.vue'
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
   routes: [
-    // --- RUTA PÚBLICA: LOGIN ---
-    {
-      path: '/login',
-      name: 'login',
-      component: LoginView,
-      meta: { layout: 'empty' }
-    },
-
-    // --- REDIRECCIÓN INICIAL ---
-    {
-      path: '/',
-      redirect: '/dashboard'
-    },
-
-    // --- RUTAS COMUNES
-    {
-      path: '/dashboard',
-      name: 'dashboard',
-      component: DashboardView,
-      meta: { requiresAuth: true }
-    },
-    {
-      path: '/imputaciones',
-      name: 'imputaciones',
-      component: ImputacionesView,
-      meta: { requiresAuth: true }
-    },
-    {
-      path: '/calendario-global',
-      name: 'calendario-global',
-      component: GlobalCalendarView,
-      meta: { requiresAuth: true }
-    },
-    {
-      path: '/my-projects',
-      name: 'my-projects',
-      component: MyProjectsView,
-      meta: { requiresAuth: true }
-    },
-
-    // --- RUTAS ADMIN ---
-    {
-      path: '/admin/dashboard',
-      name: 'admin-dashboard',
-      component: AdminDashboardView,
-      meta: { requiresAuth: true, roles: ['admin'] }
-    },
-    {
-      path: '/admin/users',
-      name: 'admin-users',
-      component: AdminUsersView,
-      meta: { requiresAuth: true, roles: ['admin'] }
-    },
-    {
-      path: '/admin/projects-manager',
-      name: 'admin-projects',
-      component: AdminProjectsView,
-      meta: { requiresAuth: true, roles: ['admin'] }
-    },
-    {
-      path: '/admin/audit',
-      name: 'admin-audit',
-      component: AdminAuditView,
-      meta: { requiresAuth: true, roles: ['admin'] }
-    },
-    {
-      path: '/admin/tickets',
-      name: 'admin-tickets',
-      component: AdminTicketsView,
-      meta: { requiresAuth: true, roles: ['admin'] }
-    },
-
-    // --- RUTAS MANAGER ---
-    {
-      path: '/manager/analitica',
-      name: 'manager-analytics',
-      component: ManagerAnalyticsView,
-      meta: { requiresAuth: true, roles: ['admin', 'jp', 'manager'] }
-    },
-    {
-      path: '/manager/cierre',
-      name: 'manager-closing',
-      component: ManagerClosingView,
-      meta: { requiresAuth: true, roles: ['admin', 'jp', 'manager'] }
-    },
-    {
-      path: '/manager/projects',
-      name: 'manager-projects',
-      component: ProjectsView,
-      meta: { requiresAuth: true, roles: ['admin', 'jp', 'manager'] }
-    },
-    {
-      path: '/manager/validaciones',
-      name: 'manager-validation',
-      component: ManagerValidationView,
-      meta: { requiresAuth: true, roles: ['admin', 'jp', 'manager'] }
-    }
+    { path: '/login', name: 'login', component: LoginView, meta: { layout: 'empty' } },
+    { path: '/', redirect: '/dashboard' },
+    { path: '/dashboard', name: 'dashboard', component: DashboardView, meta: { requiresAuth: true } },
+    { path: '/imputaciones', name: 'imputaciones', component: ImputacionesView, meta: { requiresAuth: true } },
+    { path: '/calendario-global', name: 'calendario-global', component: GlobalCalendarView, meta: { requiresAuth: true } },
+    { path: '/my-projects', name: 'my-projects', component: MyProjectsView, meta: { requiresAuth: true } },
+    { path: '/admin/dashboard', name: 'admin-dashboard', component: AdminDashboardView, meta: { requiresAuth: true, roles: ['admin'] } },
+    { path: '/admin/users', name: 'admin-users', component: AdminUsersView, meta: { requiresAuth: true, roles: ['admin'] } },
+    { path: '/admin/projects-manager', name: 'admin-projects', component: AdminProjectsView, meta: { requiresAuth: true, roles: ['admin'] } },
+    { path: '/admin/audit', name: 'admin-audit', component: AdminAuditView, meta: { requiresAuth: true, roles: ['admin'] } },
+    { path: '/admin/tickets', name: 'admin-tickets', component: AdminTicketsView, meta: { requiresAuth: true, roles: ['admin'] } },
+    { path: '/manager/analitica', name: 'manager-analytics', component: ManagerAnalyticsView, meta: { requiresAuth: true, roles: ['admin', 'jp', 'manager'] } },
+    { path: '/manager/cierre', name: 'manager-closing', component: ManagerClosingView, meta: { requiresAuth: true, roles: ['admin', 'jp', 'manager'] } },
+    { path: '/manager/projects', name: 'manager-projects', component: ProjectsView, meta: { requiresAuth: true, roles: ['admin', 'jp', 'manager'] } },
+    { path: '/manager/validaciones', name: 'manager-validation', component: ManagerValidationView, meta: { requiresAuth: true, roles: ['admin', 'jp', 'manager'] } }
   ]
 })
 
@@ -134,11 +52,10 @@ router.beforeEach((to, from, next) => {
     return next('/')
   }
 
-  if (to.meta.roles) {
+  // Lógica de validación de roles robusta
+  if (to.meta.roles && to.meta.roles.length > 0) {
     try {
       const activeAccount = msalInstance.getAllAccounts()[0]
-
-
       const rolesAzure = activeAccount?.idTokenClaims?.roles || ['tecnico']
       const userRoles = rolesAzure.map(r => r.toLowerCase())
 
@@ -147,11 +64,11 @@ router.beforeEach((to, from, next) => {
       )
 
       if (!tienePermiso) {
-        console.warn(`Bloqueo de seguridad: El usuario intentó acceder a '${to.path}' sin los roles necesarios de Azure AD`)
-        return next('/dashboard')
+        console.warn(`Bloqueo de seguridad: Acceso denegado a '${to.path}' para roles: ${userRoles}`)
+        return next('/dashboard') // Redirigir a zona común en lugar de bucle
       }
     } catch (error) {
-      console.error('Error verificando roles en el router con MSAL:', error)
+      console.error('Error verificando roles:', error)
       return next('/dashboard')
     }
   }

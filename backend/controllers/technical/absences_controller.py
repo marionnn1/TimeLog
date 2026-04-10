@@ -13,9 +13,11 @@ from errors import APIError
 absences_bp = Blueprint("absences", __name__)
 
 @absences_bp.route("/api/absences/annual-summary", methods=["GET"])
+@require_auth
 def get_resumen_anual():
+    u_id = g.usuario_actual.id
     anio = int(request.args.get("anio", datetime.now().year))
-    data = obtener_resumen_anual(anio)
+    data = obtener_resumen_anual(anio, u_id)
     return jsonify({"status": "success", "data": data}), 200
 
 

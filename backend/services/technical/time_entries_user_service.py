@@ -83,11 +83,5 @@ def guardar_imputaciones_lote(usuario_id, filas, fechas_semana):
                     db.session.add(nuevo)
 
     db.session.commit()
-    registrar_log(
-        usuario_id,
-        "Usuario",
-        "SYNC_IMPUTACIONES",
-        "info",
-        "Sincronización semanal realizada.",
-    )
+    registrar_log("Sync Imputaciones", "info", "Sincronización semanal realizada.")
     return True

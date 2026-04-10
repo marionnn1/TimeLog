@@ -29,29 +29,28 @@ def obtener_ausencias_mes(mes, anio):
         for a in ausencias
     ]
 
-def obtener_resumen_anual(anio):
+def obtener_resumen_anual(anio, userId):
     usuarios = Users.query.filter_by(activo=True).all()
     
     ausencias = Absences.query.filter(extract("year", Absences.fecha) == anio).all()
-
     resumen = []
     for user in usuarios:
         aus_usuario = [a for a in ausencias if a.usuario_id == user.id]
         
         iniciales = "".join([n[0] for n in user.nombre.split()[:2]]).upper() if user.nombre else "XX"
-
-        resumen.append({
-            "userId": user.id,
-            "nombre": user.nombre,
-            "iniciales": iniciales,
-            "dias": [
-                {
-                    "fecha": a.fecha.strftime("%Y-%m-%d"),
-                    "tipo": a.tipo,
-                    "comentario": a.comentario
-                } for a in sorted(aus_usuario, key=lambda x: x.fecha)
-            ]
-        })
+        if user.ausencias or user.id == userId:
+            resumen.append({
+                "userId": user.id,
+                "nombre": user.nombre,
+                "iniciales": iniciales,
+                "dias": [
+                    {
+                        "fecha": a.fecha.strftime("%Y-%m-%d"),
+                        "tipo": a.tipo,
+                        "comentario": a.comentario
+                    } for a in sorted(aus_usuario, key=lambda x: x.fecha)
+                ]
+            })
     
     return sorted(resumen, key=lambda x: x['nombre'])
 
