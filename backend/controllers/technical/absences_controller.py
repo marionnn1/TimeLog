@@ -31,7 +31,6 @@ def get_count_ausencias():
 @absences_bp.route("/api/absences", methods=["GET"])
 @require_auth
 def get_ausencias():
-    u_id = g.usuario_actual.id
     try:
         mes = int(request.args.get("mes", datetime.now().month))
         anio = int(request.args.get("anio", datetime.now().year))
@@ -39,7 +38,7 @@ def get_ausencias():
         mes = datetime.now().month
         anio = datetime.now().year
 
-    data = obtener_ausencias_mes(mes, anio, u_id)
+    data = obtener_ausencias_mes(mes, anio)
     return jsonify({"status": "success", "data": data}), 200
 
 

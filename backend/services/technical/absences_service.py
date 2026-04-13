@@ -8,40 +8,28 @@ from sqlalchemy import extract
 from datetime import datetime 
 from errors import APIError
 
-def obtener_ausencias_mes(mes, anio, userId):
-    proyectos_usuario = db.session.query(Assignments.proyecto_id)\
-        .filter(Assignments.usuario_id == userId, Assignments.activo == True)\
-        .subquery()
-
-    companeros_ids = db.session.query(Assignments.usuario_id)\
-        .filter(Assignments.proyecto_id.in_(proyectos_usuario), Assignments.activo == True)\
-        .distinct().subquery()
-
+def obtener_ausencias_mes(mes, anio):
     ausencias = Absences.query.filter(
-        Absences.usuario_id.in_(companeros_ids),
         extract("month", Absences.fecha) == mes,
         extract("year", Absences.fecha) == anio,
     ).all()
 
-    resultado = []
-    for a in ausencias:
-        comentario_final = a.comentario or ""
-
-        nombre_usuario = a.usuario.nombre if a.usuario else "Desconocido"
-        nombres_split = nombre_usuario.split()
-        iniciales = "".join([n[0] for n in nombres_split[:2]]).upper() if nombres_split else "XX"
-
-        resultado.append({
+    return [
+        {
             "fecha": a.fecha.strftime("%Y-%m-%d") if a.fecha else None,
             "tipo": a.tipo,
-            "comentario": comentario_final,
+            "comentario": a.comentario or "",
             "userId": a.usuario_id,
-            "nombre": nombre_usuario,
-            "foto": getattr(a.usuario, 'foto', None) if a.usuario else None,
-            "iniciales": iniciales
-        })
-
-    return resultado
+            "nombre": a.usuario.nombre if a.usuario else "Desconocido",
+            "foto": getattr(a.usuario, 'foto', None) if a.usuario else None, # AÑADIDO
+            "iniciales": (
+                "".join([n[0] for n in a.usuario.nombre.split()[:2]]).upper()
+                if a.usuario
+                else "XX"
+            ),
+        }
+        for a in ausencias
+    ]
 
 
 
