@@ -64,15 +64,57 @@ const getBarColor = (horas, capacidad) => {
 }
 
 const exportarReporte = () => {
-    const headers = ['Empleado', 'Rol', 'Horas Imputadas', 'Objetivo del Mes']
-    const rows = cargaEmpleados.value.map(emp => [emp.nombre, emp.rol, emp.horas, emp.capacidad])
-    const csvContent = [headers.join(';'), ...rows.map(row => row.join(';'))].join('\n')
+    let headers = []
+    let rows = []
+    let fileName = ''
+
+    if (vistaActual.value === 'usuarios') {
+        // Formato para vista de Empleados
+        headers = ['Empleado', 'Rol', 'Horas Imputadas', 'Objetivo del Mes', '% Ocupacion']
+        rows = cargaEmpleados.value.map(emp => [
+            emp.nombre, 
+            emp.rol, 
+            emp.horas, 
+            emp.capacidad,
+            Math.round((emp.horas / (emp.capacidad || 1)) * 100) + '%'
+        ])
+        fileName = `reporte_empleados_${mesAnalisis.value}.csv`
+    } else {
+        // Formato para vista de Proyectos / Clientes
+        headers = ['Cliente', 'Proyecto', 'Empleado', 'Rol', 'Horas Imputadas', '% del Proyecto']
+        jerarquiaClientes.value.forEach(cliente => {
+            if (cliente.proyectos) {
+                cliente.proyectos.forEach(proj => {
+                    if (proj.usuarios) {
+                        proj.usuarios.forEach(user => {
+                            const porcentaje = Math.round((user.horas / (proj.horas_totales || 1)) * 100) + '%'
+                            rows.push([
+                                cliente.cliente,
+                                proj.nombre,
+                                user.nombre,
+                                user.rol,
+                                user.horas,
+                                porcentaje
+                            ])
+                        })
+                    }
+                })
+            }
+        })
+        fileName = `reporte_proyectos_${mesAnalisis.value}.csv`
+    }
+
+    // Usamos BOM para que Excel lea correctamente los acentos (UTF-8)
+    const BOM = '\uFEFF';
+    const csvContent = BOM + [headers.join(';'), ...rows.map(row => row.join(';'))].join('\n')
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
     const url = URL.createObjectURL(blob)
     const link = document.createElement('a')
     link.href = url
-    link.download = `reporte_horas_${mesAnalisis.value}.csv`
+    link.download = fileName
     link.click()
+    URL.revokeObjectURL(url) // Liberar memoria
+    
     showToast('Reporte descargado correctamente', 'success')
 }
 </script>
