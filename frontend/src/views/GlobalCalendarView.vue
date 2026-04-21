@@ -2,6 +2,8 @@
 import { ref, computed, onMounted, watch } from 'vue'
 import { useDataStore } from '../stores/dataStore'
 import AbsencesAPI from '../services/AbsencesAPI'
+import { VueDatePicker } from '@vuepic/vue-datepicker'
+import '@vuepic/vue-datepicker/dist/main.css'
 
 import {
     Calendar as CalendarIcon, ChevronLeft, ChevronRight,
@@ -77,6 +79,31 @@ onMounted(() => {
 
 const getAusenciasDia = (isoDate) => ausenciasDelMes.value.filter(a => a.fecha === isoDate)
 const getMiAusencia = (isoDate) => getAusenciasDia(isoDate).find(a => a.userId === currentUser.id)
+
+const marcadoresAusencias = computed(() => {
+    if (!ausenciasDelMes.value || !currentUser) return [];
+
+    const misAusencias = ausenciasDelMes.value.filter(a => a.userId === currentUser.id);
+
+    return misAusencias.map(aus => {
+        let color = '#6b7280'; 
+        const tipo = (aus.tipo || '').toLowerCase();
+        
+        if (tipo.includes('vacaciones')) color = '#10b981'; 
+        if (tipo.includes('festivo')) color = '#f97316'; 
+        if (tipo.includes('asuntos')) color = '#3b82f6'; 
+        if (tipo.includes('baja')) color = '#a855f7'; 
+
+        const [y, m, d] = aus.fecha.split('-');
+
+        return {
+            date: new Date(y, m - 1, d),
+            type: 'dot',
+            color: color,
+            tooltip: [{ text: aus.tipo.toUpperCase(), color: color }]
+        };
+    });
+});
 
 const mostrarModal = ref(false)
 const tabActiva = ref('solicitar')
@@ -181,7 +208,6 @@ const abrirModal = (day) => {
 
 const procesarSolicitud = async (diasSolicitados) => {
     try {
-
         if (diasSolicitados.length > 15) {
             showToast('No se pueden solicitar más de 15 dias seguidos', 'error')
             return
@@ -204,7 +230,6 @@ const procesarSolicitud = async (diasSolicitados) => {
             tipo: form.value.tipo,
             comentario: comentarioFinal
         }
-
 
         const res = await AbsencesAPI.crearAusencia(payload)
 
@@ -333,8 +358,7 @@ const nextMonth = () => currentDate.value = new Date(year.value, month.value + 1
             </div>
         </div>
 
-        <div
-            class="flex items-center justify-between bg-white p-4 rounded-t-xl border border-slate-200 border-b-0 shadow-sm shrink-0">
+        <div class="flex items-center justify-between bg-white p-4 rounded-t-xl border border-slate-200 border-b-0 shadow-sm shrink-0">
             <button @click="prevMonth" class="btn-ghost hover:bg-slate-100">
                 <ChevronLeft />
             </button>
@@ -345,7 +369,6 @@ const nextMonth = () => currentDate.value = new Date(year.value, month.value + 1
         </div>
 
         <div class="bg-white rounded-b-xl border border-slate-200 shadow-sm overflow-hidden select-none mb-8 shrink-0">
-
             <div class="grid grid-cols-7 bg-slate-50 border-b border-slate-200 text-center py-3">
                 <div v-for="d in ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom']" :key="d"
                     class="text-xs font-bold text-slate-400 uppercase tracking-wider">
@@ -380,8 +403,7 @@ const nextMonth = () => currentDate.value = new Date(year.value, month.value + 1
                             :title="`${aus.nombre} - ${aus.tipo} ${aus.comentario ? '(' + aus.comentario + ')' : ''}`">
 
                             <template v-if="aus.userId === currentUser.id">
-                                <div
-                                    class="w-3.5 h-3.5 rounded-full bg-white/20 flex items-center justify-center shrink-0">
+                                <div class="w-3.5 h-3.5 rounded-full bg-white/20 flex items-center justify-center shrink-0">
                                     <component :is="getIconoTipo(aus.tipo)" class="w-2.5 h-2.5 text-white" />
                                 </div>
                                 <span class="truncate flex-1 uppercase tracking-wider">Tú - {{ aus.tipo }}</span>
@@ -406,7 +428,6 @@ const nextMonth = () => currentDate.value = new Date(year.value, month.value + 1
                             <Plus class="w-5 h-5 text-primary" />
                         </div>
                     </div>
-
                 </div>
             </div>
         </div>
@@ -476,13 +497,37 @@ const nextMonth = () => currentDate.value = new Date(year.value, month.value + 1
                     <div class="grid grid-cols-2 gap-4">
                         <div>
                             <label class="block text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-2">Desde</label>
-                            <input type="date" v-model="form.fechaInicio" :min="minDateISO"
-                                class="w-full bg-slate-50 border border-slate-200 text-slate-800 rounded-lg px-3 py-2 font-bold focus:ring-2 focus:ring-primary outline-none">
+                            <VueDatePicker 
+                                v-model="form.fechaInicio" 
+                                :min-date="minDateISO"
+                                :markers="marcadoresAusencias"
+                                :clearable="false" 
+                                :enable-time-picker="false" 
+                                :time-config="{ enableTimePicker: false }"
+                                auto-apply 
+                                model-type="yyyy-MM-dd" 
+                                format="dd/MM/yyyy"
+                                :formats="{ input: 'dd/MM/yyyy' }"
+                                placeholder="Selecciona inicio"
+                                input-class-name="w-full bg-slate-50 border border-slate-200 text-slate-800 rounded-lg px-3 py-2 font-bold focus:ring-2 focus:ring-primary outline-none"
+                            />
                         </div>
                         <div>
                             <label class="block text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-2">Hasta</label>
-                            <input type="date" v-model="form.fechaFin" :min="form.fechaInicio || minDateISO"
-                                class="w-full bg-slate-50 border border-slate-200 text-slate-800 rounded-lg px-3 py-2 font-bold focus:ring-2 focus:ring-primary outline-none">
+                            <VueDatePicker 
+                                v-model="form.fechaFin" 
+                                :min-date="form.fechaInicio || minDateISO"
+                                :markers="marcadoresAusencias"
+                                :clearable="false" 
+                                :enable-time-picker="false" 
+                                :time-config="{ enableTimePicker: false }"
+                                auto-apply 
+                                model-type="yyyy-MM-dd" 
+                                format="dd/MM/yyyy"
+                                :formats="{ input: 'dd/MM/yyyy' }"
+                                placeholder="Selecciona fin"
+                                input-class-name="w-full bg-slate-50 border border-slate-200 text-slate-800 rounded-lg px-3 py-2 font-bold focus:ring-2 focus:ring-primary outline-none"
+                            />
                         </div>
                     </div>
 
@@ -549,11 +594,35 @@ const nextMonth = () => currentDate.value = new Date(year.value, month.value + 1
                         <div class="grid grid-cols-2 gap-4">
                             <div>
                                 <label class="block text-[10px] font-bold text-rose-500 uppercase tracking-widest mb-1">Desde</label>
-                                <input type="date" v-model="form.fechaInicio" class="w-full bg-white border border-rose-200 text-rose-900 rounded-lg px-3 py-2 font-bold focus:ring-2 focus:ring-rose-500 outline-none">
+                                <VueDatePicker 
+                                    v-model="form.fechaInicio" 
+                                    :markers="marcadoresAusencias"
+                                    :clearable="false" 
+                                    :enable-time-picker="false" 
+                                    :time-config="{ enableTimePicker: false }"
+                                    auto-apply 
+                                    model-type="yyyy-MM-dd" 
+                                    format="dd/MM/yyyy"
+                                    :formats="{ input: 'dd/MM/yyyy' }"
+                                    placeholder="Selecciona inicio"
+                                    input-class-name="w-full bg-white border border-rose-200 text-rose-900 rounded-lg px-3 py-2 font-bold focus:ring-2 focus:ring-rose-500 outline-none"
+                                />
                             </div>
                             <div>
                                 <label class="block text-[10px] font-bold text-rose-500 uppercase tracking-widest mb-1">Hasta</label>
-                                <input type="date" v-model="form.fechaFin" class="w-full bg-white border border-rose-200 text-rose-900 rounded-lg px-3 py-2 font-bold focus:ring-2 focus:ring-rose-500 outline-none">
+                                <VueDatePicker 
+                                    v-model="form.fechaFin" 
+                                    :markers="marcadoresAusencias"
+                                    :clearable="false" 
+                                    :enable-time-picker="false" 
+                                    :time-config="{ enableTimePicker: false }"
+                                    auto-apply 
+                                    model-type="yyyy-MM-dd" 
+                                    format="dd/MM/yyyy"
+                                    :formats="{ input: 'dd/MM/yyyy' }"
+                                    placeholder="Selecciona fin"
+                                    input-class-name="w-full bg-white border border-rose-200 text-rose-900 rounded-lg px-3 py-2 font-bold focus:ring-2 focus:ring-rose-500 outline-none"
+                                />
                             </div>
                         </div>
                     </div>
