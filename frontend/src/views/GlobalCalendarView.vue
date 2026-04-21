@@ -86,13 +86,13 @@ const marcadoresAusencias = computed(() => {
     const misAusencias = ausenciasDelMes.value.filter(a => a.userId === currentUser.id);
 
     return misAusencias.map(aus => {
-        let color = '#6b7280'; // Gris por defecto
+        let color = '#6b7280'; 
         const tipo = (aus.tipo || '').toLowerCase();
         
-        if (tipo.includes('vacaciones')) color = '#10b981'; // emerald-500
-        if (tipo.includes('festivo')) color = '#f97316'; // orange-500
-        if (tipo.includes('asuntos')) color = '#3b82f6'; // blue-500
-        if (tipo.includes('baja')) color = '#a855f7'; // purple-500
+        if (tipo.includes('vacaciones')) color = '#10b981'; 
+        if (tipo.includes('festivo')) color = '#f97316'; 
+        if (tipo.includes('asuntos')) color = '#3b82f6'; 
+        if (tipo.includes('baja')) color = '#a855f7'; 
 
         const [y, m, d] = aus.fecha.split('-');
 
@@ -503,9 +503,11 @@ const nextMonth = () => currentDate.value = new Date(year.value, month.value + 1
                                 :markers="marcadoresAusencias"
                                 :clearable="false" 
                                 :enable-time-picker="false" 
+                                :time-config="{ enableTimePicker: false }"
                                 auto-apply 
                                 model-type="yyyy-MM-dd" 
                                 format="dd/MM/yyyy"
+                                :formats="{ input: 'dd/MM/yyyy' }"
                                 placeholder="Selecciona inicio"
                                 input-class-name="w-full bg-slate-50 border border-slate-200 text-slate-800 rounded-lg px-3 py-2 font-bold focus:ring-2 focus:ring-primary outline-none"
                             />
@@ -518,9 +520,11 @@ const nextMonth = () => currentDate.value = new Date(year.value, month.value + 1
                                 :markers="marcadoresAusencias"
                                 :clearable="false" 
                                 :enable-time-picker="false" 
+                                :time-config="{ enableTimePicker: false }"
                                 auto-apply 
                                 model-type="yyyy-MM-dd" 
                                 format="dd/MM/yyyy"
+                                :formats="{ input: 'dd/MM/yyyy' }"
                                 placeholder="Selecciona fin"
                                 input-class-name="w-full bg-slate-50 border border-slate-200 text-slate-800 rounded-lg px-3 py-2 font-bold focus:ring-2 focus:ring-primary outline-none"
                             />
@@ -595,9 +599,11 @@ const nextMonth = () => currentDate.value = new Date(year.value, month.value + 1
                                     :markers="marcadoresAusencias"
                                     :clearable="false" 
                                     :enable-time-picker="false" 
+                                    :time-config="{ enableTimePicker: false }"
                                     auto-apply 
                                     model-type="yyyy-MM-dd" 
                                     format="dd/MM/yyyy"
+                                    :formats="{ input: 'dd/MM/yyyy' }"
                                     placeholder="Selecciona inicio"
                                     input-class-name="w-full bg-white border border-rose-200 text-rose-900 rounded-lg px-3 py-2 font-bold focus:ring-2 focus:ring-rose-500 outline-none"
                                 />
@@ -609,9 +615,11 @@ const nextMonth = () => currentDate.value = new Date(year.value, month.value + 1
                                     :markers="marcadoresAusencias"
                                     :clearable="false" 
                                     :enable-time-picker="false" 
+                                    :time-config="{ enableTimePicker: false }"
                                     auto-apply 
                                     model-type="yyyy-MM-dd" 
                                     format="dd/MM/yyyy"
+                                    :formats="{ input: 'dd/MM/yyyy' }"
                                     placeholder="Selecciona fin"
                                     input-class-name="w-full bg-white border border-rose-200 text-rose-900 rounded-lg px-3 py-2 font-bold focus:ring-2 focus:ring-rose-500 outline-none"
                                 />
