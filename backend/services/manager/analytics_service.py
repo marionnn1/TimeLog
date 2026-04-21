@@ -1,5 +1,5 @@
 import calendar
-from datetime import date
+from datetime import date, datetime
 from database.db import db
 from models.time_entries import TimeEntries
 from models.projects import Projects
@@ -29,9 +29,31 @@ def get_max_horas_dia_usuario(usuario, fecha):
 def calcular_objetivo_mensual(usuario, anio, mes):
     _, num_dias = calendar.monthrange(anio, mes)
     total_horas = 0.0
+
+    alta_date = None
+    if getattr(usuario, 'fecha_alta', None):
+        if isinstance(usuario.fecha_alta, str):
+            alta_date = datetime.strptime(usuario.fecha_alta.split('T')[0], "%Y-%m-%d").date()
+        else:
+            alta_date = usuario.fecha_alta.date() if hasattr(usuario.fecha_alta, 'date') else usuario.fecha_alta
+            
+    baja_date = None
+    if getattr(usuario, 'fecha_desactivacion', None):
+        if isinstance(usuario.fecha_desactivacion, str):
+            baja_date = datetime.strptime(usuario.fecha_desactivacion.split('T')[0], "%Y-%m-%d").date()
+        else:
+            baja_date = usuario.fecha_desactivacion.date() if hasattr(usuario.fecha_desactivacion, 'date') else usuario.fecha_desactivacion
+
     for dia in range(1, num_dias + 1):
         fecha_iter = date(anio, mes, dia)
+
+        if alta_date and fecha_iter < alta_date:
+            continue
+        if baja_date and fecha_iter > baja_date:
+            continue
+            
         total_horas += get_max_horas_dia_usuario(usuario, fecha_iter)
+        
     return total_horas
 
 def get_analytics_data(mes):
@@ -45,7 +67,7 @@ def get_analytics_data(mes):
                 Users.id.label("usuario_id"),
                 Users.nombre.label("usuario_nombre"),
                 Users.rol.label("usuario_rol"),
-                Users.foto.label("usuario_foto"), # AÑADIDO: Extraer la foto
+                Users.foto.label("usuario_foto"), 
                 Projects.id.label("proyecto_id"),
                 Projects.nombre.label("proyecto_nombre"),
                 Clients.nombre.label("cliente_nombre"),
@@ -108,7 +130,7 @@ def get_analytics_data(mes):
                 "nombre": row.usuario_nombre,
                 "rol": row.usuario_rol,
                 "avatar": avatar,
-                "foto": row.usuario_foto, # AÑADIDO: Pasamos la foto a la vista
+                "foto": row.usuario_foto, 
                 "horas": horas
             })
 
@@ -130,7 +152,7 @@ def get_analytics_data(mes):
                 Users.id,
                 Users.nombre,
                 Users.rol,
-                Users.foto, # AÑADIDO: Extraer la foto
+                Users.foto, 
                 func.sum(TimeEntries.horas).label("horas_imputadas"),
             )
             .outerjoin(
@@ -168,7 +190,7 @@ def get_analytics_data(mes):
                 "capacidad": capacidad, 
                 "rol": u.rol,
                 "avatar": avatar,
-                "foto": u.foto, # AÑADIDO: Pasamos la foto a la vista
+                "foto": u.foto, 
                 "trend": "equal",
                 "desglose_clientes": clientes_empleado
             })
