@@ -16,6 +16,7 @@ def get_closing_audit(mes):
     mes_cerrado = bool(registro_cierre.esta_cerrado) if registro_cierre else False
     _, num_days = calendar.monthrange(anio, mes_num)
     usuarios = Users.query.filter_by(activo=True).all()
+    
     imputaciones_mes = TimeEntries.query.filter(
         extract("year", TimeEntries.fecha) == anio,
         extract("month", TimeEntries.fecha) == mes_num,
@@ -28,7 +29,7 @@ def get_closing_audit(mes):
     ).all()
 
     datos_usuarios = {
-        u.id: {"horas": 0.0, "dias_imputados": set(), "dias_ausencias": set(), "proyectos": {}}
+        u.id: {"horas": 0.0, "horas_por_dia": {}, "dias_ausencias": set(), "proyectos": {}}
         for u in usuarios
     }
 
@@ -36,7 +37,9 @@ def get_closing_audit(mes):
         if i.usuario_id in datos_usuarios and i.fecha:
             horas_imp = float(i.horas)
             datos_usuarios[i.usuario_id]["horas"] += horas_imp
-            datos_usuarios[i.usuario_id]["dias_imputados"].add(i.fecha.day)
+
+            day = datetime.strptime(i.fecha.split('T')[0], "%Y-%m-%d").day if isinstance(i.fecha, str) else i.fecha.day
+            datos_usuarios[i.usuario_id]["horas_por_dia"][day] = datos_usuarios[i.usuario_id]["horas_por_dia"].get(day, 0.0) + horas_imp
 
             p_nombre = i.proyecto.nombre if i.proyecto else "Sin Proyecto"
             c_nombre = i.proyecto.cliente.nombre if i.proyecto and i.proyecto.cliente else "Sin Cliente"
@@ -49,13 +52,14 @@ def get_closing_audit(mes):
 
     for a in ausencias_mes:
         if a.usuario_id in datos_usuarios and a.fecha:
-            datos_usuarios[a.usuario_id]["dias_ausencias"].add(a.fecha.day)
+            day = datetime.strptime(a.fecha.split('T')[0], "%Y-%m-%d").day if isinstance(a.fecha, str) else a.fecha.day
+            datos_usuarios[a.usuario_id]["dias_ausencias"].add(day)
 
     usuarios_auditoria = []
     for u in usuarios:
         datos = datos_usuarios[u.id]
         horas_reales = datos["horas"]
-        dias_imputados = datos["dias_imputados"]
+        horas_por_dia = datos["horas_por_dia"]
         dias_ausencias = datos["dias_ausencias"]
 
         desglose_proyectos = [{"cliente": k[0], "proyecto": k[1], "horas": v} for k, v in datos["proyectos"].items()]
@@ -65,11 +69,42 @@ def get_closing_audit(mes):
 
         for day in range(1, num_days + 1):
             current_date = date(anio, mes_num, day)
-            if current_date.weekday() < 5:  
-                dias_laborables_totales += 1
-                if day not in dias_imputados and day not in dias_ausencias:
-                    dias_faltantes.append(str(day))
 
+            alta_date = None
+            if u.fecha_alta:
+                if isinstance(u.fecha_alta, str):
+                    alta_date = datetime.strptime(u.fecha_alta.split('T')[0], "%Y-%m-%d").date()
+                else:
+                    alta_date = u.fecha_alta.date() if hasattr(u.fecha_alta, 'date') else u.fecha_alta
+                    
+            if alta_date and current_date < alta_date:
+                continue
+                
+            baja_date = None
+            if u.fecha_desactivacion:
+                if isinstance(u.fecha_desactivacion, str):
+                    baja_date = datetime.strptime(u.fecha_desactivacion.split('T')[0], "%Y-%m-%d").date()
+                else:
+                    baja_date = u.fecha_desactivacion.date() if hasattr(u.fecha_desactivacion, 'date') else u.fecha_desactivacion
+                    
+            if baja_date and current_date > baja_date:
+                continue
+
+            if current_date.weekday() < 5: 
+                dias_laborables_totales += 1
+                if day not in dias_ausencias:
+                    
+                    horas_imputadas_hoy = horas_por_dia.get(day, 0.0)
+                    mes_verano = mes_num in [7, 8] 
+                    es_viernes = current_date.weekday() == 4
+                    if mes_verano:
+                        horas_esperadas = float(u.horas_verano if getattr(u, 'horas_verano', None) is not None else 7.0)
+                    elif es_viernes:
+                        horas_esperadas = float(u.horas_invierno_v if getattr(u, 'horas_invierno_v', None) is not None else 6.5)
+                    else:
+                        horas_esperadas = float(u.horas_invierno_lj if getattr(u, 'horas_invierno_lj', None) is not None else 8.5)
+                    if horas_imputadas_hoy < (horas_esperadas - 0.01):
+                        dias_faltantes.append(str(day))
         if len(dias_faltantes) == 0:
             estado = "completo"
         elif len(dias_faltantes) == dias_laborables_totales and horas_reales == 0:

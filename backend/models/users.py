@@ -10,6 +10,7 @@ class Users(db.Model):
     rol = db.Column("Rol", db.String(20))
     sede = db.Column("Sede", db.String(50))
     activo = db.Column("Activo", db.Boolean, default=True)
+    fecha_alta = db.Column("FechaAlta", db.Date, nullable=True)
 
     tipo_contrato = db.Column("TipoContrato", db.String(20), default="40H")
     horas_verano = db.Column("HorasDiariasVerano", db.Numeric(4, 2), default=7.00)
@@ -35,5 +36,6 @@ class Users(db.Model):
             "Rol": self.rol,
             "Sede": self.sede,
             "Activo": self.activo,
+            "FechaAlta": self.fecha_alta.isoformat() if self.fecha_alta else None,
             "Foto": self.foto  
         }
