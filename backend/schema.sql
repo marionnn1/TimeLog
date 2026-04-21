@@ -5,6 +5,7 @@ CREATE TABLE Usuarios (
     Rol NVARCHAR(20) CHECK (Rol IN ('Admin', 'JP', 'Tecnico')), 
     Sede NVARCHAR(50),             
     Activo BIT DEFAULT 1,
+    FechaAlta DATE NULL,
     TipoContrato NVARCHAR(20) DEFAULT '40H', 
     HorasDiariasVerano DECIMAL(4,2) DEFAULT 7.00, 
     HorasInvierno_L_J DECIMAL(4,2) DEFAULT 8.50, 
