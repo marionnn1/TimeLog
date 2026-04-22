@@ -19,6 +19,10 @@ const toast = ref({ show: false, message: '', type: 'success' })
 let toastTimeout = null
 const cargando = ref(false)
 
+// NUEVAS VARIABLES PARA LOS BOTONES
+const isSubmittingGuardar = ref(false)
+const isAddingProject = ref(false)
+
 const showToast = (message, type = 'success') => {
     toast.value = { show: true, message, type }
     if (toastTimeout) clearTimeout(toastTimeout)
@@ -232,18 +236,22 @@ const cargarHorasDesdeAPI = async () => {
 const guardarCambios = async () => {
     if (hayErrores.value) return showToast('Por favor corrige los errores antes de guardar.', 'error')
 
-    filas.value.forEach(f => {
-        f.horas = f.horas.map((h, i) => tiposDiasSemana.value[i] ? 0 : h)
-    })
-
-    const fechasSemana = diasSemana.value.map(d => d.toISOString().split('T')[0])
-    const payload = {
-        usuario_id: user.id,
-        fechas: fechasSemana,
-        filas: filas.value.map(f => ({ id_proyecto: f.id, horas: f.horas }))
-    }
+    // Bloqueo del botón
+    if (isSubmittingGuardar.value) return
+    isSubmittingGuardar.value = true
 
     try {
+        filas.value.forEach(f => {
+            f.horas = f.horas.map((h, i) => tiposDiasSemana.value[i] ? 0 : h)
+        })
+
+        const fechasSemana = diasSemana.value.map(d => d.toISOString().split('T')[0])
+        const payload = {
+            usuario_id: user.id,
+            fechas: fechasSemana,
+            filas: filas.value.map(f => ({ id_proyecto: f.id, horas: f.horas }))
+        }
+
         const res = await MyProjectsAPI.guardarImputaciones(payload)
         if (res.status === 'success') {
             showToast('Imputaciones guardadas correctamente', 'success')
@@ -257,6 +265,9 @@ const guardarCambios = async () => {
                           || 'Error de red al guardar';
                           
         showToast(mensajeError, 'error');
+    } finally {
+        // Desbloqueo del botón
+        isSubmittingGuardar.value = false
     }
 }
 
@@ -397,21 +408,30 @@ const autocompletarFila = (fila) => {
 const abrirModal = () => { nuevoRegistro.value = { proyectoId: undefined }; mostrarModal.value = true }
 const cerrarModal = () => { mostrarModal.value = false }
 
-const confirmarAnadirLinea = () => {
+const confirmarAnadirLinea = async () => {
     if (!nuevoRegistro.value.proyectoId) return showToast('Por favor, selecciona un proyecto de la lista', 'error')
 
     const p = proyectosRealDB.value.find(x => x.Id === nuevoRegistro.value.proyectoId)
     if (!p) return showToast('Selecciona un proyecto válido', 'error')
     if (filas.value.find(f => f.id === p.Id)) return showToast('El proyecto ya está en la lista', 'error')
 
-    filas.value.push({
-        id: p.Id,
-        cliente: p.Cliente || 'Sin Cliente asignado',
-        proyecto: p.Nombre,
-        horas: [0, 0, 0, 0, 0, 0, 0],
-        seleccionado: false
-    })
-    cerrarModal()
+    // Bloqueo del botón
+    if (isAddingProject.value) return;
+    isAddingProject.value = true;
+
+    try {
+        // Simulamos un mínimo retardo visual si se necesita (opcional) pero asegura que el estado se refleje
+        filas.value.push({
+            id: p.Id,
+            cliente: p.Cliente || 'Sin Cliente asignado',
+            proyecto: p.Nombre,
+            horas: [0, 0, 0, 0, 0, 0, 0],
+            seleccionado: false
+        })
+        cerrarModal()
+    } finally {
+        isAddingProject.value = false;
+    }
 }
 
 const borrarLineas = () => {
@@ -650,10 +670,19 @@ onMounted(() => {
                     <AlertCircle class="w-4 h-4" />
                     {{ filas.some(f => f.horas.some((h, i) => esEditable(i) && esPasoInvalido(h))) ? 'Solo se permiten incrementos de 0.5h (ej. 1.5)' : 'Corrige el exceso de horas' }}
                 </p>
-                <button @click="guardarCambios" :disabled="hayErrores || cargando"
-                    class="btn-primary px-8 py-2.5 rounded-xl font-bold uppercase tracking-widest text-xs shadow-md transition-all"
-                    :class="hayErrores ? 'bg-gray-300 text-gray-500 cursor-not-allowed' : 'bg-slate-900 text-white hover:shadow-xl'">
-                    <Save class="w-4 h-4 mr-2" /> Guardar Imputaciones
+                
+                <button @click="guardarCambios" 
+                        :disabled="hayErrores || cargando || isSubmittingGuardar"
+                        class="btn-primary px-8 py-2.5 rounded-xl font-bold uppercase tracking-widest text-xs shadow-md transition-all flex items-center justify-center disabled:opacity-50"
+                        :class="(hayErrores || isSubmittingGuardar) ? 'bg-gray-300 text-gray-500 cursor-not-allowed' : 'bg-slate-900 text-white hover:shadow-xl'">
+                    
+                    <svg v-if="isSubmittingGuardar" class="animate-spin w-4 h-4 mr-2 text-gray-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    <Save v-else class="w-4 h-4 mr-2" /> 
+                    
+                    {{ isSubmittingGuardar ? 'Guardando...' : 'Guardar Imputaciones' }}
                 </button>
             </div>
         </div>
@@ -788,11 +817,21 @@ onMounted(() => {
                 </div>
 
                 <div class="px-6 py-4 bg-gray-50 border-t flex justify-end gap-3 shrink-0">
-                    <button @click="cerrarModal"
-                        class="px-4 py-2 text-sm font-bold text-slate-400 uppercase tracking-widest hover:text-slate-600">Cancelar</button>
+                    <button @click="cerrarModal" :disabled="isAddingProject"
+                        class="px-4 py-2 text-sm font-bold text-slate-400 uppercase tracking-widest hover:text-slate-600 disabled:opacity-50">Cancelar</button>
+                    
                     <button @click="confirmarAnadirLinea"
-                        class="bg-primary text-white px-6 py-2 rounded-xl font-bold uppercase tracking-widest text-xs hover:bg-blue-700 shadow-md transition-all">Añadir
-                        a la Tabla</button>
+                            :disabled="isAddingProject"
+                            class="bg-primary text-white px-6 py-2 rounded-xl font-bold uppercase tracking-widest text-xs shadow-md transition-all flex items-center justify-center disabled:opacity-50"
+                            :class="isAddingProject ? 'bg-blue-400 cursor-not-allowed opacity-80' : 'hover:bg-blue-700'">
+                        
+                        <svg v-if="isAddingProject" class="animate-spin w-4 h-4 mr-2 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
+                        
+                        {{ isAddingProject ? 'Añadiendo...' : 'Añadir a la Tabla' }}
+                    </button>
                 </div>
             </div>
         </div>

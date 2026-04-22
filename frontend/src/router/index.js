@@ -12,13 +12,11 @@ import AdminUsersView from '../views/admin/AdminUsersView.vue'
 import AdminProjectsView from '@/views/admin/AdminProjectsView.vue'
 import AdminAuditView from '../views/admin/AdminAuditView.vue'
 import AdminDashboardView from '../views/admin/AdminDashboardView.vue'
-import AdminTicketsView from '../views/admin/AdminTicketsView.vue'
 
 // Vistas de Manager
 import ManagerAnalyticsView from '../views/manager/ManagerAnalyticsView.vue'
 import ManagerClosingView from '../views/manager/ManagerClosingView.vue'
 import ProjectsView from '../views/manager/ProjectsView.vue'
-import ManagerValidationView from '../views/manager/ManagerValidationView.vue'
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -33,11 +31,9 @@ const router = createRouter({
     { path: '/admin/users', name: 'admin-users', component: AdminUsersView, meta: { requiresAuth: true, roles: ['admin'] } },
     { path: '/admin/projects-manager', name: 'admin-projects', component: AdminProjectsView, meta: { requiresAuth: true, roles: ['admin'] } },
     { path: '/admin/audit', name: 'admin-audit', component: AdminAuditView, meta: { requiresAuth: true, roles: ['admin'] } },
-    { path: '/admin/tickets', name: 'admin-tickets', component: AdminTicketsView, meta: { requiresAuth: true, roles: ['admin'] } },
     { path: '/manager/analitica', name: 'manager-analytics', component: ManagerAnalyticsView, meta: { requiresAuth: true, roles: ['admin', 'jp', 'manager'] } },
     { path: '/manager/cierre', name: 'manager-closing', component: ManagerClosingView, meta: { requiresAuth: true, roles: ['admin', 'jp', 'manager'] } },
-    { path: '/manager/projects', name: 'manager-projects', component: ProjectsView, meta: { requiresAuth: true, roles: ['admin', 'jp', 'manager'] } },
-    { path: '/manager/validaciones', name: 'manager-validation', component: ManagerValidationView, meta: { requiresAuth: true, roles: ['admin', 'jp', 'manager'] } }
+    { path: '/manager/projects', name: 'manager-projects', component: ProjectsView, meta: { requiresAuth: true, roles: ['admin', 'jp', 'manager'] } }
   ]
 })
 

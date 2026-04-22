@@ -12,14 +12,11 @@ import {
   FileText,
   Hash, 
   Briefcase,
-  CheckCircle2,
-  AlertCircle,
   X,
-  MessageSquare, 
-  Send, 
   Clock,
   ArrowRight,
-  Plus
+  Plus,
+  Save
 } from 'lucide-vue-next'
 import ToastNotification from '../components/common/ToastNotification.vue'
 
@@ -38,6 +35,7 @@ const showToast = (message, type = 'success') => {
 }
 
 const ausenciasPersonales = ref([])
+const isSubmitting = ref(false) // VARIABLE PARA EL BOTÓN
 
 const cargarAusenciasAPI = async () => {
     const user = store.getCurrentUser()
@@ -205,63 +203,97 @@ const exportarDatos = () => {
     showToast('Informe exportado correctamente', 'success')
 }
 
-const mostrarModalSolicitud = ref(false)
-const formSolicitud = ref({
-    fechaVisible: '', fechaISO: '', proyecto: '', proyecto_id: '', mensaje: '', horasActuales: 0, horasNuevas: 0, esNuevo: false
+// === LÓGICA DE EDICIÓN DIRECTA ===
+const mostrarModalEdicion = ref(false)
+const formEdicion = ref({
+    fechaVisible: '', fechaISO: '', proyecto: '', proyecto_id: '', horasActuales: 0, horasNuevas: 0, esNuevo: false, diaLocal: null
 })
 
-const abrirSolicitud = (imputacion, dia) => {
+const abrirEdicion = (imputacion, dia) => {
     const fechaObj = new Date(anioActual.value, mesActualIndex.value, dia)
     if (getTipoDia(fechaObj)) return showToast(`No puedes modificar horas en un día de ${getLabelDia(fechaObj)}.`, 'error')
 
     const offset = fechaObj.getTimezoneOffset() * 60000
     const isoDate = new Date(fechaObj.getTime() - offset).toISOString().split('T')[0]
     
-    formSolicitud.value = {
+    formEdicion.value = {
         fechaVisible: fechaObj.toLocaleDateString('es-ES', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }), 
-        fechaISO: isoDate, proyecto: imputacion.proyecto, proyecto_id: imputacion.proyecto_id,
-        mensaje: '', horasActuales: imputacion.horas, horasNuevas: imputacion.horas, esNuevo: false
+        fechaISO: isoDate, 
+        proyecto: imputacion.proyecto, 
+        proyecto_id: imputacion.proyecto_id,
+        horasActuales: imputacion.horas, 
+        horasNuevas: imputacion.horas, 
+        esNuevo: false,
+        diaLocal: dia
     }
-    mostrarModalSolicitud.value = true
+    mostrarModalEdicion.value = true
 }
 
-const abrirSolicitudNueva = (dia) => {
+const abrirEdicionNueva = (dia) => {
     const fechaObj = new Date(anioActual.value, mesActualIndex.value, dia)
     const offset = fechaObj.getTimezoneOffset() * 60000
     const isoDate = new Date(fechaObj.getTime() - offset).toISOString().split('T')[0]
 
-    formSolicitud.value = {
+    formEdicion.value = {
         fechaVisible: fechaObj.toLocaleDateString('es-ES', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }), 
-        fechaISO: isoDate, proyecto: '', proyecto_id: '',
-        mensaje: '', horasActuales: 0, horasNuevas: 8, esNuevo: true 
+        fechaISO: isoDate, 
+        proyecto: '', 
+        proyecto_id: '',
+        horasActuales: 0, 
+        horasNuevas: 8, 
+        esNuevo: true,
+        diaLocal: dia
     }
-    mostrarModalSolicitud.value = true
+    mostrarModalEdicion.value = true
 }
 
-const enviarSolicitudJefe = async () => {
-    if (formSolicitud.value.esNuevo && !formSolicitud.value.proyecto_id) return showToast('Debes seleccionar a qué proyecto quieres imputar', 'error')
-    if (!formSolicitud.value.mensaje) return showToast('Debes escribir un motivo para la solicitud', 'error')
+const guardarEdicionDirecta = async () => {
+    if (formEdicion.value.esNuevo && !formEdicion.value.proyecto_id) return showToast('Debes seleccionar a qué proyecto quieres imputar', 'error')
+    if (formEdicion.value.horasNuevas < 0 || formEdicion.value.horasNuevas > 24) return showToast('Las horas deben estar entre 0 y 24', 'error')
+    if (formEdicion.value.horasNuevas % 0.5 !== 0) return showToast('Solo se permiten incrementos de 0.5h', 'error')
     
     const user = store.getCurrentUser()
     if (!user) return;
 
+    if (isSubmitting.value) return;
+    isSubmitting.value = true;
+
     try {
+        // Obtenemos todas las imputaciones de ese día para no sobreescribir otros proyectos
+        const imputacionesDelDia = getImputacionesPorDia(formEdicion.value.diaLocal);
+        
+        let filasPayload = imputacionesDelDia.map(imp => ({
+            id_proyecto: imp.proyecto_id,
+            horas: [imp.proyecto_id === formEdicion.value.proyecto_id ? formEdicion.value.horasNuevas : imp.horas]
+        }));
+        
+        // Si es un proyecto nuevo que no estaba en ese día, lo añadimos al payload
+        if (!filasPayload.some(f => f.id_proyecto === formEdicion.value.proyecto_id)) {
+            filasPayload.push({
+                id_proyecto: formEdicion.value.proyecto_id,
+                horas: [formEdicion.value.horasNuevas]
+            });
+        }
+
         const payload = {
             usuario_id: user.id, 
-            proyecto_id: formSolicitud.value.proyecto_id, 
-            fecha: formSolicitud.value.fechaISO,
-            nuevas_horas: formSolicitud.value.horasNuevas, 
-            motivo: formSolicitud.value.mensaje
+            fechas: [formEdicion.value.fechaISO],
+            filas: filasPayload
         }
         
-        const res = await MyProjectsAPI.solicitarCorreccion(payload)
+        const res = await MyProjectsAPI.guardarImputaciones(payload)
         
-        mostrarModalSolicitud.value = false
-        showToast(res.message || 'Solicitud enviada al responsable', 'success')
-        cargarCalendario() 
-        
+        if (res.status === 'success') {
+            mostrarModalEdicion.value = false
+            showToast('Horas guardadas correctamente', 'success')
+            cargarCalendario() 
+        } else {
+            showToast('Error al guardar las horas', 'error')
+        }
     } catch (error) {
         showToast(error.response?.data?.error || 'Fallo en la conexión con el servidor', 'error')
+    } finally {
+        isSubmitting.value = false;
     }
 }
 </script>
@@ -271,7 +303,6 @@ const enviarSolicitudJefe = async () => {
     
     <div class="flex justify-between items-center shrink-0">
       <div class="flex items-center">
-        
         <h1 class="text-3xl font-bold capitalize flex items-center gap-3 text-dark w-[350px]">
           <div class="p-2 rounded-lg bg-white shadow-sm border border-gray-100 shrink-0">
             <CalendarIcon class="w-6 h-6 text-primary"/>
@@ -284,10 +315,10 @@ const enviarSolicitudJefe = async () => {
           <button @click="irAHoy" class="w-20 py-2 text-xs font-bold tracking-widest hover:bg-gray-50 transition uppercase text-dark text-center">Hoy</button>
           <button @click="mesSiguiente" class="p-2 hover:bg-gray-50 text-gray-600 rounded-r-lg border-l border-gray-200 transition"><ChevronRight class="w-5 h-5" /></button>
         </div>
-        
       </div>
       <button @click="exportarDatos" class="btn-secondary"><FileText class="w-4 h-4"/> Exportar</button>
     </div>
+
     <div class="bg-white p-3 rounded-lg border border-gray-200 shadow-sm shrink-0 flex flex-wrap items-center gap-4 text-xs font-medium">
         <span class="uppercase text-gray-400 tracking-wider mr-2 font-bold">Leyenda:</span>
         <div class="flex items-center gap-2 px-2 py-1 rounded-md bg-gray-50 border border-gray-100">
@@ -325,9 +356,9 @@ const enviarSolicitudJefe = async () => {
                   :class="esHoy(dia) ? 'bg-primary text-white' : (esFinDeSemana(dia) ? 'text-slate-400' : 'text-dark')">{{ dia }}</span>
             
             <div class="flex items-center gap-1">
-                <button v-if="esPasado(dia)" @click.stop="abrirSolicitudNueva(dia)" 
+                <button v-if="esPasado(dia)" @click.stop="abrirEdicionNueva(dia)" 
                         class="opacity-0 group-hover:opacity-100 text-blue-600 bg-blue-50 hover:bg-blue-100 p-1 rounded-md transition-all" 
-                        title="Reclamar horas olvidadas">
+                        title="Añadir horas">
                     <Plus class="w-3.5 h-3.5" />
                 </button>
                 <span v-if="getTotalHoras(dia) > 0" class="text-[10px] font-bold px-2 py-0.5 rounded border bg-blue-50 text-dark border-blue-100">{{ getTotalHoras(dia) }}h</span>
@@ -347,7 +378,7 @@ const enviarSolicitudJefe = async () => {
 
           <div v-else-if="!esFinDeSemana(dia)" class="flex-1 overflow-y-auto scrollbar-thin pr-1">
              <div v-for="(item, idx) in getImputacionesPorDia(dia)" :key="idx" 
-                  @click.stop="abrirSolicitud(item, dia)"
+                  @click.stop="abrirEdicion(item, dia)"
                   class="text-[10px] p-1.5 rounded border-l-2 mb-1 truncate shadow-sm cursor-pointer transition-all hover:brightness-95 hover:shadow-md flex justify-between items-center"
                   :class="item.color">
                <span class="truncate font-semibold">{{ item.proyecto }}</span>
@@ -390,47 +421,54 @@ const enviarSolicitudJefe = async () => {
         </div>
     </div>
 
-    <div v-if="mostrarModalSolicitud" class="fixed inset-0 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+    <div v-if="mostrarModalEdicion" class="fixed inset-0 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center z-50 p-4">
         <div class="bg-white w-full max-w-md rounded-xl shadow-2xl p-6 animate-in zoom-in-95">
             <div class="flex justify-between items-center mb-6 border-b border-gray-100 pb-3">
-                <h3 class="text-lg font-bold text-dark flex items-center gap-2"><MessageSquare class="w-5 h-5 text-primary"/> Solicitar Corrección</h3>
-                <button @click="mostrarModalSolicitud = false" class="text-gray-400 hover:text-red-500 transition"><X class="w-5 h-5"/></button>
+                <h3 class="text-lg font-bold text-dark flex items-center gap-2"><Clock class="w-5 h-5 text-primary"/> {{ formEdicion.esNuevo ? 'Añadir Horas' : 'Editar Horas' }}</h3>
+                <button @click="mostrarModalEdicion = false" class="text-gray-400 hover:text-red-500 transition"><X class="w-5 h-5"/></button>
             </div>
             <div class="space-y-5">
                 <div class="p-3 bg-gray-50 rounded-lg border border-gray-200 text-sm">
-                    <p class="text-gray-500 font-bold mb-2 flex items-center gap-2"><CalendarIcon class="w-4 h-4"/> {{ formSolicitud.fechaVisible }}</p>
+                    <p class="text-gray-500 font-bold mb-2 flex items-center gap-2"><CalendarIcon class="w-4 h-4"/> {{ formEdicion.fechaVisible }}</p>
                     
-                    <div v-if="formSolicitud.esNuevo" class="mt-2">
+                    <div v-if="formEdicion.esNuevo" class="mt-2">
                         <label class="block text-[10px] font-black text-gray-400 uppercase mb-1">Elige un proyecto</label>
-                        <select v-model="formSolicitud.proyecto_id" class="w-full border border-gray-300 rounded-lg p-2 font-medium text-sm text-dark outline-none focus:border-primary bg-white shadow-sm cursor-pointer">
+                        <select v-model="formEdicion.proyecto_id" class="w-full border border-gray-300 rounded-lg p-2 font-medium text-sm text-dark outline-none focus:border-primary bg-white shadow-sm cursor-pointer">
                             <option value="" disabled>Selecciona el proyecto...</option>
                             <option v-for="p in proyectosDisponibles" :key="p.Id" :value="p.Id">{{ p.Nombre }} ({{ p.Cliente || 'Sin Cliente' }})</option>
                         </select>
                     </div>
-                    <p v-else class="text-primary font-bold flex items-center gap-2 mt-1"><Briefcase class="w-4 h-4"/> {{ formSolicitud.proyecto }}</p>
+                    <p v-else class="text-primary font-bold flex items-center gap-2 mt-1"><Briefcase class="w-4 h-4"/> {{ formEdicion.proyecto }}</p>
                 </div>
 
                 <div class="flex items-center justify-between gap-4">
                     <div class="flex-1 text-center">
                         <label class="block text-[10px] font-black text-gray-400 uppercase mb-1">Horas Actuales</label>
-                        <div class="h-12 flex items-center justify-center bg-gray-100 rounded-xl border border-gray-200 text-gray-500 font-bold">{{ formSolicitud.horasActuales }}h</div>
+                        <div class="h-12 flex items-center justify-center bg-gray-100 rounded-xl border border-gray-200 text-gray-500 font-bold">{{ formEdicion.horasActuales }}h</div>
                     </div>
                     <div class="pt-4 text-gray-300"><ArrowRight class="w-5 h-5"/></div>
                     <div class="flex-1 text-center">
-                        <label class="block text-[10px] font-black uppercase mb-1" :class="formSolicitud.horasNuevas !== formSolicitud.horasActuales ? 'text-primary' : 'text-gray-400'">Horas a Solicitar</label>
-                        <input v-model.number="formSolicitud.horasNuevas" type="number" step="0.5" class="w-full h-12 text-center rounded-xl border-2 font-bold transition-all outline-none" :class="formSolicitud.horasNuevas !== formSolicitud.horasActuales ? 'border-primary bg-blue-50 text-primary' : 'border-gray-200 bg-white text-dark'"/>
+                        <label class="block text-[10px] font-black uppercase mb-1" :class="formEdicion.horasNuevas !== formEdicion.horasActuales ? 'text-primary' : 'text-gray-400'">Nuevas Horas</label>
+                        <input v-model.number="formEdicion.horasNuevas" type="number" step="0.5" min="0" max="24" class="w-full h-12 text-center rounded-xl border-2 font-bold transition-all outline-none" :class="formEdicion.horasNuevas !== formEdicion.horasActuales ? 'border-primary bg-blue-50 text-primary' : 'border-gray-200 bg-white text-dark'"/>
                     </div>
                 </div>
-                <div v-if="formSolicitud.horasNuevas === formSolicitud.horasActuales" class="flex items-center gap-2 text-[11px] font-bold text-gray-400 bg-gray-50 p-2 rounded-lg border border-dashed border-gray-200">
-                    <Clock class="w-3.5 h-3.5"/> No has modificado las horas aún.
-                </div>
-                <div>
-                    <label class="block text-xs font-bold text-gray-600 uppercase mb-1">Motivo del cambio</label>
-                    <textarea v-model="formSolicitud.mensaje" rows="3" class="w-full border border-gray-200 rounded-xl p-3 text-sm focus:ring-2 focus:ring-primary focus:border-primary outline-none" placeholder="Explica detalladamente por qué solicitas el cambio..."></textarea>
-                </div>
-                <div class="flex gap-3 pt-2">
-                    <button @click="mostrarModalSolicitud = false" class="btn-secondary flex-1">Cancelar</button>
-                    <button @click="enviarSolicitudJefe" class="btn-primary flex-1"><Send class="w-4 h-4 mr-2"/> Enviar Solicitud</button>
+                
+                <div class="flex gap-3 pt-2 mt-4">
+                    <button @click="mostrarModalEdicion = false" :disabled="isSubmitting" class="btn-secondary flex-1 disabled:opacity-50">Cancelar</button>
+                    
+                    <button @click="guardarEdicionDirecta" 
+                            :disabled="isSubmitting"
+                            class="btn-primary flex-1 flex justify-center items-center"
+                            :class="isSubmitting ? 'opacity-70 cursor-not-allowed bg-blue-400' : ''">
+                        
+                        <svg v-if="isSubmitting" class="animate-spin mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
+                        <Save v-else class="w-4 h-4 mr-2"/> 
+                        
+                        {{ isSubmitting ? 'Guardando...' : 'Guardar Horas' }}
+                    </button>
                 </div>
             </div>
         </div>

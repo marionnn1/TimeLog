@@ -14,6 +14,10 @@ const usuariosDisponibles = ref([])
 const clientesDisponibles = ref([])
 const isLoading = ref(false)
 
+const isSubmittingCliente = ref(false)
+const isSubmittingProyecto = ref(false)
+const isConfirming = ref(false)
+
 const toast = ref({ show: false, message: '', type: 'success' })
 let toastTimeout = null
 
@@ -29,9 +33,16 @@ const solicitarConfirmacion = (title, message, type, mode, actionFunction) => {
     confirmState.value = { show: true, title, message, type, actionMode: mode, action: actionFunction }
 }
 
-const ejecutarConfirmacion = () => {
-    if (confirmState.value.action) confirmState.value.action()
-    confirmState.value.show = false
+const ejecutarConfirmacion = async () => {
+    if (isConfirming.value) return;
+    isConfirming.value = true;
+
+    try {
+        if (confirmState.value.action) await confirmState.value.action()
+    } finally {
+        isConfirming.value = false;
+        confirmState.value.show = false
+    }
 }
 
 const fetchProjects = async () => {
@@ -56,8 +67,9 @@ const mostrarModalCliente = ref(false)
 const esEdicion = ref(false)
 const esEdicionCliente = ref(false)
 
-const proyectoForm = ref({ id: null, nombre: '', cliente: '', idCliente: '', codigo: '', estado: 'Activo', equipo: [] }) 
-const clienteForm = ref({ id: null, nombre: '', codigo: '' }) 
+// ELIMINADO EL CAMPO "CÓDIGO" DE LOS FORMULARIOS
+const proyectoForm = ref({ id: null, nombre: '', cliente: '', estado: 'Activo', equipo: [] }) 
+const clienteForm = ref({ id: null, nombre: '' }) 
 
 const busqueda = ref('')
 const filtroEstado = ref('todos')
@@ -106,7 +118,7 @@ const esMiembroSeleccionado = (userId) => proyectoForm.value.equipo.some(u => u.
 
 const abrirCrearCliente = () => {
     esEdicionCliente.value = false
-    clienteForm.value = { id: null, nombre: '', codigo: '' }
+    clienteForm.value = { id: null, nombre: '' }
     mostrarModalCliente.value = true
 }
 
@@ -115,8 +127,7 @@ const abrirEditarCliente = (clienteData, nombreActual) => {
     esEdicionCliente.value = true
     clienteForm.value = { 
         id: clienteData.id, 
-        nombre: nombreActual, 
-        codigo: clientesDisponibles.value.find(c => c.id === clienteData.id)?.codigo || '' 
+        nombre: nombreActual
     }
     mostrarModalCliente.value = true
 }
@@ -126,6 +137,10 @@ const guardarCliente = async () => {
         showToast("El nombre del cliente es obligatorio", "error")
         return
     }
+
+    if (isSubmittingCliente.value) return;
+    isSubmittingCliente.value = true;
+
     try {
         if (esEdicionCliente.value) {
             await ManagerAPI.editarCliente(clienteForm.value.id, clienteForm.value)
@@ -138,6 +153,8 @@ const guardarCliente = async () => {
         fetchProjects() 
     } catch (error) {
         showToast(error.response?.data?.error || "Error en el cliente", "error")
+    } finally {
+        isSubmittingCliente.value = false;
     }
 }
 
@@ -155,13 +172,13 @@ const solicitarEliminarCliente = (clienteId) => {
 
 const abrirCrearProyecto = () => {
     esEdicion.value = false
-    proyectoForm.value = { id: null, nombre: '', cliente: '', idCliente: '', codigo: '', estado: 'Activo', equipo: [] }
+    proyectoForm.value = { id: null, nombre: '', cliente: '', estado: 'Activo', equipo: [] }
     mostrarModalProyecto.value = true
 }
 
 const abrirCrearProyectoDesdeCliente = (nombreCliente) => {
     esEdicion.value = false
-    proyectoForm.value = { id: null, nombre: '', cliente: nombreCliente, idCliente: '', codigo: '', estado: 'Activo', equipo: [] }
+    proyectoForm.value = { id: null, nombre: '', cliente: nombreCliente, estado: 'Activo', equipo: [] }
     mostrarModalProyecto.value = true
 }
 
@@ -177,13 +194,14 @@ const guardarProyecto = async () => {
         return
     }
 
+    if (isSubmittingProyecto.value) return;
+    isSubmittingProyecto.value = true;
+
     try {
         const payload = {
             id: proyectoForm.value.id,
             nombre: proyectoForm.value.nombre,
             cliente: proyectoForm.value.cliente,
-            idCliente: proyectoForm.value.idCliente,
-            codigo: proyectoForm.value.codigo,
             estado: proyectoForm.value.estado,
             usuarios_ids: proyectoForm.value.equipo.map(u => u.id)
         }
@@ -199,6 +217,8 @@ const guardarProyecto = async () => {
         fetchProjects() 
     } catch (error) {
         showToast("Error al guardar el proyecto", "error")
+    } finally {
+        isSubmittingProyecto.value = false;
     }
 }
 
@@ -372,8 +392,8 @@ const getColorClass = (nombre) => {
                                 <p class="text-sm text-slate-500 flex items-center gap-1.5 font-medium truncate">
                                     <Tag class="w-3.5 h-3.5" /> {{ proy.cliente }}
                                 </p>
-                                <p v-if="proy.idCliente" class="text-xs text-slate-400 flex items-center gap-1.5 font-mono">
-                                    <Hash class="w-3 h-3" /> {{ proy.idCliente }}
+                                <p v-if="proy.codigo" class="text-xs text-slate-400 flex items-center gap-1.5 font-mono">
+                                    <Hash class="w-3 h-3" /> {{ proy.codigo }}
                                 </p>
                             </div>
                         </div>
@@ -439,15 +459,19 @@ const getColorClass = (nombre) => {
                         <input v-model="clienteForm.nombre" type="text" placeholder="Ej: Inetum" 
                                class="w-full p-3 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#26AA9B]/20 focus:border-[#26AA9B]">
                     </div>
-                    <div>
-                        <label class="block text-xs font-bold text-slate-500 uppercase mb-2">ID/Código (Opcional)</label>
-                        <input v-model="clienteForm.codigo" type="text" placeholder="Ej: CLI-001" 
-                               class="w-full p-3 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#26AA9B]/20 focus:border-[#26AA9B]">
-                    </div>
                     
                     <div class="pt-2">
-                        <button @click="guardarCliente" class="w-full btn-secondary !bg-slate-800 !text-white hover:!bg-slate-700 py-3 justify-center">
-                            {{ esEdicionCliente ? 'Actualizar Cliente' : 'Guardar Cliente' }}
+                        <button @click="guardarCliente" 
+                                :disabled="isSubmittingCliente"
+                                class="w-full py-3 justify-center rounded-lg font-bold shadow transition flex items-center gap-2 disabled:opacity-50"
+                                :class="isSubmittingCliente ? 'bg-slate-400 text-white cursor-not-allowed' : 'bg-slate-800 text-white hover:bg-slate-700'">
+                            
+                            <svg v-if="isSubmittingCliente" class="animate-spin w-5 h-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                            </svg>
+
+                            {{ isSubmittingCliente ? 'Guardando...' : (esEdicionCliente ? 'Actualizar Cliente' : 'Guardar Cliente') }}
                         </button>
                     </div>
                 </div>
@@ -481,12 +505,6 @@ const getColorClass = (nombre) => {
                             <label class="block text-xs font-bold text-slate-500 uppercase mb-2">Nombre del Proyecto</label>
                             <input v-model="proyectoForm.nombre" type="text" placeholder="Ej: Migración Cloud" 
                                    class="w-full p-3 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#26AA9B]/20 focus:border-[#26AA9B]">
-                        </div>
-
-                        <div class="col-span-2">
-                            <label class="block text-xs font-bold text-slate-500 uppercase mb-2">ID Proyecto / Código</label>
-                            <input v-model="proyectoForm.codigo" type="text" placeholder="Ej: PRJ-001 (Opcional)" 
-                                class="w-full p-3 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#26AA9B]/20 focus:border-[#26AA9B]">
                         </div>
                     </div>
 
@@ -522,10 +540,20 @@ const getColorClass = (nombre) => {
                 </div>
 
                 <div class="pt-4 border-t border-slate-100 shrink-0 flex gap-3 mt-2">
-                    <button @click="mostrarModalProyecto = false" class="btn-secondary flex-1 justify-center">Cancelar</button>
-                    <button @click="guardarProyecto" class="flex-1 btn-primary py-3 justify-center flex items-center gap-2">
-                        <Save class="w-4 h-4"/>
-                        {{ esEdicion ? 'Guardar Cambios' : 'Crear Proyecto' }}
+                    <button @click="mostrarModalProyecto = false" :disabled="isSubmittingProyecto" class="btn-secondary flex-1 justify-center disabled:opacity-50">Cancelar</button>
+                    
+                    <button @click="guardarProyecto" 
+                            :disabled="isSubmittingProyecto"
+                            class="flex-1 btn-primary py-3 justify-center flex items-center gap-2 disabled:opacity-50"
+                            :class="isSubmittingProyecto ? 'bg-emerald-400 cursor-not-allowed' : ''">
+                        
+                        <svg v-if="isSubmittingProyecto" class="animate-spin w-4 h-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
+                        <Save v-else class="w-4 h-4"/>
+                        
+                        {{ isSubmittingProyecto ? 'Guardando...' : (esEdicion ? 'Guardar Cambios' : 'Crear Proyecto') }}
                     </button>
                 </div>
             </div>
@@ -536,6 +564,7 @@ const getColorClass = (nombre) => {
             :title="confirmState.title"
             :message="confirmState.message"
             :type="confirmState.type"
+            :isLoading="isConfirming"
             @confirm="ejecutarConfirmacion"
             @cancel="confirmState.show = false"
         />

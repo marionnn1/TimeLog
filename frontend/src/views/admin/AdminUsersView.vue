@@ -23,6 +23,10 @@ const DEFAULT_FORM = {
 const usuarios = ref([])
 const cargando = ref(true)
 
+// NUEVAS VARIABLES DE ESTADO PARA BOTONES
+const isSubmitting = ref(false)
+const isConfirming = ref(false)
+
 const sedesDisponibles = ['Madrid', 'Barcelona', 'Tarragona', 'Sevilla', 'Bilbao', 'Remoto']
 const busqueda = ref('')
 
@@ -82,6 +86,10 @@ const abrirEditar = (usuario) => {
 }
 
 const guardar = async () => {
+    // Bloqueo para evitar doble clic
+    if (isSubmitting.value) return;
+    isSubmitting.value = true;
+
     try {
         const payload = {
             nombre: formulario.value.nombre,
@@ -103,6 +111,9 @@ const guardar = async () => {
         }
     } catch (error) {
         showToast("Error de red al intentar guardar", "error")
+    } finally {
+        // Desbloqueo
+        isSubmitting.value = false;
     }
 }
 
@@ -130,6 +141,10 @@ const solicitarAccion = (id, modo) => {
 }
 
 const confirmarAccion = async () => {
+    // Bloqueo para evitar dobles confirmaciones
+    if (isConfirming.value) return;
+    isConfirming.value = true;
+
     try {
         let respuesta;
         if (confirmacion.action === 'eliminar') respuesta = await AdminAPI.eliminarUsuario(confirmacion.usuarioId)
@@ -144,8 +159,11 @@ const confirmarAccion = async () => {
         }
     } catch (error) {
         showToast("Error de red al confirmar la acción", "error")
+    } finally {
+        // Restaurar estado de carga y cerrar modal
+        isConfirming.value = false;
+        confirmacion.show = false;
     }
-    confirmacion.show = false;
 }
 
 const obtenerEstiloRol = (rol) => {
@@ -296,8 +314,20 @@ const obtenerEstiloRol = (rol) => {
             </div>
 
             <div class="flex gap-3 pt-2">
-                <button @click="mostrarModal = false" class="flex-1 py-2 border border-gray-300 text-slate-600 rounded-lg font-bold hover:bg-gray-50 transition">Cancelar</button>
-                <button @click="guardar" class="flex-1 py-2 bg-blue-600 text-white rounded-lg font-bold hover:bg-blue-700 shadow-lg shadow-blue-200 transition">Guardar</button>
+                <button @click="mostrarModal = false" :disabled="isSubmitting" class="flex-1 py-2 border border-gray-300 text-slate-600 rounded-lg font-bold hover:bg-gray-50 transition disabled:opacity-50">Cancelar</button>
+                
+                <button @click="guardar" 
+                        :disabled="isSubmitting"
+                        class="flex-1 py-2 text-white rounded-lg font-bold shadow-lg transition flex items-center justify-center gap-2"
+                        :class="isSubmitting ? 'bg-blue-400 cursor-not-allowed opacity-80' : 'bg-blue-600 hover:bg-blue-700 shadow-blue-200'">
+                    
+                    <svg v-if="isSubmitting" class="animate-spin h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+
+                    {{ isSubmitting ? 'Guardando...' : 'Guardar' }}
+                </button>
             </div>
         </div>
     </div>
@@ -307,6 +337,7 @@ const obtenerEstiloRol = (rol) => {
         :title="confirmacion.title"
         :message="confirmacion.message"
         :type="confirmacion.type"
+        :isLoading="isConfirming"
         @confirm="confirmarAccion"
         @cancel="confirmacion.show = false"
     />
