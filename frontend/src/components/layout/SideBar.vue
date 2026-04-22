@@ -5,7 +5,7 @@ import { useAuth } from '../../composables/useAuth'
 import { useDataStore } from '../../stores/dataStore'
 import {
   LayoutDashboard, Clock, FolderKanban, FileBarChart, LogOut, ShieldCheck, Calendar,
-  CheckCircle, Users, Briefcase, History, Activity, AlertOctagon
+  Users, Briefcase, History, Activity
 } from 'lucide-vue-next'
 
 const router = useRouter()
@@ -14,10 +14,8 @@ const { logout } = useAuth()
 
 const currentUser = computed(() => store.getCurrentUser())
 
-// NORMALIZACIÓN: Convertimos el rol a minúsculas para una validación más robusta
 const rolActual = computed(() => currentUser.value?.rol?.toLowerCase() || 'tecnico')
 
-// VALIDACIÓN DE ROLES: Comprobamos contra el valor normalizado
 const esAdmin = computed(() => rolActual.value === 'admin')
 const esJefe = computed(() => ['admin', 'jp', 'manager'].includes(rolActual.value))
 
@@ -79,10 +77,6 @@ const handleLogout = async () => {
         <div class="px-3 mt-8 mb-2 text-xs font-bold text-slate-500 uppercase tracking-widest truncate">
           Gestión Equipo
         </div>
-        <router-link to="/manager/validaciones" :class="claseLink">
-          <CheckCircle :class="claseIcono" />
-          <span class="text-sm font-medium truncate">Validar Horas</span>
-        </router-link>
         <router-link to="/manager/cierre" :class="claseLink">
           <FileBarChart :class="claseIcono" />
           <span class="text-sm font-medium truncate">Cierre Mensual</span>
@@ -113,12 +107,6 @@ const handleLogout = async () => {
           <Briefcase :class="claseIcono" />
           <span class="text-sm font-medium truncate">Gestión Proyectos</span>
         </router-link>
-
-        <router-link to="/admin/tickets" :class="claseLink">
-          <AlertOctagon :class="claseIcono" />
-          <span class="text-sm font-medium truncate">Tickets Soporte</span>
-        </router-link>
-
         <router-link to="/admin/audit" :class="claseLink">
           <History :class="claseIcono" />
           <span class="text-sm font-medium truncate">Historial / Logs</span>

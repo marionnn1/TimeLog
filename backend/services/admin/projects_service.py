@@ -9,6 +9,17 @@ from sqlalchemy import text
 from datetime import datetime
 from errors import APIError
 
+def generar_prefijo(nombre):
+    """Genera un acrónimo de 1 a 3 letras basado en el nombre"""
+    if not nombre: return "XXX"
+    palabras = nombre.upper().replace("-", " ").replace("_", " ").split()
+    if not palabras: return "XXX"
+    
+    if len(palabras) == 1:
+        return palabras[0][:3]
+    else:
+        return "".join([p[0] for p in palabras])[:3]
+
 def obtener_proyectos():
     proyectos = Projects.query.all()
     resultado = []
@@ -38,10 +49,15 @@ def crear_cliente(datos):
     if Clients.query.filter_by(nombre=nombre).first():
         raise APIError("El cliente ya existe", status_code=400)
         
-    nuevo_cliente = Clients(nombre=nombre, codigo=datos.get('codigo', ''), estado=True, fecha_creacion=datetime.utcnow())
+    nuevo_cliente = Clients(nombre=nombre, estado=True, fecha_creacion=datetime.utcnow())
     db.session.add(nuevo_cliente)
+    db.session.flush()
+    
+    prefijo = generar_prefijo(nuevo_cliente.nombre)
+    nuevo_cliente.codigo = f"{prefijo}-{nuevo_cliente.id:03d}"
+
     db.session.commit()
-    registrar_log('Crear Cliente', 'info', f"Se creó el cliente: {nombre}.")
+    registrar_log('Crear Cliente', 'info', f"Se creó el cliente: {nombre} ({nuevo_cliente.codigo}).")
     return True
 
 def actualizar_cliente(id_cliente, datos):
@@ -49,7 +65,6 @@ def actualizar_cliente(id_cliente, datos):
     if not cliente: raise APIError("Cliente no encontrado", status_code=404)
     
     cliente.nombre = datos.get('nombre', cliente.nombre)
-    cliente.codigo = datos.get('codigo', cliente.codigo)
     db.session.commit()
     registrar_log('Actualizar Cliente', 'info', f"Se actualizó el cliente ID {id_cliente}.")
     return True
@@ -70,9 +85,13 @@ def eliminar_cliente(id_cliente):
 def crear_proyecto(datos):
     nombre_cliente = datos.get('cliente', 'Cliente Genérico')
     cliente = Clients.query.filter_by(nombre=nombre_cliente).first()
+    
     if not cliente:
         cliente = Clients(nombre=nombre_cliente, estado=True, fecha_creacion=datetime.utcnow())
         db.session.add(cliente)
+        db.session.flush()
+        prefijo_cli = generar_prefijo(cliente.nombre)
+        cliente.codigo = f"{prefijo_cli}-{cliente.id:03d}"
         db.session.flush()
 
     nuevo_proyecto = Projects(
@@ -82,13 +101,20 @@ def crear_proyecto(datos):
     db.session.add(nuevo_proyecto)
     db.session.flush() 
 
+    if cliente.codigo and '-' in cliente.codigo:
+        prefijo_proyecto = cliente.codigo.split('-')[0]
+    else:
+        prefijo_proyecto = generar_prefijo(cliente.nombre)
+
+    nuevo_proyecto.codigo = f"{prefijo_proyecto}-P{nuevo_proyecto.id:03d}"
+
     usuarios_ids = datos.get('usuarios_ids', [])
     for u_id in usuarios_ids:
         nueva_asignacion = Assignments(proyecto_id=nuevo_proyecto.id, usuario_id=u_id, activo=True, fecha_asignacion=datetime.utcnow())
         db.session.add(nueva_asignacion)
 
     db.session.commit()
-    registrar_log('Crear Proyecto', 'info', f"Se creó el proyecto: {datos.get('nombre')}.")
+    registrar_log('Crear Proyecto', 'info', f"Se creó el proyecto: {datos.get('nombre')} ({nuevo_proyecto.codigo}).")
     return True
 
 def actualizar_proyecto(id_proyecto, datos):
@@ -101,6 +127,8 @@ def actualizar_proyecto(id_proyecto, datos):
         cliente = Clients(nombre=nombre_cliente, estado=True, fecha_creacion=datetime.utcnow())
         db.session.add(cliente)
         db.session.flush()
+        prefijo_cli = generar_prefijo(cliente.nombre)
+        cliente.codigo = f"{prefijo_cli}-{cliente.id:03d}"
 
     proyecto.nombre = datos.get('nombre')
     proyecto.estado = datos.get('estado')

@@ -2,7 +2,7 @@
 import { ref, onMounted, reactive, computed } from 'vue'
 import { 
     FolderPlus, Pencil, Tag, X, Briefcase, Users, Check, 
-    Trash2, Plus, Building2, UserPlus, Lock, Ban, Play 
+    Trash2, Plus, Building2, UserPlus, Lock, Ban, Play, Hash 
 } from 'lucide-vue-next'
 import { useDataStore } from '../../stores/dataStore'
 import AdminAPI from '../../services/AdminAPI'
@@ -12,12 +12,16 @@ import ToastNotification from '../../components/common/ToastNotification.vue'
 const store = useDataStore()
 
 const FORM_DEFAULT = { id: null, nombre: '', cliente: '', estado: 'Activo', equipo: [] }
-const CLIENTE_DEFAULT = { id: null, nombre: '', codigo: '' }
+const CLIENTE_DEFAULT = { id: null, nombre: '' }
 
 const proyectos = ref([])
 const clientes_db = ref([])
 const usuarios_db = ref([])
 const cargando = ref(true)
+
+const isSubmittingCliente = ref(false)
+const isSubmittingProyecto = ref(false)
+const isConfirming = ref(false)
 
 const mostrarModal = ref(false)
 const mostrarModalCliente = ref(false)
@@ -33,15 +37,18 @@ let toastTimeout = null
 
 const confirmacion = reactive({ show: false, title: '', message: '', type: 'neutral', id: null, modo: '' })
 
+// AÑADIDO: Guardar el código del cliente en la agrupación
 const proyectosAgrupados = computed(() => {
     const grupos = {}
     
-    clientes_db.value.forEach(c => { grupos[c.nombre] = { id: c.id, proyectos: [] } })
+    clientes_db.value.forEach(c => { 
+        grupos[c.nombre] = { id: c.id, codigo: c.codigo, proyectos: [] } 
+    })
 
     proyectos.value.forEach(p => {
         const nombreCliente = p.cliente || 'Sin Cliente asignado'
         if (!grupos[nombreCliente]) {
-            grupos[nombreCliente] = { id: null, proyectos: [] }
+            grupos[nombreCliente] = { id: null, codigo: null, proyectos: [] }
         }
         grupos[nombreCliente].proyectos.push(p)
     })
@@ -62,9 +69,9 @@ const cargarDatos = async () => {
         const jsonProj = await AdminAPI.getProyectos()
         if (jsonProj.status === 'success') {
             proyectos.value = jsonProj.data.map(p => ({
-                id: p.Id, nombre: p.Nombre, cliente: p.Cliente, estado: p.Estado,
+                id: p.Id, nombre: p.Nombre, cliente: p.Cliente, estado: p.Estado, codigo: p.codigo,
                 equipo: p.Equipo ? p.Equipo.map(u => ({
-                    id: u.id, nombre: u.nombre, foto: u.foto, // FOTO AÑADIDA
+                    id: u.id, nombre: u.nombre, foto: u.foto,
                     iniciales: u.nombre.split(' ').map(n => n[0]).join('').toUpperCase().substring(0, 2),
                     color: 'bg-indigo-100 text-indigo-700'
                 })) : []
@@ -74,7 +81,7 @@ const cargarDatos = async () => {
         const jsonUser = await AdminAPI.getUsuarios()
         if (jsonUser.status === 'success') {
             usuarios_db.value = jsonUser.data.map(u => ({
-                id: u.Id, nombre: u.Nombre, foto: u.Foto, // FOTO AÑADIDA
+                id: u.Id, nombre: u.Nombre, foto: u.Foto,
                 iniciales: u.Nombre.split(' ').map(n => n[0]).join('').toUpperCase().substring(0, 2),
                 color: 'bg-indigo-100 text-indigo-700'
             }))
@@ -105,14 +112,17 @@ const abrirEditarCliente = (clienteData, nombreActual) => {
     esEdicionCliente.value = true
     clienteForm.value = { 
         id: clienteData.id, 
-        nombre: nombreActual, 
-        codigo: clientes_db.value.find(c => c.id === clienteData.id)?.codigo || '' 
+        nombre: nombreActual
     }
     mostrarModalCliente.value = true
 }
 
 const guardarCliente = async () => {
     if(!clienteForm.value.nombre) return mostrarNotificacion("El nombre es obligatorio", "error")
+    
+    if (isSubmittingCliente.value) return;
+    isSubmittingCliente.value = true;
+
     try {
         let res;
         if (esEdicionCliente.value) res = await AdminAPI.editarCliente(clienteForm.value.id, clienteForm.value)
@@ -125,7 +135,11 @@ const guardarCliente = async () => {
         } else {
             mostrarNotificacion(res.message || 'Error al guardar cliente', 'error')
         }
-    } catch (e) { mostrarNotificacion('Error de red', 'error') }
+    } catch (e) { 
+        mostrarNotificacion('Error de red', 'error') 
+    } finally {
+        isSubmittingCliente.value = false;
+    }
 }
 
 const solicitarEliminarCliente = (clienteId) => {
@@ -156,6 +170,9 @@ const abrirEditar = (proyecto) => {
 }
 
 const guardar = async () => {
+    if (isSubmittingProyecto.value) return;
+    isSubmittingProyecto.value = true;
+
     try {
         const payload = {
             nombre: formulario.value.nombre,
@@ -175,7 +192,11 @@ const guardar = async () => {
         } else {
             mostrarNotificacion('Error en la respuesta del servidor', 'error')
         }
-    } catch (error) { mostrarNotificacion('Error al guardar proyecto', 'error') }
+    } catch (error) { 
+        mostrarNotificacion('Error al guardar proyecto', 'error') 
+    } finally {
+        isSubmittingProyecto.value = false;
+    }
 }
 
 const solicitarAccion = (id, modo) => {
@@ -203,6 +224,9 @@ const solicitarAccion = (id, modo) => {
 }
 
 const ejecutarAccionConfirmada = async () => {
+    if (isConfirming.value) return;
+    isConfirming.value = true;
+
     try {
         let res;
         if (confirmacion.modo === 'eliminar_cliente') res = await AdminAPI.eliminarCliente(confirmacion.id)
@@ -221,8 +245,10 @@ const ejecutarAccionConfirmada = async () => {
         }
     } catch (error) {
         mostrarNotificacion(error.response?.data?.message || 'Error de red', 'error');
+    } finally {
+        isConfirming.value = false;
+        confirmacion.show = false;
     }
-    confirmacion.show = false;
 }
 
 const toggleMiembroEquipo = (usuario) => {
@@ -264,30 +290,42 @@ const obtenerEquipoVisual = (proyecto) => proyecto.equipo || []
                 <div class="space-y-6 pb-10">
                     <div v-for="(datosCliente, clienteNombre) in proyectosAgrupados" :key="clienteNombre" class="bg-white p-5 rounded-xl border border-gray-200 shadow-sm">
                         
-                        <div class="flex items-center gap-2 border-b border-gray-100 pb-3 mb-4 group/header">
-                            <Briefcase class="w-6 h-6 text-blue-600" />
-                            <h2 class="text-xl font-bold text-slate-800">{{ clienteNombre }}</h2>
-                            <span class="text-xs font-bold px-2 py-1 rounded-full bg-slate-100 text-slate-500 ml-2">
-                                {{ datosCliente.proyectos.length }} proyectos
-                            </span>
-
-                            <div v-if="datosCliente.id" class="flex items-center ml-2 opacity-0 group-hover/header:opacity-100 transition-opacity">
-                                <button @click="abrirEditarCliente(datosCliente, clienteNombre)" class="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded" title="Editar Cliente">
-                                    <Pencil class="w-4 h-4" />
-                                </button>
-                                <button @click="solicitarEliminarCliente(datosCliente.id)" class="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded" title="Eliminar Cliente">
-                                    <Trash2 class="w-4 h-4" />
-                                </button>
+                        <div class="flex items-start gap-4 border-b border-gray-100 pb-4 mb-4 group/header">
+                            <div class="bg-blue-50 p-2.5 rounded-xl text-blue-600 mt-1">
+                                <Briefcase class="w-6 h-6" stroke-width="2.5" />
+                            </div>
+                            
+                            <div class="flex flex-col gap-1">
+                                <div class="flex items-center gap-2">
+                                    <h2 class="text-xl font-bold text-slate-800">{{ clienteNombre }}</h2>
+                                    <span class="text-xs font-bold px-2 py-0.5 rounded-full bg-slate-100 text-slate-500">
+                                        {{ datosCliente.proyectos.length }} proyectos
+                                    </span>
+                                </div>
+                                <div v-if="datosCliente.codigo" class="text-xs text-slate-400 font-mono font-bold flex items-center gap-1">
+                                    <Hash class="w-3.5 h-3.5" /> {{ datosCliente.codigo }}
+                                </div>
                             </div>
 
-                            <button @click="abrirCrearDesdeCliente(clienteNombre)" class="ml-auto text-sm font-bold text-blue-600 bg-blue-50 hover:bg-blue-100 px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1">
-                                <Plus class="w-4 h-4" /> Añadir Proyecto
-                            </button>
+                            <div class="ml-auto flex items-center gap-3 mt-1">
+                                <div v-if="datosCliente.id" class="flex items-center opacity-0 group-hover/header:opacity-100 transition-opacity gap-1">
+                                    <button @click="abrirEditarCliente(datosCliente, clienteNombre)" class="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors" title="Editar Cliente">
+                                        <Pencil class="w-4 h-4" />
+                                    </button>
+                                    <button @click="solicitarEliminarCliente(datosCliente.id)" class="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors" title="Eliminar Cliente">
+                                        <Trash2 class="w-4 h-4" />
+                                    </button>
+                                </div>
+
+                                <button @click="abrirCrearDesdeCliente(clienteNombre)" class="text-sm font-bold text-blue-600 bg-blue-50 hover:bg-blue-100 px-3 py-2 rounded-lg transition-colors flex items-center gap-1.5">
+                                    <Plus class="w-4 h-4" /> Añadir Proyecto
+                                </button>
+                            </div>
                         </div>
 
                         <div v-if="datosCliente.proyectos.length === 0" class="py-8 border-2 border-dashed border-gray-100 rounded-xl flex flex-col items-center justify-center text-gray-400 bg-gray-50/50">
                             <Building2 class="w-8 h-8 opacity-40 mb-2" />
-                            <p class="text-sm">Cliente vacío. Añádele un proyecto.</p>
+                            <p class="text-sm font-medium">Cliente registrado, pero sin proyectos aún.</p>
                         </div>
 
                         <div v-else class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
@@ -325,9 +363,22 @@ const obtenerEquipoVisual = (proyecto) => proyecto.equipo || []
                                         </div>
                                     </div>
 
-                                    <h3 class="font-bold text-lg text-slate-800 mb-1 leading-tight" :class="{'text-gray-500': proyecto.estado !== 'Activo'}">
-                                        {{ proyecto.nombre }}
-                                    </h3>
+                                    <div class="mb-5">
+                                        <h3 class="text-lg font-bold text-slate-800 leading-tight mb-2 truncate" :title="proyecto.nombre" :class="{'text-slate-500': proyecto.estado !== 'Activo'}">
+                                            {{ proyecto.nombre }}
+                                        </h3>
+                                        
+                                        <div class="flex flex-col gap-2">
+                                            <p class="text-sm text-slate-500 flex items-center gap-1.5 font-medium truncate" title="Cliente asignado">
+                                                <Tag class="w-3.5 h-3.5" /> {{ proyecto.cliente }}
+                                            </p>
+                                            <div v-if="proyecto.codigo" class="flex items-center mt-0.5">
+                                                <span class="bg-indigo-50 text-indigo-600 border border-indigo-200 px-2 py-0.5 rounded text-[10px] font-bold font-mono tracking-wider flex items-center gap-1 w-fit" title="Código Interno de Proyecto">
+                                                    <Hash class="w-3 h-3 opacity-60" /> {{ proyecto.codigo }}
+                                                </span>
+                                            </div>
+                                        </div>
+                                    </div>
                                 </div>
 
                                 <div class="mt-auto pt-3 border-t border-gray-100 flex flex-col flex-1 overflow-hidden">
@@ -380,12 +431,18 @@ const obtenerEquipoVisual = (proyecto) => proyecto.equipo || []
                         <label class="block text-sm font-bold text-slate-700 mb-1">Nombre *</label>
                         <input v-model="clienteForm.nombre" type="text" placeholder="Ej: Banco Santander" class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 outline-none">
                     </div>
-                    <div>
-                        <label class="block text-sm font-bold text-slate-700 mb-1">Código ID (Opcional)</label>
-                        <input v-model="clienteForm.codigo" type="text" placeholder="Ej: CLI-001" class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 outline-none">
-                    </div>
-                    <button @click="guardarCliente" class="w-full py-2.5 bg-slate-800 text-white rounded-lg font-bold hover:bg-slate-700 shadow mt-2 transition">
-                        Guardar
+
+                    <button @click="guardarCliente" 
+                            :disabled="isSubmittingCliente"
+                            class="w-full py-2.5 rounded-lg font-bold shadow mt-2 transition flex justify-center items-center gap-2"
+                            :class="isSubmittingCliente ? 'bg-slate-400 text-white cursor-not-allowed' : 'bg-slate-800 text-white hover:bg-slate-700'">
+                        
+                        <svg v-if="isSubmittingCliente" class="animate-spin w-5 h-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
+
+                        {{ isSubmittingCliente ? 'Guardando...' : 'Guardar' }}
                     </button>
                 </div>
             </div>
@@ -448,8 +505,20 @@ const obtenerEquipoVisual = (proyecto) => proyecto.equipo || []
                 </div>
 
                 <div class="flex gap-2 pt-4 border-t border-gray-100 flex-shrink-0">
-                    <button @click="mostrarModal = false" class="flex-1 py-2 border border-gray-300 text-slate-600 rounded-lg font-bold hover:bg-gray-50 transition">Cancelar</button>
-                    <button @click="guardar" class="flex-1 py-2 bg-blue-600 text-white rounded-lg font-bold hover:bg-blue-700 shadow-lg shadow-blue-200 transition">Guardar Proyecto</button>
+                    <button @click="mostrarModal = false" :disabled="isSubmittingProyecto" class="flex-1 py-2 border border-gray-300 text-slate-600 rounded-lg font-bold hover:bg-gray-50 transition disabled:opacity-50">Cancelar</button>
+                    
+                    <button @click="guardar" 
+                            :disabled="isSubmittingProyecto"
+                            class="flex-1 py-2 text-white rounded-lg font-bold shadow-lg transition flex justify-center items-center gap-2"
+                            :class="isSubmittingProyecto ? 'bg-blue-400 cursor-not-allowed opacity-80' : 'bg-blue-600 hover:bg-blue-700 shadow-blue-200'">
+                        
+                        <svg v-if="isSubmittingProyecto" class="animate-spin w-4 h-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
+
+                        {{ isSubmittingProyecto ? 'Guardando...' : 'Guardar Proyecto' }}
+                    </button>
                 </div>
             </div>
         </div>
@@ -459,6 +528,7 @@ const obtenerEquipoVisual = (proyecto) => proyecto.equipo || []
             :title="confirmacion.title"
             :message="confirmacion.message"
             :type="confirmacion.type"
+            :isLoading="isConfirming"
             @confirm="ejecutarAccionConfirmada"
             @cancel="confirmacion.show = false"
         />

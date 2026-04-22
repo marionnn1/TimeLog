@@ -9,6 +9,7 @@ from models.month_closings import MonthClosings
 from sqlalchemy import func, extract
 from datetime import datetime, timedelta
 from errors import APIError
+from models.audits import Audits
 
 
 def obtener_imputaciones_semana(usuario_id, fecha_lunes):
@@ -71,6 +72,8 @@ def guardar_imputaciones_lote(usuario_id, filas, fechas_semana):
             ~TimeEntries.proyecto_id.in_(proyectos_enviados)
         )
 
+    horas_modificadas = False
+
     entradas_borrar = query_borrar.all()
     for e in entradas_borrar:
         if e.proyecto and e.proyecto.estado != "Activo":
@@ -81,6 +84,7 @@ def guardar_imputaciones_lote(usuario_id, filas, fechas_semana):
 
         if e.estado != "Aprobado":
             db.session.delete(e)
+            horas_modificadas = True
 
     for fila in filas:
         p_id = fila.get("id_proyecto")
@@ -93,7 +97,8 @@ def guardar_imputaciones_lote(usuario_id, filas, fechas_semana):
         proyecto_activo = proyecto.estado == "Activo"
 
         horas = fila.get("horas", [])
-        for i in range(7):
+        
+        for i in range(len(fechas_semana)):
             fecha = fechas_semana[i]
             h = float(horas[i]) if i < len(horas) and horas[i] else 0
 
@@ -114,15 +119,19 @@ def guardar_imputaciones_lote(usuario_id, filas, fechas_semana):
             if h == 0:
                 if registro and registro.estado != "Aprobado":
                     db.session.delete(registro)
+                    horas_modificadas = True
                 continue
 
             if registro and registro.estado == "Aprobado":
                 if float(registro.horas) != h:
                     registro.estado = "Pendiente"
                     registro.horas = h
+                    horas_modificadas = True
             else:
                 if registro:
-                    registro.horas = h
+                    if float(registro.horas) != h:
+                        registro.horas = h
+                        horas_modificadas = True
                 else:
                     nuevo = TimeEntries(
                         usuario_id=usuario_id,
@@ -132,8 +141,23 @@ def guardar_imputaciones_lote(usuario_id, filas, fechas_semana):
                         estado="Borrador",
                     )
                     db.session.add(nuevo)
+                    horas_modificadas = True
 
     db.session.commit()
+
+    if horas_modificadas:
+        usuario = Users.query.get(usuario_id)
+        nombre = usuario.nombre if usuario else f"ID {usuario_id}"
+        nueva_auditoria = Audits(
+            actor_id=usuario_id,
+            actor_nombre=nombre,
+            accion="Edición de Horas",
+            gravedad="info",
+            detalle=f"El usuario ha registrado, modificado o eliminado horas de su panel de imputaciones."
+        )
+        db.session.add(nueva_auditoria)
+        db.session.commit()
+
     return True
 
 

@@ -6,7 +6,9 @@ import { useAuth } from '../composables/useAuth'
 
 const router = useRouter()
 const { login, handleRedirect, state } = useAuth()
+
 const cargando = ref(true)
+const isSubmitting = ref(false) // NUEVA VARIABLE PARA EL BOTÓN
 
 onMounted(async () => {
   try {
@@ -23,9 +25,16 @@ onMounted(async () => {
 })
 
 const iniciarSesion = async () => {
-  cargando.value = true
-  await login()
-
+  // Evitar doble clic
+  if (isSubmitting.value) return 
+  
+  isSubmitting.value = true
+  
+  try {
+    await login()
+  } finally {
+    isSubmitting.value = false
+  }
 }
 </script>
 
@@ -48,9 +57,17 @@ const iniciarSesion = async () => {
 
       <div v-else class="space-y-4">
         <button @click="iniciarSesion"
-          class="w-full flex items-center justify-center gap-3 p-4 rounded-xl bg-[#002B49] text-white hover:bg-[#00406d] transition-all shadow-md hover:shadow-lg font-bold">
-          <LogIn class="w-5 h-5" />
-          <span>Entrar con Microsoft</span>
+          :disabled="isSubmitting"
+          class="w-full flex items-center justify-center gap-3 p-4 rounded-xl text-white transition-all shadow-md font-bold"
+          :class="isSubmitting ? 'bg-slate-400 cursor-not-allowed' : 'bg-[#002B49] hover:bg-[#00406d] hover:shadow-lg'">
+          
+          <svg v-if="isSubmitting" class="animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+              <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+              <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+          </svg>
+          <LogIn v-else class="w-5 h-5" />
+
+          <span>{{ isSubmitting ? 'Conectando...' : 'Entrar con Microsoft' }}</span>
         </button>
       </div>
 

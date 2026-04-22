@@ -8,13 +8,20 @@ import '@vuepic/vue-datepicker/dist/main.css'
 import {
     Calendar as CalendarIcon, ChevronLeft, ChevronRight,
     AlertTriangle, Plus, X, Check, Palmtree, MapPin, Briefcase,
-    AlertCircle, CheckCircle2, Trash2, Users, Stethoscope
+    AlertCircle, CheckCircle2, Trash2, Users, Stethoscope, Info
 } from 'lucide-vue-next'
 import ConfirmModal from '../components/common/ConfirmModal.vue'
 import ToastNotification from '../components/common/ToastNotification.vue'
 
 const store = useDataStore()
 const currentUser = store.getCurrentUser()
+
+// COMPROBACIÓN ESTRICTA DE ROL PARA LAS ALERTAS
+const esAdminOManager = computed(() => {
+    if (!currentUser || !currentUser.rol) return false
+    const rol = currentUser.rol.toLowerCase()
+    return ['admin', 'administrador', 'manager', 'jp', 'jefe de proyecto'].includes(rol)
+})
 
 const toast = ref({ show: false, message: '', type: 'success' })
 let toastTimeout = null
@@ -28,12 +35,21 @@ const showToast = (message, type = 'success') => {
 }
 
 const confirmState = ref({ show: false, title: '', message: '', type: 'neutral', action: null })
+const isConfirming = ref(false) // VARIABLE DE CARGA PARA EL MODAL GENÉRICO
+
 const solicitarConfirmacion = (title, message, type, callback) => {
     confirmState.value = { show: true, title, message, type, action: callback }
 }
-const ejecutarConfirmacion = () => {
-    if (confirmState.value.action) confirmState.value.action()
-    confirmState.value.show = false
+
+const ejecutarConfirmacion = async () => {
+    if (isConfirming.value) return;
+    isConfirming.value = true;
+    try {
+        if (confirmState.value.action) await confirmState.value.action()
+    } finally {
+        isConfirming.value = false;
+        confirmState.value.show = false;
+    }
 }
 
 const currentDate = ref(new Date())
@@ -80,6 +96,10 @@ onMounted(() => {
 const getAusenciasDia = (isoDate) => ausenciasDelMes.value.filter(a => a.fecha === isoDate)
 const getMiAusencia = (isoDate) => getAusenciasDia(isoDate).find(a => a.userId === currentUser.id)
 
+const getConcurrenciaVacaciones = (isoDate) => {
+    return ausenciasDelMes.value.filter(a => a.fecha === isoDate && a.tipo === 'vacaciones').length;
+}
+
 const marcadoresAusencias = computed(() => {
     if (!ausenciasDelMes.value || !currentUser) return [];
 
@@ -105,8 +125,45 @@ const marcadoresAusencias = computed(() => {
     });
 });
 
+const alertasVacaciones = computed(() => {
+    const alertas = [];
+    const agrupado = {};
+    const hoy = new Date();
+    hoy.setHours(0, 0, 0, 0);
+
+    ausenciasDelMes.value.forEach(a => {
+        if (a.tipo === 'vacaciones') {
+            const [y, m, d] = a.fecha.split('-');
+            const fechaObj = new Date(y, m - 1, d);
+            
+            if (fechaObj >= hoy) {
+                if (!agrupado[a.fecha]) agrupado[a.fecha] = [];
+                agrupado[a.fecha].push(a.nombre);
+            }
+        }
+    });
+
+    for (const [fecha, usuarios] of Object.entries(agrupado)) {
+        if (usuarios.length >= 3) {
+            const [y, m, d] = fecha.split('-');
+            alertas.push({
+                fecha: `${d}/${m}/${y}`,
+                timestamp: new Date(y, m - 1, d).getTime(),
+                total: usuarios.length,
+                usuarios: usuarios
+            });
+        }
+    }
+
+    return alertas.sort((a, b) => a.timestamp - b.timestamp);
+});
+
 const mostrarModal = ref(false)
 const tabActiva = ref('solicitar')
+
+// VARIABLES DE CARGA INDEPENDIENTES PARA CADA BOTÓN
+const isSubmitting = ref(false) 
+const isSubmittingEliminar = ref(false)
 
 const form = ref({
     fechaInicio: '',
@@ -207,6 +264,9 @@ const abrirModal = (day) => {
 }
 
 const procesarSolicitud = async (diasSolicitados) => {
+    if (isSubmitting.value) return
+    isSubmitting.value = true
+
     try {
         if (diasSolicitados.length > 15) {
             showToast('No se pueden solicitar más de 15 dias seguidos', 'error')
@@ -217,7 +277,8 @@ const procesarSolicitud = async (diasSolicitados) => {
         
         if (form.value.tipo === 'baja') {
             if (!form.value.motivoBaja) {
-                return showToast('El motivo de la baja es obligatorio', 'error')
+                showToast('El motivo de la baja es obligatorio', 'error')
+                return
             }
             comentarioFinal = form.value.motivoBaja
         } else {
@@ -245,6 +306,8 @@ const procesarSolicitud = async (diasSolicitados) => {
     } catch (e) {
         showToast('Fallo en la conexión al servidor', 'error')
         console.log(e)
+    } finally {
+        isSubmitting.value = false
     }
 }
 
@@ -284,7 +347,7 @@ const confirmarSolicitud = () => {
             'Alta Demanda Detectada',
             'Algunos días seleccionados ya tienen a 3 o más compañeros fuera. Se notificará al Jefe de Proyecto. ¿Continuar?',
             'warning',
-            () => procesarSolicitud(diasSolicitados)
+            async () => { await procesarSolicitud(diasSolicitados) }
         )
         return
     }
@@ -297,6 +360,10 @@ const confirmarEliminacion = async () => {
     const finStr = form.value.fechaFin
 
     if (!inicioStr || !finStr) return showToast("Selecciona un rango válido", "error")
+
+    // Bloqueo botón inicial
+    if (isSubmittingEliminar.value) return;
+    isSubmittingEliminar.value = true;
 
     try {
         const resCount = await AbsencesAPI.obtenerConteoRango(currentUser.id, inicioStr, finStr)
@@ -323,6 +390,9 @@ const confirmarEliminacion = async () => {
         )
     } catch (e) {
         showToast('Error al verificar días', 'error')
+    } finally {
+        // Liberamos el botón cuando se lanza el ConfirmModal
+        isSubmittingEliminar.value = false; 
     }
 }
 
@@ -332,6 +402,15 @@ const nextMonth = () => currentDate.value = new Date(year.value, month.value + 1
 
 <template>
     <div class="h-full flex flex-col font-sans p-6 bg-slate-50 overflow-y-auto relative pb-20">
+
+        <div class="bg-blue-50 border border-blue-200 p-4 rounded-xl shadow-sm mb-6 shrink-0 flex items-start gap-3">
+            <Info class="w-5 h-5 text-blue-600 shrink-0 mt-0.5" />
+            <div>
+                <p class="text-sm text-blue-800">
+                    <span class="font-bold">Recordatorio importante:</span> TimeLog es una herramienta interna para la coordinación del equipo. Las vacaciones y ausencias oficiales <strong>deben solicitarse siempre a través de Talaris</strong>.
+                </p>
+            </div>
+        </div>
 
         <div class="flex justify-between items-center mb-6 shrink-0">
             <div>
@@ -354,6 +433,31 @@ const nextMonth = () => currentDate.value = new Date(year.value, month.value + 1
                 </div>
                 <div class="flex items-center gap-1.5 font-medium text-purple-700">
                     <div class="w-2 h-2 rounded-full bg-purple-500"></div> Baja
+                </div>
+            </div>
+        </div>
+
+        <div v-if="esAdminOManager && alertasVacaciones.length > 0" class="bg-rose-50 border border-rose-200 p-4 rounded-xl shadow-sm mb-6 shrink-0">
+            <h3 class="font-bold text-rose-700 flex items-center gap-2 mb-3">
+                <AlertTriangle class="w-5 h-5" /> ¡Atención! Exceso de vacaciones detectado
+            </h3>
+            <p class="text-sm text-rose-600 mb-4">Se ha detectado que 3 o más personas del equipo han solicitado vacaciones para los mismos días. Este es el orden en el que lo solicitaron:</p>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                <div v-for="alerta in alertasVacaciones" :key="alerta.fecha" class="bg-white border border-rose-200 p-3 rounded-lg shadow-sm">
+                    <div class="flex items-center gap-2 font-bold text-rose-700 mb-3 border-b border-rose-100 pb-2">
+                        <CalendarIcon class="w-4 h-4" /> {{ alerta.fecha }}
+                        <span class="text-[10px] bg-rose-100 px-2 py-0.5 rounded-full ml-auto">{{ alerta.total }} personas</span>
+                    </div>
+                    <div class="flex flex-col gap-1.5">
+                        <div v-for="(user, idx) in alerta.usuarios" :key="idx" class="text-xs flex items-center gap-2" :class="idx === alerta.usuarios.length - 1 ? 'text-rose-700 font-bold' : 'text-slate-600'">
+                            <span class="w-4 h-4 rounded-full flex items-center justify-center text-[9px] font-black border shrink-0" :class="idx === alerta.usuarios.length - 1 ? 'bg-rose-500 text-white border-rose-600' : 'bg-slate-100 text-slate-500 border-slate-200'">
+                                {{ idx + 1 }}
+                            </span>
+                            <span class="truncate" :title="user">{{ user }}</span>
+                            <span v-if="idx === alerta.usuarios.length - 1" class="text-[8px] uppercase bg-rose-100 text-rose-600 px-1.5 py-0.5 rounded ml-auto shrink-0 border border-rose-200">Último</span>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -390,8 +494,8 @@ const nextMonth = () => currentDate.value = new Date(year.value, month.value + 1
                             {{ day.dayNum }}
                         </span>
 
-                        <div v-if="!day.isWeekend && getAusenciasDia(day.isoDate).length >= 3"
-                            class="text-rose-500 animate-pulse" title="Alta concurrencia">
+                        <div v-if="!day.isWeekend && getConcurrenciaVacaciones(day.isoDate) >= 3"
+                            class="text-rose-500 animate-pulse" title="Alta concurrencia de vacaciones">
                             <AlertTriangle class="w-4 h-4" />
                         </div>
                     </div>
@@ -583,8 +687,18 @@ const nextMonth = () => currentDate.value = new Date(year.value, month.value + 1
                     </div>
 
                     <button @click="confirmarSolicitud"
-                        class="w-full btn-primary py-3 justify-center text-base bg-primary text-white font-bold rounded-lg hover:bg-blue-700 shadow-md transition flex items-center">
-                        <Check class="w-5 h-5 mr-2" /> Confirmar Solicitud
+                        :disabled="isSubmitting"
+                        class="w-full btn-primary py-3 justify-center text-base font-bold rounded-lg shadow-md transition flex items-center"
+                        :class="isSubmitting ? 'bg-slate-400 text-slate-200 cursor-not-allowed' : 'bg-primary text-white hover:bg-blue-700'">
+                        
+                        <Check v-if="!isSubmitting" class="w-5 h-5 mr-2" />
+                        
+                        <svg v-else class="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
+
+                        {{ isSubmitting ? 'Procesando...' : 'Confirmar Solicitud' }}
                     </button>
                 </div>
 
@@ -626,8 +740,18 @@ const nextMonth = () => currentDate.value = new Date(year.value, month.value + 1
                             </div>
                         </div>
                     </div>
-                    <button @click="confirmarEliminacion" class="w-full py-3 justify-center text-base bg-rose-600 text-white font-bold rounded-lg hover:bg-rose-700 shadow-md transition flex items-center">
-                        <Trash2 class="w-5 h-5 mr-2" /> Cancelar Ausencias
+                    <button @click="confirmarEliminacion" 
+                            :disabled="isSubmittingEliminar"
+                            class="w-full py-3 justify-center text-base font-bold rounded-lg shadow-md transition flex items-center"
+                            :class="isSubmittingEliminar ? 'bg-rose-400 text-rose-100 cursor-not-allowed' : 'bg-rose-600 text-white hover:bg-rose-700'">
+                        
+                        <Trash2 v-if="!isSubmittingEliminar" class="w-5 h-5 mr-2" />
+                        <svg v-else class="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
+
+                        {{ isSubmittingEliminar ? 'Comprobando...' : 'Cancelar Ausencias' }}
                     </button>
                 </div>
 
@@ -635,7 +759,7 @@ const nextMonth = () => currentDate.value = new Date(year.value, month.value + 1
         </div>
 
         <ConfirmModal :show="confirmState.show" :title="confirmState.title" :message="confirmState.message"
-            :type="confirmState.type" @confirm="ejecutarConfirmacion" @cancel="confirmState.show = false" />
+            :type="confirmState.type" :isLoading="isConfirming" @confirm="ejecutarConfirmacion" @cancel="confirmState.show = false" />
 
         <ToastNotification :show="toast.show" :message="toast.message" :type="toast.type" @close="toast.show = false" />
 
