@@ -19,7 +19,6 @@ const toast = ref({ show: false, message: '', type: 'success' })
 let toastTimeout = null
 const cargando = ref(false)
 
-// NUEVAS VARIABLES PARA LOS BOTONES
 const isSubmittingGuardar = ref(false)
 const isAddingProject = ref(false)
 
@@ -32,14 +31,14 @@ const showToast = (message, type = 'success') => {
 }
 
 const mostrarAvisoSAP = computed(() => {
-  const hoy = new Date();
-  const anio = hoy.getFullYear();
-  const mes = hoy.getMonth();
-  
-  const ultimoDiaMes = new Date(anio, mes + 1, 0).getDate();
-  const diaActual = hoy.getDate();
+    const hoy = new Date();
+    const anio = hoy.getFullYear();
+    const mes = hoy.getMonth();
 
-  return diaActual === ultimoDiaMes || diaActual === (ultimoDiaMes - 1);
+    const ultimoDiaMes = new Date(anio, mes + 1, 0).getDate();
+    const diaActual = hoy.getDate();
+
+    return diaActual === ultimoDiaMes || diaActual === (ultimoDiaMes - 1);
 });
 
 const configJornada = ref({
@@ -236,7 +235,6 @@ const cargarHorasDesdeAPI = async () => {
 const guardarCambios = async () => {
     if (hayErrores.value) return showToast('Por favor corrige los errores antes de guardar.', 'error')
 
-    // Bloqueo del botón
     if (isSubmittingGuardar.value) return
     isSubmittingGuardar.value = true
 
@@ -260,13 +258,12 @@ const guardarCambios = async () => {
             showToast('Error al guardar: Revisa la consola del servidor', 'error')
         }
     } catch (error) {
-        const mensajeError = error.response?.data?.error 
-                          || error.response?.data?.message 
-                          || 'Error de red al guardar';
-                          
+        const mensajeError = error.response?.data?.error
+            || error.response?.data?.message
+            || 'Error de red al guardar';
+
         showToast(mensajeError, 'error');
     } finally {
-        // Desbloqueo del botón
         isSubmittingGuardar.value = false
     }
 }
@@ -330,7 +327,7 @@ const esHoy = (date) => {
 
 const esEditable = (index) => {
     const date = diasSemana.value[index]
-    
+
     if (esFinDeSemana(date) || tiposDiasSemana.value[index]) return false;
 
     return true;
@@ -357,8 +354,8 @@ const totalDia = (index) => filas.value.reduce((acc, f) => acc + (parseFloat(f.h
 const totalSemanal = computed(() => filas.value.reduce((acc, f) => acc + totalFila(f), 0))
 
 const excedeLimiteDiario = (index) => {
-    if (!esEditable(index)) return false; 
-    
+    if (!esEditable(index)) return false;
+
     const max = getMaxHorasDia(index)
     return max > 0 && totalDia(index) > max
 }
@@ -366,9 +363,9 @@ const excedeLimiteDiario = (index) => {
 const excedeLimiteSemanal = computed(() => totalSemanal.value > getMaxHorasSemana())
 
 const hayErrores = computed(() => {
-    const excedeHoras = Array.from({length:7}).some((_,i) => excedeLimiteDiario(i));
+    const excedeHoras = Array.from({ length: 7 }).some((_, i) => excedeLimiteDiario(i));
     const tieneDecimalesMal = filas.value.some(f => f.horas.some((h, i) => esEditable(i) && esPasoInvalido(h)));
-    
+
     return excedeHoras || tieneDecimalesMal;
 })
 
@@ -384,11 +381,11 @@ const autocompletarFila = (fila) => {
 
         if (esEditable(i) && fechaDia <= hoy && (parseFloat(fila.horas[i]) || 0) === 0) {
             const maxDia = getMaxHorasDia(i);
-            
+
             const horasOtrasFilas = filas.value
                 .filter(f => f.id !== fila.id)
                 .reduce((acc, f) => acc + (parseFloat(f.horas[i]) || 0), 0);
-                
+
             const horasDisponibles = Math.max(0, maxDia - horasOtrasFilas);
 
             if (horasDisponibles > 0) {
@@ -415,12 +412,10 @@ const confirmarAnadirLinea = async () => {
     if (!p) return showToast('Selecciona un proyecto válido', 'error')
     if (filas.value.find(f => f.id === p.Id)) return showToast('El proyecto ya está en la lista', 'error')
 
-    // Bloqueo del botón
     if (isAddingProject.value) return;
     isAddingProject.value = true;
 
     try {
-        // Simulamos un mínimo retardo visual si se necesita (opcional) pero asegura que el estado se refleje
         filas.value.push({
             id: p.Id,
             cliente: p.Cliente || 'Sin Cliente asignado',
@@ -473,7 +468,7 @@ onMounted(() => {
                     <h1 class="h1-title capitalize">{{ formatoFechaCabecera(lunesActual) }}</h1>
                     <span class="text-sm font-medium text-gray-400 px-2 border-l border-gray-300">
                         Semana {{ lunesActual.getDate() }} - {{ new Date(lunesActual.getTime() + 6 * 24 * 60 * 60 *
-                        1000).getDate() }}
+                            1000).getDate() }}
                     </span>
                 </div>
                 <div class="flex gap-4 items-center">
@@ -493,7 +488,7 @@ onMounted(() => {
                         <button @click="irAHoy"
                             class="px-4 py-2 text-sm font-bold uppercase tracking-wide hover:bg-gray-50 flex items-center gap-2 min-w-[100px] justify-center text-dark">
                             <RotateCcw v-if="textoBotonCentral !== 'HOY'" class="w-3 h-3 opacity-50" /> {{
-                            textoBotonCentral }}
+                                textoBotonCentral }}
                         </button>
                         <button @click="semanaSiguiente" class="p-2 hover:bg-gray-50 text-gray-600 border-l">
                             <ChevronRight class="w-5 h-5" />
@@ -502,14 +497,16 @@ onMounted(() => {
                 </div>
             </div>
 
-            <div v-if="mostrarAvisoSAP" class="bg-amber-50 border border-amber-200 p-4 rounded-xl shadow-sm shrink-0 flex items-start gap-4 animate-pulse-slow">
+            <div v-if="mostrarAvisoSAP"
+                class="bg-amber-50 border border-amber-200 p-4 rounded-xl shadow-sm shrink-0 flex items-start gap-4 animate-pulse-slow">
                 <div class="bg-amber-100 p-2 rounded-lg text-amber-600 mt-0.5">
                     <AlertTriangle class="w-6 h-6" />
                 </div>
                 <div>
                     <h3 class="font-bold text-amber-800 text-lg">Recordatorio de Cierre de Mes</h3>
                     <p class="text-sm text-amber-700 mt-1">
-                        Faltan muy pocos días para terminar el mes. Por favor, asegúrate de tener todas tus horas registradas aquí e 
+                        Faltan muy pocos días para terminar el mes. Por favor, asegúrate de tener todas tus horas
+                        registradas aquí e
                         <span class="font-bold underline">imputadas correctamente en SAP</span> antes del cierre.
                     </p>
                 </div>
@@ -532,7 +529,7 @@ onMounted(() => {
                         :class="esHoy(fecha) ? 'text-primary' : 'text-gray-400'">{{ nombresDias[index] }}</span>
                     <span class="text-2xl font-bold"
                         :class="esHoy(fecha) ? 'text-dark' : (esFinDeSemana(fecha) ? 'text-gray-400' : 'text-gray-700')">{{
-                        fecha.getDate() }}</span>
+                            fecha.getDate() }}</span>
 
                     <div v-if="tiposDiasSemana[index]" class="mt-1">
                         <span class="text-[9px] font-bold uppercase px-1.5 py-0.5 rounded shadow-sm" :class="{
@@ -606,7 +603,7 @@ onMounted(() => {
                             <td class="p-2 relative group/cell">
                                 <div class="flex items-center justify-between pr-2">
                                     <span class="text-xs font-bold text-slate-700 px-2">{{ fila.proyecto }}</span>
-                                    
+
                                     <button @click="autocompletarFila(fila)"
                                         class="opacity-0 group-hover/cell:opacity-100 p-1.5 text-blue-600 hover:bg-blue-100 rounded-lg transition-all"
                                         title="Autocompletar semana hasta hoy">
@@ -655,11 +652,11 @@ onMounted(() => {
                                 :class="excedeLimiteDiario(index) ? 'bg-red-100' : ''">
                                 <span
                                     :class="excedeLimiteDiario(index) ? 'text-red-600 font-extrabold' : (totalDia(index) > 0 ? 'text-primary' : 'text-gray-400')">{{
-                                    totalDia(index) }}</span>
+                                        totalDia(index) }}</span>
                             </td>
                             <td class="p-3 text-center border-l border-blue-100 text-sm"
                                 :class="excedeLimiteSemanal ? 'bg-red-600 text-white' : 'bg-blue-50 text-blue-900'">{{
-                                totalSemanal }} / {{ getMaxHorasSemana() }}</td>
+                                    totalSemanal }} / {{ getMaxHorasSemana() }}</td>
                         </tr>
                     </tfoot>
                 </table>
@@ -668,20 +665,23 @@ onMounted(() => {
             <div class="p-4 bg-gray-50 border-t flex justify-end gap-4 items-center">
                 <p v-if="hayErrores" class="text-xs font-bold text-red-600 animate-pulse flex items-center gap-1">
                     <AlertCircle class="w-4 h-4" />
-                    {{ filas.some(f => f.horas.some((h, i) => esEditable(i) && esPasoInvalido(h))) ? 'Solo se permiten incrementos de 0.5h (ej. 1.5)' : 'Corrige el exceso de horas' }}
+                    {{filas.some(f => f.horas.some((h, i) => esEditable(i) && esPasoInvalido(h))) ? 'Solo se permiten incrementos de 0.5h(ej. 1.5)' : 'Corrige el exceso de horas' }}
                 </p>
-                
-                <button @click="guardarCambios" 
-                        :disabled="hayErrores || cargando || isSubmittingGuardar"
-                        class="btn-primary px-8 py-2.5 rounded-xl font-bold uppercase tracking-widest text-xs shadow-md transition-all flex items-center justify-center disabled:opacity-50"
-                        :class="(hayErrores || isSubmittingGuardar) ? 'bg-gray-300 text-gray-500 cursor-not-allowed' : 'bg-slate-900 text-white hover:shadow-xl'">
-                    
-                    <svg v-if="isSubmittingGuardar" class="animate-spin w-4 h-4 mr-2 text-gray-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+
+                <button @click="guardarCambios" :disabled="hayErrores || cargando || isSubmittingGuardar"
+                    class="btn-primary px-8 py-2.5 rounded-xl font-bold uppercase tracking-widest text-xs shadow-md transition-all flex items-center justify-center disabled:opacity-50"
+                    :class="(hayErrores || isSubmittingGuardar) ? 'bg-gray-300 text-gray-500 cursor-not-allowed' : 'bg-slate-900 text-white hover:shadow-xl'">
+
+                    <svg v-if="isSubmittingGuardar" class="animate-spin w-4 h-4 mr-2 text-gray-500"
+                        xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4">
+                        </circle>
+                        <path class="opacity-75" fill="currentColor"
+                            d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z">
+                        </path>
                     </svg>
-                    <Save v-else class="w-4 h-4 mr-2" /> 
-                    
+                    <Save v-else class="w-4 h-4 mr-2" />
+
                     {{ isSubmittingGuardar ? 'Guardando...' : 'Guardar Imputaciones' }}
                 </button>
             </div>
@@ -819,17 +819,20 @@ onMounted(() => {
                 <div class="px-6 py-4 bg-gray-50 border-t flex justify-end gap-3 shrink-0">
                     <button @click="cerrarModal" :disabled="isAddingProject"
                         class="px-4 py-2 text-sm font-bold text-slate-400 uppercase tracking-widest hover:text-slate-600 disabled:opacity-50">Cancelar</button>
-                    
-                    <button @click="confirmarAnadirLinea"
-                            :disabled="isAddingProject"
-                            class="bg-primary text-white px-6 py-2 rounded-xl font-bold uppercase tracking-widest text-xs shadow-md transition-all flex items-center justify-center disabled:opacity-50"
-                            :class="isAddingProject ? 'bg-blue-400 cursor-not-allowed opacity-80' : 'hover:bg-blue-700'">
-                        
-                        <svg v-if="isAddingProject" class="animate-spin w-4 h-4 mr-2 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+
+                    <button @click="confirmarAnadirLinea" :disabled="isAddingProject"
+                        class="bg-primary text-white px-6 py-2 rounded-xl font-bold uppercase tracking-widest text-xs shadow-md transition-all flex items-center justify-center disabled:opacity-50"
+                        :class="isAddingProject ? 'bg-blue-400 cursor-not-allowed opacity-80' : 'hover:bg-blue-700'">
+
+                        <svg v-if="isAddingProject" class="animate-spin w-4 h-4 mr-2 text-white"
+                            xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4">
+                            </circle>
+                            <path class="opacity-75" fill="currentColor"
+                                d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z">
+                            </path>
                         </svg>
-                        
+
                         {{ isAddingProject ? 'Añadiendo...' : 'Añadir a la Tabla' }}
                     </button>
                 </div>
@@ -848,10 +851,18 @@ input[type=number]::-webkit-outer-spin-button {
 }
 
 @keyframes pulse-slow {
-  0%, 100% { opacity: 1; }
-  50% { opacity: .85; }
+
+    0%,
+    100% {
+        opacity: 1;
+    }
+
+    50% {
+        opacity: .85;
+    }
 }
+
 .animate-pulse-slow {
-  animation: pulse-slow 3s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+    animation: pulse-slow 3s cubic-bezier(0.4, 0, 0.6, 1) infinite;
 }
 </style>

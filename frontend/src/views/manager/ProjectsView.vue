@@ -1,59 +1,61 @@
 <script setup>
-import { ref, computed, onMounted } from 'vue'
-import ManagerAPI from '../../services/ManagerAPI'
-import {
-    LayoutGrid, Search, Plus, Pencil, Trash2, X, Check,
-    Briefcase, UserPlus, Tag, Hash, Save, Building2,
-    Lock, Ban, Play
+import { ref, onMounted, reactive, computed } from 'vue'
+import { 
+    FolderPlus, Pencil, Tag, X, Briefcase, Users, Check, 
+    Trash2, Plus, Building2, UserPlus, Lock, Ban, Play, Hash 
 } from 'lucide-vue-next'
+import ManagerAPI from '../../services/ManagerAPI'
 import ConfirmModal from '../../components/common/ConfirmModal.vue'
 import ToastNotification from '../../components/common/ToastNotification.vue'
 
 const proyectos = ref([])
-const usuariosDisponibles = ref([])
 const clientesDisponibles = ref([])
-const isLoading = ref(false)
+const usuariosDisponibles = ref([])
+const isLoading = ref(true)
 
 const isSubmittingCliente = ref(false)
 const isSubmittingProyecto = ref(false)
 const isConfirming = ref(false)
 
+const mostrarModal = ref(false)
+const mostrarModalCliente = ref(false)
+
+const esEdicion = ref(false)
+const esEdicionCliente = ref(false)
+
+const proyectoForm = ref({ id: null, nombre: '', cliente: '', estado: 'Activo', equipo: [] })
+const clienteForm = ref({ id: null, nombre: '' })
+
 const toast = ref({ show: false, message: '', type: 'success' })
 let toastTimeout = null
 
-const showToast = (message, type = 'success') => {
-    toast.value = { show: true, message, type }
-    if (toastTimeout) clearTimeout(toastTimeout)
-    toastTimeout = setTimeout(() => { toast.value.show = false }, 3000)
-}
+const confirmacion = reactive({ show: false, title: '', message: '', type: 'neutral', id: null, modo: '' })
 
-const confirmState = ref({ show: false, title: '', message: '', type: 'neutral', action: null, actionMode: '' })
-
-const solicitarConfirmacion = (title, message, type, mode, actionFunction) => {
-    confirmState.value = { show: true, title, message, type, actionMode: mode, action: actionFunction }
-}
-
-const ejecutarConfirmacion = async () => {
-    if (isConfirming.value) return;
-    isConfirming.value = true;
-
-    try {
-        if (confirmState.value.action) await confirmState.value.action()
-    } finally {
-        isConfirming.value = false;
-        confirmState.value.show = false
-    }
+const mostrarNotificacion = (mensaje, tipo = 'success') => {
+    toast.value = { show: true, message: mensaje, type: tipo }
+    clearTimeout(toastTimeout)
+    toastTimeout = setTimeout(() => toast.value.show = false, 3000)
 }
 
 const fetchProjects = async () => {
     isLoading.value = true
     try {
         const response = await ManagerAPI.getProjectsData()
-        proyectos.value = response.data.proyectos || []
-        usuariosDisponibles.value = response.data.usuariosDisponibles || []
-        clientesDisponibles.value = response.data.clientesDisponibles || [] 
+        const data = response.data || response
+        
+        clientesDisponibles.value = data.clientesDisponibles || []
+        usuariosDisponibles.value = data.usuariosDisponibles || []
+        
+        proyectos.value = (data.proyectos || []).map(p => ({
+            id: p.id, nombre: p.nombre, cliente: p.cliente, estado: p.estado, codigo: p.codigo,
+            equipo: p.equipo ? p.equipo.map(u => ({
+                id: u.id, nombre: u.nombre, foto: u.foto,
+                iniciales: u.iniciales || u.nombre.split(' ').map(n => n[0]).join('').toUpperCase().substring(0, 2),
+                color: 'bg-indigo-100 text-indigo-700'
+            })) : []
+        }))
     } catch (error) {
-        showToast("Error al cargar los datos", "error")
+        mostrarNotificacion('Error al conectar con el servidor', 'error')
     } finally {
         isLoading.value = false
     }
@@ -61,45 +63,18 @@ const fetchProjects = async () => {
 
 onMounted(() => { fetchProjects() })
 
-const mostrarModalProyecto = ref(false) 
-const mostrarModalCliente = ref(false) 
-
-const esEdicion = ref(false)
-const esEdicionCliente = ref(false)
-
-// ELIMINADO EL CAMPO "CÓDIGO" DE LOS FORMULARIOS
-const proyectoForm = ref({ id: null, nombre: '', cliente: '', estado: 'Activo', equipo: [] }) 
-const clienteForm = ref({ id: null, nombre: '' }) 
-
-const busqueda = ref('')
-const filtroEstado = ref('todos')
-
-const proyectosFiltrados = computed(() => {
-    return proyectos.value.filter(p => {
-        const textoMatch =
-            p.nombre.toLowerCase().includes(busqueda.value.toLowerCase()) ||
-            p.cliente.toLowerCase().includes(busqueda.value.toLowerCase())
-        
-        const estadoMatch =
-            filtroEstado.value === 'todos' ? true :
-            filtroEstado.value === 'activos' ? p.estado === 'Activo' : p.estado !== 'Activo'
-
-        return textoMatch && estadoMatch
-    })
-})
-
 const proyectosAgrupados = computed(() => {
     const grupos = {}
     
-    clientesDisponibles.value.forEach(c => {
-        if (busqueda.value === '' || c.nombre.toLowerCase().includes(busqueda.value.toLowerCase())) {
-            grupos[c.nombre] = { id: c.id, proyectos: [] }
-        }
+    clientesDisponibles.value.forEach(c => { 
+        grupos[c.nombre] = { id: c.id, codigo: c.codigo, proyectos: [] } 
     })
 
-    proyectosFiltrados.value.forEach(p => {
+    proyectos.value.forEach(p => {
         const nombreCliente = p.cliente || 'Sin Cliente asignado'
-        if (!grupos[nombreCliente]) grupos[nombreCliente] = { id: null, proyectos: [] }
+        if (!grupos[nombreCliente]) {
+            grupos[nombreCliente] = { id: null, codigo: null, proyectos: [] }
+        }
         grupos[nombreCliente].proyectos.push(p)
     })
     
@@ -109,13 +84,6 @@ const proyectosAgrupados = computed(() => {
     }, {})
 })
 
-const toggleMiembroEquipo = (usuario) => {
-    const index = proyectoForm.value.equipo.findIndex(u => u.id === usuario.id)
-    if (index >= 0) proyectoForm.value.equipo.splice(index, 1)
-    else proyectoForm.value.equipo.push(usuario)
-}
-const esMiembroSeleccionado = (userId) => proyectoForm.value.equipo.some(u => u.id === userId)
-
 const abrirCrearCliente = () => {
     esEdicionCliente.value = false
     clienteForm.value = { id: null, nombre: '' }
@@ -123,7 +91,7 @@ const abrirCrearCliente = () => {
 }
 
 const abrirEditarCliente = (clienteData, nombreActual) => {
-    if (!clienteData.id) return
+    if (!clienteData.id) return 
     esEdicionCliente.value = true
     clienteForm.value = { 
         id: clienteData.id, 
@@ -133,65 +101,58 @@ const abrirEditarCliente = (clienteData, nombreActual) => {
 }
 
 const guardarCliente = async () => {
-    if (!clienteForm.value.nombre) {
-        showToast("El nombre del cliente es obligatorio", "error")
-        return
-    }
-
+    if(!clienteForm.value.nombre) return mostrarNotificacion("El nombre es obligatorio", "error")
+    
     if (isSubmittingCliente.value) return;
     isSubmittingCliente.value = true;
 
     try {
         if (esEdicionCliente.value) {
             await ManagerAPI.editarCliente(clienteForm.value.id, clienteForm.value)
-            showToast("Cliente actualizado", "success")
         } else {
             await ManagerAPI.createClient(clienteForm.value)
-            showToast("Cliente creado correctamente", "success")
         }
+
         mostrarModalCliente.value = false
-        fetchProjects() 
-    } catch (error) {
-        showToast(error.response?.data?.error || "Error en el cliente", "error")
+        await fetchProjects()
+        mostrarNotificacion(esEdicionCliente.value ? 'Cliente actualizado' : 'Cliente creado')
+    } catch (e) { 
+        mostrarNotificacion(e.response?.data?.error || 'Error al guardar cliente', 'error') 
     } finally {
         isSubmittingCliente.value = false;
     }
 }
 
 const solicitarEliminarCliente = (clienteId) => {
-    solicitarConfirmacion('Eliminar Cliente', '¿Deseas eliminar este cliente? Solo es posible si no tiene proyectos asignados.', 'danger', 'eliminar_cliente', async () => {
-        try {
-            await ManagerAPI.eliminarCliente(clienteId)
-            showToast("Cliente eliminado", "success")
-            fetchProjects()
-        } catch (error) {
-            showToast(error.response?.data?.error || "Error al eliminar cliente", "error")
-        }
-    })
+    confirmacion.id = clienteId
+    confirmacion.modo = 'eliminar_cliente'
+    confirmacion.title = 'Eliminar Cliente'
+    confirmacion.message = '¿Deseas eliminar este cliente? Solo es posible si no tiene proyectos asignados.'
+    confirmacion.type = 'danger'
+    confirmacion.show = true
 }
 
-const abrirCrearProyecto = () => {
+const abrirCrearProyectoGlobal = () => { 
     esEdicion.value = false
     proyectoForm.value = { id: null, nombre: '', cliente: '', estado: 'Activo', equipo: [] }
-    mostrarModalProyecto.value = true
+    mostrarModal.value = true 
 }
 
-const abrirCrearProyectoDesdeCliente = (nombreCliente) => {
+const abrirCrearDesdeCliente = (nombreCliente) => {
     esEdicion.value = false
     proyectoForm.value = { id: null, nombre: '', cliente: nombreCliente, estado: 'Activo', equipo: [] }
-    mostrarModalProyecto.value = true
+    mostrarModal.value = true 
 }
 
-const abrirEditarProyecto = (proy) => {
+const abrirEditar = (proyecto) => { 
     esEdicion.value = true
-    proyectoForm.value = { ...proy, equipo: proy.equipo ? [...proy.equipo] : [] }
-    mostrarModalProyecto.value = true
+    proyectoForm.value = { ...proyecto, equipo: proyecto.equipo ? [...proyecto.equipo] : [] }
+    mostrarModal.value = true 
 }
 
-const guardarProyecto = async () => {
+const guardar = async () => {
     if (!proyectoForm.value.nombre || !proyectoForm.value.cliente) {
-        showToast("Nombre y Cliente son obligatorios", "error")
-        return
+        return mostrarNotificacion("Nombre y Cliente son obligatorios", "error")
     }
 
     if (isSubmittingProyecto.value) return;
@@ -203,67 +164,96 @@ const guardarProyecto = async () => {
             nombre: proyectoForm.value.nombre,
             cliente: proyectoForm.value.cliente,
             estado: proyectoForm.value.estado,
-            usuarios_ids: proyectoForm.value.equipo.map(u => u.id)
+            usuarios_ids: proyectoForm.value.equipo.map(u => u.id) 
         }
 
         if (esEdicion.value) {
             await ManagerAPI.updateProject(payload.id, payload)
-            showToast("Proyecto actualizado", "success")
         } else {
             await ManagerAPI.createProject(payload)
-            showToast("Proyecto creado", "success")
         }
-        mostrarModalProyecto.value = false
-        fetchProjects() 
-    } catch (error) {
-        showToast("Error al guardar el proyecto", "error")
+        
+        mostrarModal.value = false
+        await fetchProjects()
+        mostrarNotificacion(esEdicion.value ? 'Proyecto actualizado' : 'Proyecto creado')
+    } catch (error) { 
+        mostrarNotificacion(error.response?.data?.error || 'Error al guardar proyecto', 'error') 
     } finally {
         isSubmittingProyecto.value = false;
     }
 }
 
-const solicitarAccionProyecto = (id, modo) => {
-    let config = { title: '', message: '', type: 'neutral' }
+const solicitarAccion = (id, modo) => {
+    confirmacion.id = id
+    confirmacion.modo = modo
     
     if (modo === 'cerrar') {
-        config = { title: 'Cerrar Proyecto', message: '¿Deseas Cerrar este proyecto? Significa que ha finalizado (histórico).', type: 'neutral' }
+        confirmacion.title = 'Cerrar Proyecto'
+        confirmacion.message = '¿Deseas Cerrar este proyecto? Significa que ha finalizado (histórico).'
+        confirmacion.type = 'neutral'
     } else if (modo === 'desactivar') {
-        config = { title: 'Desactivar Proyecto', message: '¿Deseas Desactivar este proyecto? Quedará en pausa y no se le podrán imputar horas.', type: 'warning' }
+        confirmacion.title = 'Desactivar Proyecto'
+        confirmacion.message = '¿Deseas Desactivar este proyecto? Quedará en pausa y no se le podrán imputar horas.'
+        confirmacion.type = 'warning'
     } else if (modo === 'activar') {
-        config = { title: 'Activar Proyecto', message: '¿Deseas volver a Activar este proyecto para que el equipo impute horas?', type: 'success' }
+        confirmacion.title = 'Activar Proyecto'
+        confirmacion.message = '¿Deseas volver a Activar este proyecto para que el equipo impute horas?'
+        confirmacion.type = 'success'
     } else if (modo === 'eliminar') {
-        config = { title: 'Eliminar Proyecto (Físico)', message: '¿Estás seguro? Esta acción borrará el registro de la BD. Solo el sistema te dejará hacerlo si NO tiene horas imputadas.', type: 'danger' }
+        confirmacion.title = 'Eliminar Proyecto (Físico)'
+        confirmacion.message = '¿Estás seguro? Esta acción borrará el registro de la BD. Solo el sistema te dejará hacerlo si NO tiene horas imputadas.'
+        confirmacion.type = 'danger'
+    } else if (modo === 'desasignar') {
+        confirmacion.type = 'danger'
     }
+    confirmacion.show = true
+}
 
-    solicitarConfirmacion(config.title, config.message, config.type, modo, async () => {
-        try {
-            if (modo === 'eliminar') {
-                await ManagerAPI.deleteProject(id)
-                showToast("Proyecto eliminado", "success")
-            } else {
-                const mapEstado = { 'cerrar': 'Cerrado', 'desactivar': 'Inactivo', 'activar': 'Activo' }
-                await ManagerAPI.cambiarEstadoProyecto(id, mapEstado[modo])
-                showToast("Estado actualizado correctamente", "success")
-            }
-            fetchProjects() 
-        } catch (error) {
-            showToast(error.response?.data?.error || error.response?.data?.message || "Error en la operación", "error")
+const ejecutarAccionConfirmada = async () => {
+    if (isConfirming.value) return;
+    isConfirming.value = true;
+
+    try {
+        if (confirmacion.modo === 'eliminar_cliente') {
+            await ManagerAPI.eliminarCliente(confirmacion.id)
+        } else if (confirmacion.modo === 'eliminar') {
+            await ManagerAPI.deleteProject(confirmacion.id)
+        } else if (confirmacion.modo === 'desasignar') {
+            await ManagerAPI.unassignUserFromProject(confirmacion.id, confirmacion.extraUserId)
+        } else if (['cerrar', 'desactivar', 'activar'].includes(confirmacion.modo)) {
+            const mapEstado = { 'cerrar': 'Cerrado', 'desactivar': 'Inactivo', 'activar': 'Activo' }
+            await ManagerAPI.cambiarEstadoProyecto(confirmacion.id, mapEstado[confirmacion.modo])
         }
-    })
+        
+        await fetchProjects();
+        mostrarModal.value = false;
+        mostrarNotificacion('Operación realizada con éxito');
+    } catch (error) {
+        mostrarNotificacion(error.response?.data?.error || error.response?.data?.message || 'Error de red', 'error');
+    } finally {
+        isConfirming.value = false;
+        confirmacion.show = false;
+    }
 }
 
 const desasignarUsuario = (proyectoId, usuarioId, nombreUsuario) => {
-    solicitarConfirmacion('Desasignar Empleado', `¿Quitar a ${nombreUsuario} de este proyecto?`, 'danger', 'desasignar', async () => {
-        try {
-            await ManagerAPI.unassignUserFromProject(proyectoId, usuarioId)
-            showToast(`Usuario retirado`, 'success')
-            fetchProjects() 
-        } catch (error) {
-            showToast(error.response?.data?.error || "Error al quitar", "error")
-        }
-    })
+    confirmacion.id = proyectoId;
+    confirmacion.extraUserId = usuarioId;
+    confirmacion.modo = 'desasignar';
+    confirmacion.title = 'Desasignar Empleado';
+    confirmacion.message = `¿Quitar a ${nombreUsuario} de este proyecto?`;
+    confirmacion.type = 'danger';
+    confirmacion.show = true;
 }
 
+const toggleMiembroEquipo = (usuario) => {
+    const index = proyectoForm.value.equipo.findIndex(u => u.id === usuario.id)
+    if (index >= 0) proyectoForm.value.equipo.splice(index, 1)
+    else proyectoForm.value.equipo.push(usuario)
+}
+
+const esMiembroSeleccionado = (userId) => proyectoForm.value.equipo.some(u => u.id === userId)
+const obtenerEquipoVisual = (proyecto) => proyecto.equipo || []
 const getColorClass = (nombre) => {
     const colors = ['bg-indigo-100 text-indigo-600', 'bg-rose-100 text-rose-600', 'bg-cyan-100 text-cyan-600', 'bg-emerald-100 text-emerald-600', 'bg-amber-100 text-amber-600', 'bg-purple-100 text-purple-600'];
     let hash = 0;
@@ -273,165 +263,156 @@ const getColorClass = (nombre) => {
 </script>
 
 <template>
-    <div class="absolute inset-0 overflow-y-auto bg-slate-50 font-sans p-8">
+    <div class="absolute inset-0 overflow-y-auto bg-gray-50 p-6 flex flex-col font-sans">
+        
+        <div class="max-w-[1600px] mx-auto w-full space-y-6">
 
-        <div class="flex justify-between items-center mb-8 max-w-[1600px] mx-auto">
-            <div class="flex items-center gap-4">
-                <h1 class="text-3xl font-bold flex items-center gap-3 text-slate-800">
-                    <LayoutGrid class="w-8 h-8 text-slate-400" />
-                    Gestión Proyectos
-                    <span class="text-sm font-bold px-3 py-1 rounded-full bg-white border border-slate-200 text-slate-500 shadow-sm ml-2">
-                        {{ proyectos.length }}
-                    </span>
-                </h1>
-            </div>
-
-            <div class="flex items-center gap-3">
-                <button @click="abrirCrearCliente" class="btn-secondary flex items-center gap-2">
-                    <Building2 class="w-5 h-5" /> Nuevo Cliente
-                </button>
-                <button @click="abrirCrearProyecto" class="btn-primary flex items-center gap-2 shadow-lg shadow-emerald-500/20">
-                    <Plus class="w-5 h-5" /> Nuevo Proyecto
-                </button>
-            </div>
-        </div>
-
-        <div class="bg-white p-1 rounded-xl shadow-sm border border-slate-200 mb-8 flex gap-4 items-center max-w-[1600px] mx-auto">
-            <div class="relative flex-1">
-                <Search class="w-5 h-5 absolute left-4 top-1/2 transform -translate-y-1/2 text-slate-400" />
-                <input v-model="busqueda" type="text" placeholder="Buscar por cliente, nombre..."
-                    class="w-full pl-12 pr-4 py-3 bg-transparent text-sm focus:outline-none text-slate-600 placeholder:text-slate-400" />
-            </div>
-            
-            <div class="h-6 w-px bg-slate-200 mx-2"></div>
-
-            <div class="flex items-center pr-2 gap-1">
-                <button @click="filtroEstado = 'todos'" class="px-4 py-2 rounded-lg text-sm font-medium transition"
-                    :class="filtroEstado === 'todos' ? 'bg-slate-100 text-slate-900' : 'text-slate-500 hover:text-slate-700'">Todos</button>
-                <button @click="filtroEstado = 'activos'" class="px-4 py-2 rounded-lg text-sm font-medium transition"
-                    :class="filtroEstado === 'activos' ? 'bg-emerald-50 text-emerald-700' : 'text-slate-500 hover:text-slate-700'">Activos</button>
-                <button @click="filtroEstado = 'inactivos'" class="px-4 py-2 rounded-lg text-sm font-medium transition"
-                    :class="filtroEstado === 'inactivos' ? 'bg-red-50 text-red-700' : 'text-slate-500 hover:text-slate-700'">Cerrados / Inactivos</button>
-            </div>
-        </div>
-
-        <div v-if="isLoading" class="flex justify-center py-10">
-            <div class="animate-spin rounded-full h-10 w-10 border-b-2 border-emerald-500"></div>
-        </div>
-
-        <div v-else class="pb-10 space-y-6 max-w-[1600px] mx-auto">
-            
-            <div v-for="(datosCliente, cliente) in proyectosAgrupados" :key="cliente" 
-                 class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
-                
-                <div class="flex items-center gap-2 border-b border-slate-100 pb-3 mb-6 group/header">
-                    <Briefcase class="w-6 h-6 text-[#26AA9B]" />
-                    <h2 class="text-xl font-bold text-slate-800">{{ cliente }}</h2>
-                    <span class="text-xs font-bold px-2.5 py-1 rounded-full bg-[#E8F5F3] text-[#26AA9B] ml-2">
-                        {{ datosCliente.proyectos.length }} proyectos
-                    </span>
-
-                    <div v-if="datosCliente.id" class="flex items-center ml-2 opacity-0 group-hover/header:opacity-100 transition-opacity">
-                        <button @click="abrirEditarCliente(datosCliente, cliente)" class="p-1.5 text-slate-400 hover:text-[#26AA9B] hover:bg-[#E8F5F3] rounded-lg transition-colors" title="Editar Cliente">
-                            <Pencil class="w-4 h-4" />
-                        </button>
-                        <button @click="solicitarEliminarCliente(datosCliente.id)" class="p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors" title="Eliminar Cliente">
-                            <Trash2 class="w-4 h-4" />
-                        </button>
-                    </div>
-
-                    <button @click="abrirCrearProyectoDesdeCliente(cliente)" class="ml-auto text-sm font-bold text-[#26AA9B] bg-[#E8F5F3] hover:bg-[#d1eeea] px-4 py-2 rounded-xl transition-colors flex items-center gap-2">
-                        <Plus class="w-4 h-4" /> Añadir Proyecto
+            <div class="flex justify-between items-center bg-white p-5 rounded-xl shadow-sm border border-gray-100">
+                <div>
+                    <h1 class="font-bold text-2xl text-slate-800">Administrar Proyectos</h1>
+                    <p class="text-slate-500 text-sm">Gestión de base de datos de Clientes y Proyectos.</p>
+                </div>
+                <div class="flex gap-3">
+                    <button @click="abrirCrearCliente" class="btn-secondary flex items-center gap-2 bg-white border border-gray-200 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-50 transition font-medium shadow-sm">
+                        <Building2 class="w-4 h-4" /> Nuevo Cliente
+                    </button>
+                    <button @click="abrirCrearProyectoGlobal" class="btn-primary flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition font-medium shadow-md shadow-blue-500/20">
+                        <FolderPlus class="w-4 h-4" /> Nuevo Proyecto
                     </button>
                 </div>
+            </div>
 
-                <div v-if="datosCliente.proyectos.length === 0" class="py-10 border-2 border-dashed border-slate-200 rounded-xl flex flex-col items-center justify-center text-slate-400 gap-3 bg-slate-50/50">
-                    <Building2 class="w-10 h-10 opacity-30" />
-                    <p class="text-sm font-medium">Cliente registrado, pero sin proyectos aún.</p>
+            <div class="relative min-h-[300px]">
+                <div v-if="isLoading" class="absolute inset-0 flex flex-col items-center justify-center bg-white/50 backdrop-blur-sm z-10 rounded-xl">
+                    <div class="w-10 h-10 border-4 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+                    <p class="mt-2 text-sm text-gray-500 font-bold">Cargando datos...</p>
                 </div>
 
-                <div v-else class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-                    <div v-for="proy in datosCliente.proyectos" :key="proy.id"
-                        class="bg-white rounded-2xl border border-slate-200 shadow-sm hover:shadow-md transition-all duration-300 group relative flex flex-col p-5 min-h-[320px]"
-                        :class="{'opacity-75 bg-slate-50': proy.estado !== 'Activo'}">
+                <div class="space-y-6 pb-10">
+                    <div v-for="(datosCliente, clienteNombre) in proyectosAgrupados" :key="clienteNombre" class="bg-white p-5 rounded-xl border border-gray-200 shadow-sm">
                         
-                        <div class="flex justify-between items-start mb-4">
-                            <div class="w-10 h-10 rounded-xl bg-[#E8F5F3] flex items-center justify-center text-[#26AA9B] group-hover:scale-110 transition-transform">
-                                <Briefcase class="w-5 h-5" stroke-width="2.5"/>
+                        <div class="flex items-start gap-4 border-b border-gray-100 pb-4 mb-4 group/header">
+                            <div class="bg-blue-50 p-2.5 rounded-xl text-blue-600 mt-1">
+                                <Briefcase class="w-6 h-6" stroke-width="2.5" />
                             </div>
-
-                            <div class="flex items-center gap-2">
-                                <span class="px-3 py-1 rounded-md text-[11px] font-bold tracking-wide uppercase border transition-colors"
-                                    :class="{
-                                        'bg-emerald-50 text-emerald-600 border-emerald-200': proy.estado === 'Activo',
-                                        'bg-amber-50 text-amber-600 border-amber-200': proy.estado === 'Cerrado',
-                                        'bg-orange-50 text-orange-600 border-orange-200': proy.estado === 'Inactivo'
-                                    }">
-                                    {{ proy.estado }}
-                                </span>
-
-                                <div class="flex items-center opacity-0 group-hover:opacity-100 transition gap-1">
-                                    <button @click.stop="abrirEditarProyecto(proy)" class="w-7 h-7 flex items-center justify-center rounded bg-white border border-slate-200 text-slate-400 hover:text-[#26AA9B] hover:border-[#26AA9B] transition-all shadow-sm" title="Editar Proyecto"><Pencil class="w-3.5 h-3.5" /></button>
-                                    
-                                    <button v-if="proy.estado === 'Activo'" @click.stop="solicitarAccionProyecto(proy.id, 'cerrar')" class="w-7 h-7 flex items-center justify-center rounded bg-white border border-slate-200 text-slate-400 hover:text-amber-500 hover:border-amber-300 transition-all shadow-sm" title="Cerrar Proyecto"><Lock class="w-3.5 h-3.5" /></button>
-                                    
-                                    <button v-if="proy.estado === 'Activo'" @click.stop="solicitarAccionProyecto(proy.id, 'desactivar')" class="w-7 h-7 flex items-center justify-center rounded bg-white border border-slate-200 text-slate-400 hover:text-orange-500 hover:border-orange-300 transition-all shadow-sm" title="Desactivar Proyecto"><Ban class="w-3.5 h-3.5" /></button>
-                                    
-                                    <button v-if="proy.estado !== 'Activo'" @click.stop="solicitarAccionProyecto(proy.id, 'activar')" class="w-7 h-7 flex items-center justify-center rounded bg-white border border-slate-200 text-slate-400 hover:text-emerald-500 hover:border-emerald-300 transition-all shadow-sm" title="Activar Proyecto"><Play class="w-3.5 h-3.5" /></button>
-                                    
-                                    <button @click.stop="solicitarAccionProyecto(proy.id, 'eliminar')" class="w-7 h-7 flex items-center justify-center rounded bg-white border border-slate-200 text-slate-400 hover:text-red-500 hover:border-red-300 transition-all shadow-sm" title="Eliminar"><Trash2 class="w-3.5 h-3.5" /></button>
+                            
+                            <div class="flex flex-col gap-1">
+                                <div class="flex items-center gap-2">
+                                    <h2 class="text-xl font-bold text-slate-800">{{ clienteNombre }}</h2>
+                                    <span class="text-xs font-bold px-2 py-0.5 rounded-full bg-slate-100 text-slate-500">
+                                        {{ datosCliente.proyectos.length }} proyectos
+                                    </span>
+                                </div>
+                                <div v-if="datosCliente.codigo" class="text-xs text-slate-400 font-mono font-bold flex items-center gap-1">
+                                    <Hash class="w-3.5 h-3.5" /> {{ datosCliente.codigo }}
                                 </div>
                             </div>
-                        </div>
 
-                        <div class="mb-5">
-                            <h3 class="text-lg font-bold text-slate-800 leading-tight mb-1 truncate" :title="proy.nombre" :class="{'text-slate-500': proy.estado !== 'Activo'}">
-                                {{ proy.nombre }}
-                            </h3>
-                            <div class="flex flex-col gap-1">
-                                <p class="text-sm text-slate-500 flex items-center gap-1.5 font-medium truncate">
-                                    <Tag class="w-3.5 h-3.5" /> {{ proy.cliente }}
-                                </p>
-                                <p v-if="proy.codigo" class="text-xs text-slate-400 flex items-center gap-1.5 font-mono">
-                                    <Hash class="w-3 h-3" /> {{ proy.codigo }}
-                                </p>
-                            </div>
-                        </div>
+                            <div class="ml-auto flex items-center gap-3 mt-1">
+                                <div v-if="datosCliente.id" class="flex items-center opacity-0 group-hover/header:opacity-100 transition-opacity gap-1">
+                                    <button @click="abrirEditarCliente(datosCliente, clienteNombre)" class="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors" title="Editar Cliente">
+                                        <Pencil class="w-4 h-4" />
+                                    </button>
+                                    <button @click="solicitarEliminarCliente(datosCliente.id)" class="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors" title="Eliminar Cliente">
+                                        <Trash2 class="w-4 h-4" />
+                                    </button>
+                                </div>
 
-                        <div class="h-px bg-slate-100 w-full mb-4"></div>
-
-                        <div class="flex flex-col flex-1 overflow-hidden">
-                            <div class="flex justify-between items-center mb-3">
-                                <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
-                                    Usuarios Asignados
-                                </span>
-                                <button @click.stop="abrirEditarProyecto(proy)" class="text-slate-300 hover:text-[#26AA9B] transition" title="Modificar equipo">
-                                    <UserPlus class="w-4 h-4"/>
+                                <button @click="abrirCrearDesdeCliente(clienteNombre)" class="text-sm font-bold text-blue-600 bg-blue-50 hover:bg-blue-100 px-3 py-2 rounded-lg transition-colors flex items-center gap-1.5">
+                                    <Plus class="w-4 h-4" /> Añadir Proyecto
                                 </button>
                             </div>
+                        </div>
 
-                            <div class="flex-1 overflow-y-auto pr-1 space-y-1.5 scrollbar-thin scrollbar-thumb-slate-200 scrollbar-track-transparent">
-                                <template v-if="proy.equipo.length > 0">
-                                    <div v-for="(user, index) in proy.equipo" :key="index" class="flex items-center justify-between group/user bg-slate-50/50 p-1.5 rounded-lg border border-transparent hover:border-slate-200 hover:bg-white transition-all">
-                                        <div class="flex items-center gap-3">
-                                            <img v-if="user.foto" :src="'data:image/jpeg;base64,' + user.foto" class="w-7 h-7 rounded-full object-cover border border-slate-200 shrink-0" />
-                                            <div v-else class="w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0"
-                                                :class="getColorClass(user.nombre)">
-                                                {{ user.iniciales }}
-                                            </div>
-                                            <span class="text-xs text-slate-600 font-medium group-hover/user:text-slate-900 transition-colors">
-                                                {{ user.nombre }}
-                                            </span>
+                        <div v-if="datosCliente.proyectos.length === 0" class="py-8 border-2 border-dashed border-gray-100 rounded-xl flex flex-col items-center justify-center text-gray-400 bg-gray-50/50">
+                            <Building2 class="w-8 h-8 opacity-40 mb-2" />
+                            <p class="text-sm font-medium">Cliente registrado, pero sin proyectos aún.</p>
+                        </div>
+
+                        <div v-else class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                            <div v-for="proyecto in datosCliente.proyectos" :key="proyecto.id"
+                                class="bg-white border border-gray-100 rounded-xl p-5 group hover:border-blue-400 hover:shadow-lg transition relative flex flex-col min-h-[220px] shadow-sm"
+                                :class="{'opacity-75 bg-gray-50': proyecto.estado !== 'Activo'}"> 
+
+                                <div class="flex-shrink-0">
+                                    <div class="flex justify-between items-start mb-3">
+                                        <div class="bg-gray-100 p-2 rounded-lg text-slate-500 group-hover:bg-blue-50 group-hover:text-blue-600 transition">
+                                            <Briefcase class="w-5 h-5" />
                                         </div>
-                                        <button @click.stop="desasignarUsuario(proy.id, user.id, user.nombre)" class="opacity-0 group-hover/user:opacity-100 text-slate-400 hover:text-red-500 hover:bg-red-50 p-1.5 rounded-md transition-all" title="Quitar empleado">
-                                            <X class="w-3.5 h-3.5" />
+
+                                        <div class="flex items-center gap-1">
+                                            <span class="badge px-2 py-0.5 rounded-full font-bold text-[10px] border" 
+                                                :class="{
+                                                    'bg-emerald-50 text-emerald-700 border-emerald-200': proyecto.estado === 'Activo',
+                                                    'bg-amber-50 text-amber-700 border-amber-200': proyecto.estado === 'Cerrado',
+                                                    'bg-orange-50 text-orange-700 border-orange-200': proyecto.estado === 'Inactivo'
+                                                }">
+                                                {{ proyecto.estado }}
+                                            </span>
+
+                                            <div class="flex items-center opacity-0 group-hover:opacity-100 transition gap-1">
+                                                <button @click.stop="abrirEditar(proyecto)" class="p-1 text-gray-400 hover:text-blue-500" title="Editar"><Pencil class="w-4 h-4" /></button>
+                                                <button v-if="proyecto.estado === 'Activo'" @click.stop="solicitarAccion(proyecto.id, 'cerrar')" class="p-1 text-gray-400 hover:text-amber-500" title="Cerrar Proyecto"><Lock class="w-4 h-4" /></button>
+                                                <button v-if="proyecto.estado === 'Activo'" @click.stop="solicitarAccion(proyecto.id, 'desactivar')" class="p-1 text-gray-400 hover:text-orange-500" title="Desactivar Proyecto"><Ban class="w-4 h-4" /></button>
+                                                <button v-if="proyecto.estado !== 'Activo'" @click.stop="solicitarAccion(proyecto.id, 'activar')" class="p-1 text-gray-400 hover:text-emerald-500" title="Activar Proyecto"><Play class="w-4 h-4" /></button>
+                                                <button @click.stop="solicitarAccion(proyecto.id, 'eliminar')" class="p-1 text-gray-400 hover:text-red-500" title="Eliminar"><Trash2 class="w-4 h-4" /></button>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div class="mb-5">
+                                        <h3 class="text-lg font-bold text-slate-800 leading-tight mb-2 truncate" :title="proyecto.nombre" :class="{'text-slate-500': proyecto.estado !== 'Activo'}">
+                                            {{ proyecto.nombre }}
+                                        </h3>
+                                        
+                                        <div class="flex flex-col gap-2">
+                                            <p class="text-sm text-slate-500 flex items-center gap-1.5 font-medium truncate" title="Cliente asignado">
+                                                <Tag class="w-3.5 h-3.5" /> {{ proyecto.cliente }}
+                                            </p>
+                                            <div v-if="proyecto.codigo" class="flex items-center mt-0.5">
+                                                <span class="bg-indigo-50 text-indigo-600 border border-indigo-200 px-2 py-0.5 rounded text-[10px] font-bold font-mono tracking-wider flex items-center gap-1 w-fit" title="Código Interno de Proyecto">
+                                                    <Hash class="w-3 h-3 opacity-60" /> {{ proyecto.codigo }}
+                                                </span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="mt-auto pt-3 border-t border-gray-100 flex flex-col flex-1 overflow-hidden">
+                                    
+                                    <div class="flex justify-between items-center mb-3">
+                                        <div class="text-[10px] font-bold text-gray-400 uppercase tracking-wider flex items-center gap-1.5 flex-shrink-0">
+                                            <Users class="w-3 h-3" /> Usuarios Asignados
+                                        </div>
+                                        <button @click.stop="abrirEditar(proyecto)" class="text-gray-300 hover:text-blue-600 transition" title="Modificar equipo">
+                                            <UserPlus class="w-4 h-4"/>
                                         </button>
                                     </div>
-                                </template>
 
-                                <div v-else class="h-full flex flex-col items-center justify-center text-slate-300 gap-2 min-h-[100px]">
-                                    <UserPlus class="w-8 h-8 opacity-20" />
-                                    <span class="text-xs italic">Sin usuarios asignados</span>
+                                    <div class="flex-1 overflow-y-auto pr-1 space-y-1.5 scrollbar-thin max-h-[140px]">
+                                        <template v-if="obtenerEquipoVisual(proyecto).length > 0">
+                                            <div v-for="miembro in obtenerEquipoVisual(proyecto)" :key="miembro.id"
+                                                class="flex items-center justify-between group/user p-1.5 rounded-md hover:bg-gray-50 transition-colors">
+                                                
+                                                <div class="flex items-center gap-2 overflow-hidden">
+                                                    <img v-if="miembro.foto" :src="'data:image/jpeg;base64,' + miembro.foto" class="h-6 w-6 rounded-full object-cover shadow-sm shrink-0" />
+                                                    <div v-else class="h-6 w-6 rounded-full flex items-center justify-center text-[9px] font-bold shadow-sm shrink-0" :class="getColorClass(miembro.nombre)">
+                                                        {{ miembro.iniciales }}
+                                                    </div>
+                                                    <span class="text-xs font-medium text-slate-600 truncate">{{ miembro.nombre }}</span>
+                                                </div>
+
+                                                <button @click.stop="desasignarUsuario(proyecto.id, miembro.id, miembro.nombre)" class="opacity-0 group-hover/user:opacity-100 text-gray-400 hover:text-red-500 hover:bg-red-50 p-1 rounded transition-all" title="Quitar empleado">
+                                                    <X class="w-3.5 h-3.5" />
+                                                </button>
+                                            </div>
+                                        </template>
+                                        
+                                        <div v-else class="h-full flex flex-col items-center justify-center text-gray-300 gap-2 min-h-[100px]">
+                                            <UserPlus class="w-8 h-8 opacity-20" />
+                                            <span class="text-xs italic">Sin usuarios asignados</span>
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -441,132 +422,115 @@ const getColorClass = (nombre) => {
             </div>
         </div>
 
-        <div v-if="mostrarModalCliente" class="fixed inset-0 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-            <div class="bg-white w-full max-w-sm rounded-2xl shadow-2xl p-6 animate-in zoom-in-95">
-                <div class="flex justify-between items-start mb-6">
-                    <div>
-                        <h3 class="text-xl font-bold text-slate-800">{{ esEdicionCliente ? 'Editar Cliente' : 'Nuevo Cliente' }}</h3>
-                        <p class="text-sm text-slate-500">{{ esEdicionCliente ? 'Actualiza los datos.' : 'Registra un cliente vacío.' }}</p>
-                    </div>
-                    <button @click="mostrarModalCliente=false" class="text-slate-400 hover:text-slate-600">
-                        <X class="w-6 h-6"/>
-                    </button>
+        <div v-if="mostrarModalCliente" class="fixed inset-0 bg-slate-900/50 flex items-center justify-center z-50 p-4 backdrop-blur-sm">
+            <div class="bg-white rounded-2xl w-full max-w-sm p-6 shadow-2xl animate-in zoom-in-95">
+                <div class="flex justify-between items-center mb-5">
+                    <h3 class="font-bold text-lg text-slate-800">{{ esEdicionCliente ? 'Editar Cliente' : 'Nuevo Cliente' }}</h3>
+                    <button @click="mostrarModalCliente=false"><X class="w-5 h-5 text-gray-400 hover:text-red-500 transition" /></button>
                 </div>
-
                 <div class="space-y-4">
                     <div>
-                        <label class="block text-xs font-bold text-slate-500 uppercase mb-2">Nombre Cliente *</label>
-                        <input v-model="clienteForm.nombre" type="text" placeholder="Ej: Inetum" 
-                               class="w-full p-3 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#26AA9B]/20 focus:border-[#26AA9B]">
+                        <label class="block text-sm font-bold text-slate-700 mb-1">Nombre *</label>
+                        <input v-model="clienteForm.nombre" type="text" placeholder="Ej: Banco Santander" class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 outline-none">
                     </div>
-                    
-                    <div class="pt-2">
-                        <button @click="guardarCliente" 
-                                :disabled="isSubmittingCliente"
-                                class="w-full py-3 justify-center rounded-lg font-bold shadow transition flex items-center gap-2 disabled:opacity-50"
-                                :class="isSubmittingCliente ? 'bg-slate-400 text-white cursor-not-allowed' : 'bg-slate-800 text-white hover:bg-slate-700'">
-                            
-                            <svg v-if="isSubmittingCliente" class="animate-spin w-5 h-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                            </svg>
 
-                            {{ isSubmittingCliente ? 'Guardando...' : (esEdicionCliente ? 'Actualizar Cliente' : 'Guardar Cliente') }}
-                        </button>
-                    </div>
+                    <button @click="guardarCliente" 
+                            :disabled="isSubmittingCliente"
+                            class="w-full py-2.5 rounded-lg font-bold shadow mt-2 transition flex justify-center items-center gap-2"
+                            :class="isSubmittingCliente ? 'bg-slate-400 text-white cursor-not-allowed' : 'bg-slate-800 text-white hover:bg-slate-700'">
+                        <svg v-if="isSubmittingCliente" class="animate-spin w-5 h-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
+                        {{ isSubmittingCliente ? 'Guardando...' : 'Guardar' }}
+                    </button>
                 </div>
             </div>
         </div>
 
-        <div v-if="mostrarModalProyecto" class="fixed inset-0 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-            <div class="bg-white w-full max-w-md rounded-2xl shadow-2xl p-6 animate-in zoom-in-95 max-h-[90vh] overflow-y-auto flex flex-col">
-                <div class="flex justify-between items-start mb-6 shrink-0">
+        <div v-if="mostrarModal" class="fixed inset-0 bg-slate-900/50 flex items-center justify-center z-50 p-4 backdrop-blur-sm">
+            <div class="bg-white rounded-2xl w-full max-w-md shadow-2xl animate-in zoom-in-95 max-h-[90vh] flex flex-col p-6 border border-gray-100 overflow-y-auto">
+                <div class="flex justify-between items-center border-b border-gray-100 pb-2 flex-shrink-0">
                     <div>
-                        <h3 class="text-xl font-bold text-slate-800">{{ esEdicion ? 'Editar Proyecto' : 'Nuevo Proyecto' }}</h3>
-                        <p class="text-sm text-slate-500">Configura el proyecto y su equipo.</p>
+                        <h3 class="font-bold text-lg text-slate-800">{{ esEdicion ? 'Editar Proyecto' : 'Nuevo Proyecto' }}</h3>
                     </div>
-                    <button @click="mostrarModalProyecto=false" class="text-slate-400 hover:text-slate-600">
-                        <X class="w-6 h-6"/>
-                    </button>
+                    <button @click="mostrarModal = false"><X class="w-5 h-5 text-gray-400 hover:text-red-500 transition" /></button>
                 </div>
 
-                <div class="space-y-5 overflow-y-auto pr-1 flex-1">
+                <div class="overflow-y-auto flex-1 pr-1 py-4 space-y-4">
                     
-                    <div class="grid grid-cols-2 gap-4">
-                        <div class="col-span-2">
-                            <label class="block text-xs font-bold text-slate-500 uppercase mb-2">Cliente Destino</label>
-                            <select v-model="proyectoForm.cliente" class="w-full p-3 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#26AA9B]/20 focus:border-[#26AA9B] cursor-pointer">
-                                <option value="" disabled>Seleccionar cliente...</option>
-                                <option v-for="c in clientesDisponibles" :key="c.id" :value="c.nombre">{{ c.nombre }}</option>
-                            </select>
-                        </div>
-
-                        <div class="col-span-2">
-                            <label class="block text-xs font-bold text-slate-500 uppercase mb-2">Nombre del Proyecto</label>
-                            <input v-model="proyectoForm.nombre" type="text" placeholder="Ej: Migración Cloud" 
-                                   class="w-full p-3 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#26AA9B]/20 focus:border-[#26AA9B]">
-                        </div>
-                    </div>
-
-                    <div v-if="esEdicion" class="p-3 bg-slate-50 rounded-lg border border-slate-200">
-                         <p class="text-xs font-bold text-slate-500 uppercase mb-1">Estado Actual</p>
-                         <p class="text-sm font-medium" :class="{
-                            'text-emerald-600': proyectoForm.estado === 'Activo',
-                            'text-amber-600': proyectoForm.estado === 'Cerrado',
-                            'text-orange-600': proyectoForm.estado === 'Inactivo'
-                         }">{{ proyectoForm.estado }}</p>
+                    <div>
+                        <label class="block text-sm font-bold text-slate-700 mb-1">Cliente Base</label>
+                        <select v-model="proyectoForm.cliente" class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 outline-none bg-white">
+                            <option value="" disabled>Seleccionar cliente...</option>
+                            <option v-for="c in clientesDisponibles" :key="c.id" :value="c.nombre">{{ c.nombre }}</option>
+                        </select>
+                        <p class="text-xs text-gray-400 mt-1">Si no aparece el cliente, ciérralo y pulsa "Nuevo Cliente".</p>
                     </div>
 
                     <div>
-                        <label class="block text-xs font-bold text-slate-500 uppercase mb-2">Asignar Equipo</label>
+                        <label class="block text-sm font-bold text-slate-700 mb-1">Nombre del Proyecto</label>
+                        <input v-model="proyectoForm.nombre" type="text" placeholder="Ej: Migración Cloud" class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 outline-none">
+                    </div>
+
+                    <div v-if="esEdicion" class="p-4 bg-gray-50 rounded-lg border border-gray-200 mt-4 flex items-center justify-between">
+                        <div>
+                            <p class="text-sm font-bold text-slate-700">Estado del Proyecto</p>
+                            <p class="text-xs text-gray-500">Actualmente: <span class="font-bold" :class="proyectoForm.estado === 'Activo' ? 'text-emerald-600' : (proyectoForm.estado === 'Cerrado' ? 'text-amber-600' : 'text-orange-600')">{{ proyectoForm.estado }}</span></p>
+                        </div>
+                    </div>
+
+                    <div>
+                        <label class="block text-sm font-bold text-slate-700 mb-2">Asignar Equipo</label>
                         <div class="grid grid-cols-2 gap-2">
                             <div v-for="user in usuariosDisponibles" :key="user.id" 
                                 @click="toggleMiembroEquipo(user)"
                                 class="flex items-center gap-2 p-2 rounded-lg border cursor-pointer transition select-none"
-                                :class="esMiembroSeleccionado(user.id) ? 'bg-[#E8F5F3] border-[#26AA9B] shadow-sm' : 'bg-white border-slate-200 hover:border-slate-300'">
+                                :class="esMiembroSeleccionado(user.id) ? 'bg-blue-50 border-blue-400 shadow-sm' : 'bg-white border-gray-200 hover:border-gray-300'">
                                 
                                 <div class="w-4 h-4 rounded border flex items-center justify-center transition"
-                                    :class="esMiembroSeleccionado(user.id) ? 'bg-[#26AA9B] border-[#26AA9B]' : 'bg-white border-slate-300'">
+                                    :class="esMiembroSeleccionado(user.id) ? 'bg-blue-600 border-blue-600' : 'bg-white border-gray-300'">
                                     <Check v-if="esMiembroSeleccionado(user.id)" class="w-3 h-3 text-white" />
                                 </div>
+
                                 <img v-if="user.foto" :src="'data:image/jpeg;base64,' + user.foto" class="h-6 w-6 rounded-full object-cover shrink-0" />
-                                <div v-else class="h-6 w-6 rounded-full flex items-center justify-center text-[9px] font-bold shrink-0" :class="getColorClass(user.nombre)">
+                                <div v-else class="h-6 w-6 rounded-full flex items-center justify-center text-[9px] font-bold bg-blue-100 text-blue-700 shrink-0">
                                     {{ user.iniciales }}
                                 </div>
-                                <span class="text-[11px] font-bold truncate" :class="esMiembroSeleccionado(user.id) ? 'text-[#26AA9B]' : 'text-slate-600'">{{ user.nombre }}</span>
+                                
+                                <span class="text-[11px] font-bold truncate" :class="esMiembroSeleccionado(user.id) ? 'text-blue-700' : 'text-gray-600'">{{ user.nombre }}</span>
                             </div>
                         </div>
                     </div>
                 </div>
 
-                <div class="pt-4 border-t border-slate-100 shrink-0 flex gap-3 mt-2">
-                    <button @click="mostrarModalProyecto = false" :disabled="isSubmittingProyecto" class="btn-secondary flex-1 justify-center disabled:opacity-50">Cancelar</button>
+                <div class="flex gap-2 pt-4 border-t border-gray-100 flex-shrink-0">
+                    <button @click="mostrarModal = false" :disabled="isSubmittingProyecto" class="flex-1 py-2 border border-gray-300 text-slate-600 rounded-lg font-bold hover:bg-gray-50 transition disabled:opacity-50">Cancelar</button>
                     
-                    <button @click="guardarProyecto" 
+                    <button @click="guardar" 
                             :disabled="isSubmittingProyecto"
-                            class="flex-1 btn-primary py-3 justify-center flex items-center gap-2 disabled:opacity-50"
-                            :class="isSubmittingProyecto ? 'bg-emerald-400 cursor-not-allowed' : ''">
+                            class="flex-1 py-2 text-white rounded-lg font-bold shadow-lg transition flex justify-center items-center gap-2"
+                            :class="isSubmittingProyecto ? 'bg-blue-400 cursor-not-allowed opacity-80' : 'bg-blue-600 hover:bg-blue-700 shadow-blue-200'">
                         
                         <svg v-if="isSubmittingProyecto" class="animate-spin w-4 h-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                             <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
                             <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                         </svg>
-                        <Save v-else class="w-4 h-4"/>
-                        
-                        {{ isSubmittingProyecto ? 'Guardando...' : (esEdicion ? 'Guardar Cambios' : 'Crear Proyecto') }}
+
+                        {{ isSubmittingProyecto ? 'Guardando...' : 'Guardar Proyecto' }}
                     </button>
                 </div>
             </div>
         </div>
 
-        <ConfirmModal
-            :show="confirmState.show"
-            :title="confirmState.title"
-            :message="confirmState.message"
-            :type="confirmState.type"
+        <ConfirmModal 
+            :show="confirmacion.show"
+            :title="confirmacion.title"
+            :message="confirmacion.message"
+            :type="confirmacion.type"
             :isLoading="isConfirming"
-            @confirm="ejecutarConfirmacion"
-            @cancel="confirmState.show = false"
+            @confirm="ejecutarAccionConfirmada"
+            @cancel="confirmacion.show = false"
         />
 
         <ToastNotification
@@ -584,6 +548,6 @@ const getColorClass = (nombre) => {
     @apply bg-[#26AA9B] hover:bg-[#208f82] text-white px-5 py-2.5 rounded-xl font-bold text-sm transition-all flex items-center gap-2;
 }
 .btn-secondary {
-    @apply bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 px-5 py-2.5 rounded-xl font-bold text-sm transition-all flex items-center gap-2;
+    @apply bg-white border border-gray-200 text-gray-700 hover:bg-gray-50 px-5 py-2.5 rounded-xl font-bold text-sm transition-all flex items-center gap-2;
 }
 </style>

@@ -35,6 +35,7 @@ def obtener_proyectos():
             "Cliente": p.cliente.nombre if p.cliente else "Sin Cliente",
             "Estado": p.estado,
             "Tipo": p.tipo,
+            "Codigo": p.codigo,
             "Equipo": equipo
         })
     return resultado

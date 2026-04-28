@@ -4,20 +4,14 @@ import {
     FolderPlus, Pencil, Tag, X, Briefcase, Users, Check, 
     Trash2, Plus, Building2, UserPlus, Lock, Ban, Play, Hash 
 } from 'lucide-vue-next'
-import { useDataStore } from '../../stores/dataStore'
 import AdminAPI from '../../services/AdminAPI'
 import ConfirmModal from '../../components/common/ConfirmModal.vue'
 import ToastNotification from '../../components/common/ToastNotification.vue'
 
-const store = useDataStore()
-
-const FORM_DEFAULT = { id: null, nombre: '', cliente: '', estado: 'Activo', equipo: [] }
-const CLIENTE_DEFAULT = { id: null, nombre: '' }
-
 const proyectos = ref([])
-const clientes_db = ref([])
-const usuarios_db = ref([])
-const cargando = ref(true)
+const clientesDisponibles = ref([])
+const usuariosDisponibles = ref([])
+const isLoading = ref(true)
 
 const isSubmittingCliente = ref(false)
 const isSubmittingProyecto = ref(false)
@@ -29,19 +23,67 @@ const mostrarModalCliente = ref(false)
 const esEdicion = ref(false)
 const esEdicionCliente = ref(false)
 
-const formulario = ref({ ...FORM_DEFAULT })
-const clienteForm = ref({ ...CLIENTE_DEFAULT })
+const proyectoForm = ref({ id: null, nombre: '', cliente: '', estado: 'Activo', equipo: [] })
+const clienteForm = ref({ id: null, nombre: '' })
 
 const toast = ref({ show: false, message: '', type: 'success' })
 let toastTimeout = null
 
 const confirmacion = reactive({ show: false, title: '', message: '', type: 'neutral', id: null, modo: '' })
 
-// AÑADIDO: Guardar el código del cliente en la agrupación
+const mostrarNotificacion = (mensaje, tipo = 'success') => {
+    toast.value = { show: true, message: mensaje, type: tipo }
+    clearTimeout(toastTimeout)
+    toastTimeout = setTimeout(() => toast.value.show = false, 3000)
+}
+
+const fetchProjects = async () => {
+    isLoading.value = true
+    try {
+        const [jsonCli, jsonProj, jsonUser] = await Promise.all([
+            AdminAPI.getClientes(),
+            AdminAPI.getProyectos(),
+            AdminAPI.getUsuarios()
+        ])
+        
+        clientesDisponibles.value = jsonCli.data || []
+        
+        usuariosDisponibles.value = (jsonUser.data || []).map(u => ({
+            id: u.Id || u.id, 
+            nombre: u.Nombre || u.nombre, 
+            foto: u.Foto || u.foto,
+            iniciales: (u.Nombre || u.nombre) ? (u.Nombre || u.nombre).split(' ').map(n => n[0]).join('').toUpperCase().substring(0, 2) : 'XX',
+            color: 'bg-indigo-100 text-indigo-700'
+        }))
+        
+        proyectos.value = (jsonProj.data || []).map(p => ({
+            id: p.Id || p.id, 
+            nombre: p.Nombre || p.nombre, 
+            cliente: p.Cliente || p.cliente, 
+            estado: p.Estado || p.estado, 
+            codigo: p.Codigo || p.codigo,
+            equipo: (p.Equipo || p.equipo || []).map(u => ({
+                id: u.id || u.Id, 
+                nombre: u.nombre || u.Nombre, 
+                foto: u.foto || u.Foto,
+                iniciales: u.iniciales || (u.nombre || u.Nombre || '').split(' ').map(n => n[0]).join('').toUpperCase().substring(0, 2),
+                color: 'bg-indigo-100 text-indigo-700'
+            }))
+        }))
+    } catch (error) {
+        console.error(error)
+        mostrarNotificacion('Error al conectar con el servidor', 'error')
+    } finally {
+        isLoading.value = false
+    }
+}
+
+onMounted(() => { fetchProjects() })
+
 const proyectosAgrupados = computed(() => {
     const grupos = {}
     
-    clientes_db.value.forEach(c => { 
+    clientesDisponibles.value.forEach(c => { 
         grupos[c.nombre] = { id: c.id, codigo: c.codigo, proyectos: [] } 
     })
 
@@ -59,51 +101,9 @@ const proyectosAgrupados = computed(() => {
     }, {})
 })
 
-const cargarDatos = async () => {
-    try {
-        cargando.value = true
-        
-        const jsonCli = await AdminAPI.getClientes()
-        if (jsonCli.status === 'success') clientes_db.value = jsonCli.data
-
-        const jsonProj = await AdminAPI.getProyectos()
-        if (jsonProj.status === 'success') {
-            proyectos.value = jsonProj.data.map(p => ({
-                id: p.Id, nombre: p.Nombre, cliente: p.Cliente, estado: p.Estado, codigo: p.codigo,
-                equipo: p.Equipo ? p.Equipo.map(u => ({
-                    id: u.id, nombre: u.nombre, foto: u.foto,
-                    iniciales: u.nombre.split(' ').map(n => n[0]).join('').toUpperCase().substring(0, 2),
-                    color: 'bg-indigo-100 text-indigo-700'
-                })) : []
-            }))
-        }
-
-        const jsonUser = await AdminAPI.getUsuarios()
-        if (jsonUser.status === 'success') {
-            usuarios_db.value = jsonUser.data.map(u => ({
-                id: u.Id, nombre: u.Nombre, foto: u.Foto,
-                iniciales: u.Nombre.split(' ').map(n => n[0]).join('').toUpperCase().substring(0, 2),
-                color: 'bg-indigo-100 text-indigo-700'
-            }))
-        }
-    } catch (error) {
-        mostrarNotificacion('Error al conectar con el servidor', 'error')
-    } finally {
-        cargando.value = false
-    }
-}
-
-onMounted(cargarDatos)
-
-const mostrarNotificacion = (mensaje, tipo = 'success') => {
-    toast.value = { show: true, message: mensaje, type: tipo }
-    clearTimeout(toastTimeout)
-    toastTimeout = setTimeout(() => toast.value.show = false, 3000)
-}
-
 const abrirCrearCliente = () => {
     esEdicionCliente.value = false
-    clienteForm.value = { ...CLIENTE_DEFAULT }
+    clienteForm.value = { id: null, nombre: '' }
     mostrarModalCliente.value = true
 }
 
@@ -124,19 +124,17 @@ const guardarCliente = async () => {
     isSubmittingCliente.value = true;
 
     try {
-        let res;
-        if (esEdicionCliente.value) res = await AdminAPI.editarCliente(clienteForm.value.id, clienteForm.value)
-        else res = await AdminAPI.crearCliente(clienteForm.value)
-
-        if (res.status === 'success') {
-            mostrarModalCliente.value = false
-            await cargarDatos()
-            mostrarNotificacion(esEdicionCliente.value ? 'Cliente actualizado' : 'Cliente creado')
+        if (esEdicionCliente.value) {
+            await AdminAPI.editarCliente(clienteForm.value.id, clienteForm.value)
         } else {
-            mostrarNotificacion(res.message || 'Error al guardar cliente', 'error')
+            await AdminAPI.crearCliente(clienteForm.value)
         }
+
+        mostrarModalCliente.value = false
+        await fetchProjects()
+        mostrarNotificacion(esEdicionCliente.value ? 'Cliente actualizado' : 'Cliente creado')
     } catch (e) { 
-        mostrarNotificacion('Error de red', 'error') 
+        mostrarNotificacion(e.response?.data?.error || 'Error al guardar cliente', 'error') 
     } finally {
         isSubmittingCliente.value = false;
     }
@@ -153,47 +151,50 @@ const solicitarEliminarCliente = (clienteId) => {
 
 const abrirCrearProyectoGlobal = () => { 
     esEdicion.value = false
-    formulario.value = { ...FORM_DEFAULT }
+    proyectoForm.value = { id: null, nombre: '', cliente: '', estado: 'Activo', equipo: [] }
     mostrarModal.value = true 
 }
 
 const abrirCrearDesdeCliente = (nombreCliente) => {
     esEdicion.value = false
-    formulario.value = { ...FORM_DEFAULT, cliente: nombreCliente }
+    proyectoForm.value = { id: null, nombre: '', cliente: nombreCliente, estado: 'Activo', equipo: [] }
     mostrarModal.value = true 
 }
 
 const abrirEditar = (proyecto) => { 
     esEdicion.value = true
-    formulario.value = { ...proyecto, equipo: proyecto.equipo ? [...proyecto.equipo] : [] }
+    proyectoForm.value = { ...proyecto, equipo: proyecto.equipo ? [...proyecto.equipo] : [] }
     mostrarModal.value = true 
 }
 
 const guardar = async () => {
+    if (!proyectoForm.value.nombre || !proyectoForm.value.cliente) {
+        return mostrarNotificacion("Nombre y Cliente son obligatorios", "error")
+    }
+
     if (isSubmittingProyecto.value) return;
     isSubmittingProyecto.value = true;
 
     try {
         const payload = {
-            nombre: formulario.value.nombre,
-            cliente: formulario.value.cliente,
-            estado: formulario.value.estado,
-            usuarios_ids: formulario.value.equipo.map(u => u.id) 
+            id: proyectoForm.value.id,
+            nombre: proyectoForm.value.nombre,
+            cliente: proyectoForm.value.cliente,
+            estado: proyectoForm.value.estado,
+            usuarios_ids: proyectoForm.value.equipo.map(u => u.id) 
         }
 
-        let res
-        if (esEdicion.value) res = await AdminAPI.editarProyecto(formulario.value.id, payload)
-        else res = await AdminAPI.crearProyecto(payload)
-        
-        if (res.status === 'success') {
-            mostrarModal.value = false
-            await cargarDatos()
-            mostrarNotificacion(esEdicion.value ? 'Proyecto actualizado' : 'Proyecto creado')
+        if (esEdicion.value) {
+            await AdminAPI.editarProyecto(payload.id, payload)
         } else {
-            mostrarNotificacion('Error en la respuesta del servidor', 'error')
+            await AdminAPI.crearProyecto(payload)
         }
+        
+        mostrarModal.value = false
+        await fetchProjects()
+        mostrarNotificacion(esEdicion.value ? 'Proyecto actualizado' : 'Proyecto creado')
     } catch (error) { 
-        mostrarNotificacion('Error al guardar proyecto', 'error') 
+        mostrarNotificacion(error.response?.data?.error || 'Error al guardar proyecto', 'error') 
     } finally {
         isSubmittingProyecto.value = false;
     }
@@ -219,6 +220,8 @@ const solicitarAccion = (id, modo) => {
         confirmacion.title = 'Eliminar Proyecto (Físico)'
         confirmacion.message = '¿Estás seguro? Esta acción borrará el registro de la BD. Solo el sistema te dejará hacerlo si NO tiene horas imputadas.'
         confirmacion.type = 'danger'
+    } else if (modo === 'desasignar') {
+        confirmacion.type = 'danger'
     }
     confirmacion.show = true
 }
@@ -228,37 +231,54 @@ const ejecutarAccionConfirmada = async () => {
     isConfirming.value = true;
 
     try {
-        let res;
-        if (confirmacion.modo === 'eliminar_cliente') res = await AdminAPI.eliminarCliente(confirmacion.id)
-        else if (confirmacion.modo === 'eliminar') res = await AdminAPI.eliminarProyecto(confirmacion.id)
-        else if (['cerrar', 'desactivar', 'activar'].includes(confirmacion.modo)) {
+        if (confirmacion.modo === 'eliminar_cliente') {
+            await AdminAPI.eliminarCliente(confirmacion.id)
+        } else if (confirmacion.modo === 'eliminar') {
+            await AdminAPI.eliminarProyecto(confirmacion.id)
+        } else if (confirmacion.modo === 'desasignar') {
+            const proy = proyectos.value.find(p => p.id === confirmacion.id)
+            const newTeamIds = proy.equipo.filter(u => u.id !== confirmacion.extraUserId).map(u => u.id)
+            await AdminAPI.editarProyecto(confirmacion.id, { ...proy, usuarios_ids: newTeamIds })
+        } else if (['cerrar', 'desactivar', 'activar'].includes(confirmacion.modo)) {
             const mapEstado = { 'cerrar': 'Cerrado', 'desactivar': 'Inactivo', 'activar': 'Activo' }
-            res = await AdminAPI.cambiarEstadoProyecto(confirmacion.id, mapEstado[confirmacion.modo])
+            await AdminAPI.cambiarEstadoProyecto(confirmacion.id, mapEstado[confirmacion.modo])
         }
         
-        if (res.status === 'success') {
-            await cargarDatos();
-            mostrarModal.value = false;
-            mostrarNotificacion(res.message || 'Operación realizada');
-        } else {
-            mostrarNotificacion(res.message || 'Error en la operación', 'error');
-        }
+        await fetchProjects();
+        mostrarModal.value = false;
+        mostrarNotificacion('Operación realizada con éxito');
     } catch (error) {
-        mostrarNotificacion(error.response?.data?.message || 'Error de red', 'error');
+        mostrarNotificacion(error.response?.data?.error || error.response?.data?.message || 'Error de red', 'error');
     } finally {
         isConfirming.value = false;
         confirmacion.show = false;
     }
 }
 
-const toggleMiembroEquipo = (usuario) => {
-    const index = formulario.value.equipo.findIndex(u => u.id === usuario.id)
-    if (index >= 0) formulario.value.equipo.splice(index, 1)
-    else formulario.value.equipo.push(usuario)
+const desasignarUsuario = (proyectoId, usuarioId, nombreUsuario) => {
+    confirmacion.id = proyectoId;
+    confirmacion.extraUserId = usuarioId;
+    confirmacion.modo = 'desasignar';
+    confirmacion.title = 'Desasignar Empleado';
+    confirmacion.message = `¿Quitar a ${nombreUsuario} de este proyecto?`;
+    confirmacion.type = 'danger';
+    confirmacion.show = true;
 }
 
-const esMiembroSeleccionado = (userId) => formulario.value.equipo.some(u => u.id === userId)
+const toggleMiembroEquipo = (usuario) => {
+    const index = proyectoForm.value.equipo.findIndex(u => u.id === usuario.id)
+    if (index >= 0) proyectoForm.value.equipo.splice(index, 1)
+    else proyectoForm.value.equipo.push(usuario)
+}
+
+const esMiembroSeleccionado = (userId) => proyectoForm.value.equipo.some(u => u.id === userId)
 const obtenerEquipoVisual = (proyecto) => proyecto.equipo || []
+const getColorClass = (nombre) => {
+    const colors = ['bg-indigo-100 text-indigo-600', 'bg-rose-100 text-rose-600', 'bg-cyan-100 text-cyan-600', 'bg-emerald-100 text-emerald-600', 'bg-amber-100 text-amber-600', 'bg-purple-100 text-purple-600'];
+    let hash = 0;
+    for (let i = 0; i < nombre.length; i++) hash = nombre.charCodeAt(i) + ((hash << 5) - hash);
+    return colors[Math.abs(hash) % colors.length];
+}
 </script>
 
 <template>
@@ -282,9 +302,9 @@ const obtenerEquipoVisual = (proyecto) => proyecto.equipo || []
             </div>
 
             <div class="relative min-h-[300px]">
-                <div v-if="cargando" class="absolute inset-0 flex flex-col items-center justify-center bg-white/50 backdrop-blur-sm z-10 rounded-xl">
+                <div v-if="isLoading" class="absolute inset-0 flex flex-col items-center justify-center bg-white/50 backdrop-blur-sm z-10 rounded-xl">
                     <div class="w-10 h-10 border-4 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
-                    <p class="mt-2 text-sm text-gray-500 font-bold">Consultando SQL Server...</p>
+                    <p class="mt-2 text-sm text-gray-500 font-bold">Cargando datos...</p>
                 </div>
 
                 <div class="space-y-6 pb-10">
@@ -351,13 +371,9 @@ const obtenerEquipoVisual = (proyecto) => proyecto.equipo || []
 
                                             <div class="flex items-center opacity-0 group-hover:opacity-100 transition gap-1">
                                                 <button @click.stop="abrirEditar(proyecto)" class="p-1 text-gray-400 hover:text-blue-500" title="Editar"><Pencil class="w-4 h-4" /></button>
-                                                
                                                 <button v-if="proyecto.estado === 'Activo'" @click.stop="solicitarAccion(proyecto.id, 'cerrar')" class="p-1 text-gray-400 hover:text-amber-500" title="Cerrar Proyecto"><Lock class="w-4 h-4" /></button>
-                                                
                                                 <button v-if="proyecto.estado === 'Activo'" @click.stop="solicitarAccion(proyecto.id, 'desactivar')" class="p-1 text-gray-400 hover:text-orange-500" title="Desactivar Proyecto"><Ban class="w-4 h-4" /></button>
-                                                
                                                 <button v-if="proyecto.estado !== 'Activo'" @click.stop="solicitarAccion(proyecto.id, 'activar')" class="p-1 text-gray-400 hover:text-emerald-500" title="Activar Proyecto"><Play class="w-4 h-4" /></button>
-                                                
                                                 <button @click.stop="solicitarAccion(proyecto.id, 'eliminar')" class="p-1 text-gray-400 hover:text-red-500" title="Eliminar"><Trash2 class="w-4 h-4" /></button>
                                             </div>
                                         </div>
@@ -372,6 +388,7 @@ const obtenerEquipoVisual = (proyecto) => proyecto.equipo || []
                                             <p class="text-sm text-slate-500 flex items-center gap-1.5 font-medium truncate" title="Cliente asignado">
                                                 <Tag class="w-3.5 h-3.5" /> {{ proyecto.cliente }}
                                             </p>
+                                            
                                             <div v-if="proyecto.codigo" class="flex items-center mt-0.5">
                                                 <span class="bg-indigo-50 text-indigo-600 border border-indigo-200 px-2 py-0.5 rounded text-[10px] font-bold font-mono tracking-wider flex items-center gap-1 w-fit" title="Código Interno de Proyecto">
                                                     <Hash class="w-3 h-3 opacity-60" /> {{ proyecto.codigo }}
@@ -392,17 +409,22 @@ const obtenerEquipoVisual = (proyecto) => proyecto.equipo || []
                                         </button>
                                     </div>
 
-                                    <div class="flex-1 overflow-y-auto pr-1 space-y-1 scrollbar-thin max-h-[140px]">
+                                    <div class="flex-1 overflow-y-auto pr-1 space-y-1.5 scrollbar-thin max-h-[140px]">
                                         <template v-if="obtenerEquipoVisual(proyecto).length > 0">
                                             <div v-for="miembro in obtenerEquipoVisual(proyecto)" :key="miembro.id"
-                                                class="flex items-center gap-2 p-1.5 rounded-md hover:bg-gray-50 transition-colors">
+                                                class="flex items-center justify-between group/user p-1.5 rounded-md hover:bg-gray-50 transition-colors">
                                                 
-                                                <img v-if="miembro.foto" :src="'data:image/jpeg;base64,' + miembro.foto" class="h-6 w-6 rounded-full object-cover shadow-sm shrink-0" />
-                                                <div v-else class="h-6 w-6 rounded-full flex items-center justify-center text-[9px] font-bold shadow-sm shrink-0" :class="miembro.color">
-                                                    {{ miembro.iniciales }}
+                                                <div class="flex items-center gap-2 overflow-hidden">
+                                                    <img v-if="miembro.foto" :src="'data:image/jpeg;base64,' + miembro.foto" class="h-6 w-6 rounded-full object-cover shadow-sm shrink-0" />
+                                                    <div v-else class="h-6 w-6 rounded-full flex items-center justify-center text-[9px] font-bold shadow-sm shrink-0" :class="getColorClass(miembro.nombre)">
+                                                        {{ miembro.iniciales }}
+                                                    </div>
+                                                    <span class="text-xs font-medium text-slate-600 truncate">{{ miembro.nombre }}</span>
                                                 </div>
 
-                                                <span class="text-xs font-medium text-slate-600 truncate">{{ miembro.nombre }}</span>
+                                                <button @click.stop="desasignarUsuario(proyecto.id, miembro.id, miembro.nombre)" class="opacity-0 group-hover/user:opacity-100 text-gray-400 hover:text-red-500 hover:bg-red-50 p-1 rounded transition-all" title="Quitar empleado">
+                                                    <X class="w-3.5 h-3.5" />
+                                                </button>
                                             </div>
                                         </template>
                                         
@@ -436,12 +458,10 @@ const obtenerEquipoVisual = (proyecto) => proyecto.equipo || []
                             :disabled="isSubmittingCliente"
                             class="w-full py-2.5 rounded-lg font-bold shadow mt-2 transition flex justify-center items-center gap-2"
                             :class="isSubmittingCliente ? 'bg-slate-400 text-white cursor-not-allowed' : 'bg-slate-800 text-white hover:bg-slate-700'">
-                        
                         <svg v-if="isSubmittingCliente" class="animate-spin w-5 h-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                             <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
                             <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                         </svg>
-
                         {{ isSubmittingCliente ? 'Guardando...' : 'Guardar' }}
                     </button>
                 </div>
@@ -461,29 +481,29 @@ const obtenerEquipoVisual = (proyecto) => proyecto.equipo || []
                     
                     <div>
                         <label class="block text-sm font-bold text-slate-700 mb-1">Cliente Base</label>
-                        <select v-model="formulario.cliente" class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 outline-none bg-white">
+                        <select v-model="proyectoForm.cliente" class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 outline-none bg-white">
                             <option value="" disabled>Seleccionar cliente...</option>
-                            <option v-for="c in clientes_db" :key="c.id" :value="c.nombre">{{ c.nombre }}</option>
+                            <option v-for="c in clientesDisponibles" :key="c.id" :value="c.nombre">{{ c.nombre }}</option>
                         </select>
                         <p class="text-xs text-gray-400 mt-1">Si no aparece el cliente, ciérralo y pulsa "Nuevo Cliente".</p>
                     </div>
 
                     <div>
                         <label class="block text-sm font-bold text-slate-700 mb-1">Nombre del Proyecto</label>
-                        <input v-model="formulario.nombre" class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 outline-none" placeholder="Ej: Migración Cloud">
+                        <input v-model="proyectoForm.nombre" type="text" placeholder="Ej: Migración Cloud" class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 outline-none">
                     </div>
 
                     <div v-if="esEdicion" class="p-4 bg-gray-50 rounded-lg border border-gray-200 mt-4 flex items-center justify-between">
                         <div>
                             <p class="text-sm font-bold text-slate-700">Estado del Proyecto</p>
-                            <p class="text-xs text-gray-500">Actualmente: <span class="font-bold" :class="formulario.estado === 'Activo' ? 'text-emerald-600' : (formulario.estado === 'Cerrado' ? 'text-amber-600' : 'text-orange-600')">{{ formulario.estado }}</span></p>
+                            <p class="text-xs text-gray-500">Actualmente: <span class="font-bold" :class="proyectoForm.estado === 'Activo' ? 'text-emerald-600' : (proyectoForm.estado === 'Cerrado' ? 'text-amber-600' : 'text-orange-600')">{{ proyectoForm.estado }}</span></p>
                         </div>
                     </div>
 
                     <div>
                         <label class="block text-sm font-bold text-slate-700 mb-2">Asignar Equipo</label>
                         <div class="grid grid-cols-2 gap-2">
-                            <div v-for="user in usuarios_db" :key="user.id" 
+                            <div v-for="user in usuariosDisponibles" :key="user.id" 
                                 @click="toggleMiembroEquipo(user)"
                                 class="flex items-center gap-2 p-2 rounded-lg border cursor-pointer transition select-none"
                                 :class="esMiembroSeleccionado(user.id) ? 'bg-blue-50 border-blue-400 shadow-sm' : 'bg-white border-gray-200 hover:border-gray-300'">
@@ -542,3 +562,12 @@ const obtenerEquipoVisual = (proyecto) => proyecto.equipo || []
 
     </div>
 </template>
+
+<style scoped>
+.btn-primary {
+    @apply bg-[#26AA9B] hover:bg-[#208f82] text-white px-5 py-2.5 rounded-xl font-bold text-sm transition-all flex items-center gap-2;
+}
+.btn-secondary {
+    @apply bg-white border border-gray-200 text-gray-700 hover:bg-gray-50 px-5 py-2.5 rounded-xl font-bold text-sm transition-all flex items-center gap-2;
+}
+</style>
